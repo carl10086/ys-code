@@ -12,7 +12,7 @@ const readSchema = Type.Object({
 
 type ReadInput = Static<typeof readSchema>;
 
-export function createReadTool(cwd: string): AgentTool<typeof readSchema> {
+export function createReadTool(cwd: string): AgentTool<typeof readSchema, { path: string }> {
   return {
     name: "read",
     label: "Read",
@@ -20,20 +20,27 @@ export function createReadTool(cwd: string): AgentTool<typeof readSchema> {
     parameters: readSchema,
     async execute(toolCallId, params) {
       const absolutePath = resolve(cwd, params.path);
-      const buffer = await readFile(absolutePath);
-      let text = buffer.toString("utf-8");
+      try {
+        let text = await readFile(absolutePath, "utf-8");
 
-      if (params.offset !== undefined || params.limit !== undefined) {
-        const lines = text.split("\n");
-        const start = Math.max(0, (params.offset ?? 1) - 1);
-        const end = params.limit !== undefined ? start + params.limit : lines.length;
-        text = lines.slice(start, end).join("\n");
+        if (params.offset !== undefined || params.limit !== undefined) {
+          const lines = text.split("\n");
+          const start = Math.max(0, (params.offset ?? 1) - 1);
+          const end = params.limit !== undefined ? start + params.limit : lines.length;
+          text = lines.slice(start, end).join("\n");
+        }
+
+        return {
+          content: [{ type: "text", text }],
+          details: { path: absolutePath },
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text", text: `Error reading file: ${message}` }],
+          details: { path: absolutePath },
+        };
       }
-
-      return {
-        content: [{ type: "text", text }],
-        details: { path: absolutePath },
-      };
     },
   };
 }
