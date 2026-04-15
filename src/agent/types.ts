@@ -48,7 +48,7 @@ export interface AfterToolCallContext {
   assistantMessage: AssistantMessage;
   toolCall: AgentToolCall;
   args: unknown;
-  result: AgentToolResult<any>;
+  result: AgentToolResult<unknown>;
   isError: boolean;
   context: AgentContext;
 }
@@ -112,9 +112,9 @@ export type AgentEvent =
   | { type: "message_start"; message: AgentMessage }
   | { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
   | { type: "message_end"; message: AgentMessage }
-  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: any }
-  | { type: "tool_execution_update"; toolCallId: string; toolName: string; args: any; partialResult: any }
-  | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: any; isError: boolean };
+  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: unknown }
+  | { type: "tool_execution_update"; toolCallId: string; toolName: string; args: unknown; partialResult: unknown }
+  | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: unknown; isError: boolean };
 
 /** AgentLoop 配置 */
 export interface AgentLoopConfig extends SimpleStreamOptions {
