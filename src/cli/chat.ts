@@ -5,10 +5,13 @@ import { createReadTool, createWriteTool, createEditTool, createBashTool } from 
 import {
   formatAICardEnd,
   formatAICardStart,
+  formatAnswerPrefix,
   formatTextDelta,
   formatThinkingDelta,
+  formatThinkingPrefix,
   formatToolEnd,
   formatToolStart,
+  formatToolsPrefix,
   formatUserMessage,
 } from "./format.js";
 
@@ -29,24 +32,46 @@ const agent = new Agent({
 let turnStartTime = 0;
 const toolStartTimes = new Map<string, number>();
 
+/** 当前 turn 内是否已输出 Thinking 标签 */
+let hasEmittedThinking = false;
+/** 当前 turn 内是否已输出 Answer 标签 */
+let hasEmittedAnswer = false;
+/** 当前 turn 内是否已输出 Tools 标签 */
+let hasEmittedTools = false;
+
 agent.subscribe((event) => {
   switch (event.type) {
     case "turn_start": {
       turnStartTime = Date.now();
+      hasEmittedThinking = false;
+      hasEmittedAnswer = false;
+      hasEmittedTools = false;
       process.stdout.write(formatAICardStart(agent.state.model.name));
       break;
     }
     case "message_update": {
       const ae = event.assistantMessageEvent;
       if (ae.type === "thinking_delta") {
+        if (!hasEmittedThinking) {
+          hasEmittedThinking = true;
+          process.stdout.write(formatThinkingPrefix());
+        }
         process.stdout.write(formatThinkingDelta(ae.delta));
       } else if (ae.type === "text_delta") {
+        if (!hasEmittedAnswer) {
+          hasEmittedAnswer = true;
+          process.stdout.write(formatAnswerPrefix());
+        }
         process.stdout.write(formatTextDelta(ae.delta));
       }
       break;
     }
     case "tool_execution_start": {
       toolStartTimes.set(event.toolCallId, Date.now());
+      if (!hasEmittedTools) {
+        hasEmittedTools = true;
+        process.stdout.write(formatToolsPrefix());
+      }
       process.stdout.write(formatToolStart(event.toolName, event.args));
       break;
     }
