@@ -53,6 +53,7 @@ const agent = new Agent({
     tools: [addTool, subtractTool],
     thinkingLevel: "off",
   },
+  getApiKey: () => process.env.MINIMAX_API_KEY,
 });
 
 // 订阅 agent 事件
