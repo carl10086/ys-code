@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import path from "path";
 
 describe("chat.ts pipe mode", () => {
-  it("输出不含 ANSI escape codes 且包含标签段落", async () => {
+  it("输出不含 ANSI escape codes 且保持纯文本可管道化", async () => {
     const chatPath = path.resolve(process.cwd(), "src/cli/chat.ts");
     const child = spawn("bun", ["run", chatPath], {
       env: { ...process.env, FORCE_NON_TTY: "1" },

@@ -29,6 +29,10 @@ describe("format", () => {
     expect(formatThinkingDelta("think")).toBe("think");
   });
 
+  it("formatThinkingDelta 多行保持缩进", () => {
+    expect(formatThinkingDelta("line1\nline2")).toBe("line1\n  line2");
+  });
+
   it("formatAnswerPrefix", () => {
     expect(formatAnswerPrefix()).toBe("\nAnswer:\n");
   });

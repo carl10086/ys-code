@@ -18,9 +18,9 @@ export function formatThinkingPrefix(): string {
   return "Thinking:\n  ";
 }
 
-/** 格式化 thinking 增量 */
+/** 格式化 thinking 增量（多行时保持每行缩进） */
 export function formatThinkingDelta(delta: string): string {
-  return delta;
+  return delta.replace(/\n/g, "\n  ");
 }
 
 /** 格式化 Answer 标签前缀 */
