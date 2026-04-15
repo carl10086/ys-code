@@ -11,3 +11,4 @@ export * from "./types.js";
 export * from "./utils/event-stream.js";
 export * from "./utils/json-parse.js";
 export * from "./utils/overflow.js";
+export { validateToolArguments } from "./utils/validation.js";
