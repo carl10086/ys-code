@@ -387,19 +387,25 @@ async function executeToolCallsParallel(
     execution: executePreparedToolCall(prepared, signal, emit),
   }));
 
-  for (const running of runningCalls) {
-    const executed = await running.execution;
-    results.push(
-      await finalizeExecutedToolCall(
-        currentContext,
-        assistantMessage,
-        running.prepared,
-        executed,
-        config,
-        signal,
-        emit,
-      ),
+  // 并行执行所有工具
+  const executedResults = await Promise.all(
+    runningCalls.map((r) => r.execution),
+  );
+
+  // 顺序处理结果（保持原结果的顺序）
+  for (let i = 0; i < executedResults.length; i++) {
+    const executed = executedResults[i];
+    const prepared = runningCalls[i].prepared;
+    const finalResult = await finalizeExecutedToolCall(
+      currentContext,
+      assistantMessage,
+      prepared,
+      executed,
+      config,
+      signal,
+      emit,
     );
+    results.push(finalResult);
   }
 
   return results;
