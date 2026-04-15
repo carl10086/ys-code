@@ -11,7 +11,7 @@ const writeSchema = Type.Object({
 
 type WriteInput = Static<typeof writeSchema>;
 
-export function createWriteTool(cwd: string): AgentTool<typeof writeSchema> {
+export function createWriteTool(cwd: string): AgentTool<typeof writeSchema, { path: string; bytes: number }> {
   return {
     name: "write",
     label: "Write",
@@ -19,13 +19,22 @@ export function createWriteTool(cwd: string): AgentTool<typeof writeSchema> {
     parameters: writeSchema,
     async execute(toolCallId, params) {
       const absolutePath = resolve(cwd, params.path);
-      await mkdir(dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, params.content, "utf-8");
+      try {
+        await mkdir(dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, params.content, "utf-8");
+        const bytes = Buffer.byteLength(params.content, "utf-8");
 
-      return {
-        content: [{ type: "text", text: `Wrote ${params.content.length} bytes to ${absolutePath}` }],
-        details: { path: absolutePath, bytes: params.content.length },
-      };
+        return {
+          content: [{ type: "text", text: `Wrote ${bytes} bytes to ${absolutePath}` }],
+          details: { path: absolutePath, bytes },
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text", text: `Error writing file: ${message}` }],
+          details: { path: absolutePath, bytes: 0 },
+        };
+      }
     },
   };
 }
