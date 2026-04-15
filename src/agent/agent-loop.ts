@@ -26,18 +26,17 @@ async function runLoop(
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<void> {
-  let firstTurn = true;
+  let hasPreEmittedTurnStart = true;
   let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
 
   while (true) {
     let hasMoreToolCalls = true;
 
     while (hasMoreToolCalls || pendingMessages.length > 0) {
-      if (!firstTurn) {
+      if (!hasPreEmittedTurnStart) {
         await emit({ type: "turn_start" });
-      } else {
-        firstTurn = false;
       }
+      hasPreEmittedTurnStart = false;
 
       if (pendingMessages.length > 0) {
         for (const message of pendingMessages) {
@@ -79,6 +78,7 @@ async function runLoop(
     const followUpMessages = (await config.getFollowUpMessages?.()) || [];
     if (followUpMessages.length > 0) {
       pendingMessages = followUpMessages;
+      hasPreEmittedTurnStart = false;
       continue;
     }
 

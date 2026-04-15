@@ -246,3 +246,11 @@ describe("runAgentLoopContinue", () => {
     expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");
   });
 });
+
+describe("runLoop 控制流结构", () => {
+  it("不应包含 firstTurn 标志", () => {
+    const fs = require("fs");
+    const source = fs.readFileSync("src/agent/agent-loop.ts", "utf-8");
+    expect(source).not.toContain("firstTurn");
+  });
+});
