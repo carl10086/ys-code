@@ -1,0 +1,12 @@
+node_modules/
+.bun/
+dist/
+coverage/
+.DS_Store
+.env
+.env.*
+examples/.env
+examples/.env.*
+refer/
+.idea/
+/docs/.obsidian/
