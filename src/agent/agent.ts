@@ -342,7 +342,7 @@ export class Agent {
     images?: ImageContent[],
   ): AgentMessage[] {
     if (Array.isArray(input)) {
-      return input;
+      return input.slice();
     }
 
     if (typeof input !== "string") {
@@ -456,7 +456,7 @@ export class Agent {
       errorMessage: error instanceof Error ? error.message : String(error),
       timestamp: Date.now(),
     } satisfies AgentMessage;
-    this._state.messages.push(failureMessage);
+    this._state.messages = [...this._state.messages, failureMessage];
     this._state.errorMessage = failureMessage.errorMessage;
     await this.processEvents({ type: "agent_end", messages: [failureMessage] });
   }
@@ -481,7 +481,7 @@ export class Agent {
 
       case "message_end":
         this._state.streamingMessage = undefined;
-        this._state.messages.push(event.message);
+        this._state.messages = [...this._state.messages, event.message];
         break;
 
       case "tool_execution_start": {
