@@ -377,13 +377,14 @@ function createClient(
 	}
 
 	return new Anthropic({
-		apiKey,
+		apiKey: "",
 		baseURL: model.baseUrl,
 		dangerouslyAllowBrowser: true,
 		defaultHeaders: mergeHeaders(
 			{
 				accept: "application/json",
 				"anthropic-dangerous-direct-browser-access": "true",
+				"x-api-key": apiKey,
 				...(betaFeatures.length > 0 ? { "anthropic-beta": betaFeatures.join(",") } : {}),
 			},
 			model.headers,
