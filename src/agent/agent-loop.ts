@@ -1,21 +1,13 @@
 // src/agent/agent-loop.ts
-import { EventStream, type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
+import { type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
 import type {
   AgentContext,
-  AgentEvent,
   AgentLoopConfig,
   AgentMessage,
   StreamFn,
 } from "./types.js";
-
-function createAgentStream(): EventStream<AgentEvent, AgentMessage[]> {
-  return new EventStream<AgentEvent, AgentMessage[]>(
-    (event: AgentEvent) => event.type === "agent_end",
-    (event: AgentEvent) => (event.type === "agent_end" ? event.messages : []),
-  );
-}
 
 async function runTurnOnce(
   currentContext: AgentContext,

@@ -259,4 +259,10 @@ describe("runLoop 控制流结构", () => {
     const source = fs.readFileSync("src/agent/agent-loop.ts", "utf-8");
     expect(source).toContain("async function runTurnOnce");
   });
+
+  it("不应包含未使用的 createAgentStream 函数", () => {
+    const fs = require("fs");
+    const source = fs.readFileSync("src/agent/agent-loop.ts", "utf-8");
+    expect(source).not.toContain("createAgentStream");
+  });
 });
