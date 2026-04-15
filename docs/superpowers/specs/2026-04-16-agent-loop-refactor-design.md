@@ -9,10 +9,13 @@
 ### 成功标准
 
 - `agent-loop.ts` 行数从 534 降到 150 以内
-- `streamAssistantResponse` 和工具执行逻辑各自迁到独立文件
-- 重复逻辑（`streamAssistantResponse` 末尾两次相同的 finalize 代码块）被消除
+- `streamAssistantResponse` 和工具执行逻辑各自迁到独立文件（已完成）
+- 重复逻辑（`streamAssistantResponse` 末尾两次相同的 finalize 代码块）被消除（已完成）
+- **`runTurnOnce` 提取**：`runLoop` 的内层循环体提取为独立函数，职责单一
+- **`firstTurn` 消除**：删除 `firstTurn` 标志，由入口预发射 + `hasPreEmittedTurnStart` 替代
+- **`createAgentStream` 删除**：移除从未使用的死代码
 - `agent/index.ts` 的导出不变，外部调用方零感知
-- 新增单元测试覆盖率全面，覆盖流式响应、顺序/并行工具执行、主循环控制流、事件发射时序、错误和取消场景
+- 新增单元测试覆盖率全面，覆盖流式响应、顺序/并行工具执行、主循环控制流、事件发射时序、错误和取消场景（已完成）
 - 所有测试在重构前后均通过
 
 ---
@@ -43,11 +46,19 @@
 - 移入以下函数：`createErrorToolResult`、`emitToolCallOutcome`、`prepareToolCall`、`executePreparedToolCall`、`finalizeExecutedToolCall`、`executeToolCalls`、`executeToolCallsSequential`、`executeToolCallsParallel`
 - 这些函数本身逻辑不变，只是换文件
 
-### `agent-loop.ts`
+### `agent-loop.ts`（v2 补完）
 
-- 保留 `createAgentStream`、`runLoop`、`runAgentLoop`、`runAgentLoopContinue`
-- `runLoop` 内部允许做的小幅调整：把双重 `while` 的内层控制流梳理得更扁平。具体做法是保留外层 `while (true)`，内层通过 `hasMoreToolCalls || pendingMessages.length > 0` 驱动，但把 `firstTurn` 的处理和 `turn_start` 的发射逻辑收紧，减少嵌套层级
-- 导入 `streamAssistantResponse` 和 `executeToolCalls`
+`agent-loop.ts` 转变为纯编排入口，内部只保留 4 个函数：
+
+**`runTurnOnce`**（`private`）：单次 turn 的完整执行。负责注入 pending messages（steering/follow-up）、请求 assistant 响应、执行 tools、发射 `turn_end`，返回 `{ assistantMessage, toolResults }`，让 `runLoop` 做后续流转判断。
+
+**`runLoop`**（`private`）：turn 序列编排。循环调用 `runTurnOnce`，处理 steering/follow-up，控制 `agent_end`。入口函数预先发射首次 `turn_start`，`runLoop` 内部用 `hasPreEmittedTurnStart` 追踪。
+
+**`runAgentLoop` / `runAgentLoopContinue`**（`exported`）：外部入口。负责初始化、发射 `agent_start` 和首次 `turn_start`，然后进入 `runLoop`。
+
+**删除**：`createAgentStream`（从未使用）。
+
+导入 `streamAssistantResponse` 和 `executeToolCalls`。
 
 ---
 
@@ -59,9 +70,18 @@
 
 现在 `done/error` 分支（第 96-109 行）和 `for await` 结束后的 fallback（第 113-121 行）逻辑几乎一致。提取为 `finalizeStreamMessage` 后只调用一次。
 
-### 4.2 `runLoop` 的 `firstTurn` 标志
+### 4.2 `runLoop` 的 `firstTurn` 标志（v2 补完）
 
-目前通过 `firstTurn` 布尔值来决定是否发射 `turn_start`。微调后，在 `runAgentLoop` 和 `runAgentLoopContinue` 中先发射一次 `turn_start`，`runLoop` 内部每次循环开始时统一发射，从而去掉 `firstTurn` 变量。事件序列对外保持一致。
+**问题**：`runLoop` 用 `firstTurn` 布尔值来决定是否发射 `turn_start`，导致入口初始化逻辑和循环控制流耦合。
+
+**重构方案**（提取 `runTurnOnce`）：
+1. `runAgentLoop` 和 `runAgentLoopContinue` 在调用 `runLoop` **之前**各自发射一次 `turn_start`
+2. `runLoop` 内部用 `hasPreEmittedTurnStart`（初始 `true`）记录"首次已预先发射"
+3. 每次内层循环调用 `runTurnOnce` 之前，若 `hasPreEmittedTurnStart === false`，则发射 `turn_start`
+4. follow-up 触发新一轮外层循环时，重置 `hasPreEmittedTurnStart = false`（因为 follow-up 开启新 turn）
+5. 彻底删除 `firstTurn` 变量
+
+事件序列对外保持完全一致。
 
 ---
 
