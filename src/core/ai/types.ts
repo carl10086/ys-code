@@ -132,6 +132,15 @@ export interface UserMessage {
 	timestamp: number;
 }
 
+/** 角色常量 */
+export const ROLE = {
+	USER: "user",
+	ASSISTANT: "assistant",
+	TOOL_RESULT: "toolResult",
+	SYSTEM: "system",
+	TOOL: "tool",
+} as const;
+
 export interface AssistantMessage {
 	role: "assistant";
 	content: (TextContent | ThinkingContent | ToolCall)[];
