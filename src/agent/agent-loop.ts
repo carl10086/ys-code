@@ -9,6 +9,18 @@ import type {
   StreamFn,
 } from "./types.js";
 
+/**
+ * 执行单次 turn：注入 pendingMessages、请求 assistant 回复、执行工具调用并发射 turn_end。
+ *
+ * @param currentContext - 当前 agent 上下文
+ * @param newMessages - 本轮 agent 产生的新消息集合
+ * @param pendingMessages - 待注入的 steering / follow-up 消息数组（会被清空）
+ * @param config - agent 循环配置
+ * @param signal - 可选的取消信号
+ * @param emit - 事件发射器
+ * @param streamFn - 可选的流式请求函数
+ * @returns assistant 消息与工具执行结果
+ */
 async function runTurnOnce(
   currentContext: AgentContext,
   newMessages: AgentMessage[],
@@ -49,7 +61,16 @@ async function runTurnOnce(
   return { assistantMessage: message, toolResults };
 }
 
-// 主循环逻辑
+/**
+ * 核心循环逻辑：反复执行 turn，直到没有更多工具调用、steering 消息或 follow-up 消息为止。
+ *
+ * @param currentContext - 当前 agent 上下文
+ * @param newMessages - 本轮 agent 产生的新消息集合
+ * @param config - agent 循环配置
+ * @param signal - 可选的取消信号
+ * @param emit - 事件发射器
+ * @param streamFn - 可选的流式请求函数
+ */
 async function runLoop(
   currentContext: AgentContext,
   newMessages: AgentMessage[],
@@ -102,6 +123,20 @@ async function runLoop(
   await emit({ type: "agent_end", messages: newMessages });
 }
 
+/**
+ * 启动全新的 agent 循环。
+ *
+ * 先发射 agent_start、turn_start 以及所有 prompt 的 message_start/end 事件，
+ * 然后进入核心循环直到结束。
+ *
+ * @param prompts - 用户初始 prompt 消息
+ * @param context - 初始 agent 上下文
+ * @param config - agent 循环配置
+ * @param emit - 事件发射器
+ * @param signal - 可选的取消信号
+ * @param streamFn - 可选的流式请求函数
+ * @returns 本轮产生的新消息数组（包含 prompts 和 assistant 回复）
+ */
 export async function runAgentLoop(
   prompts: AgentMessage[],
   context: AgentContext,
@@ -127,6 +162,18 @@ export async function runAgentLoop(
   return newMessages;
 }
 
+/**
+ * 从已有上下文继续 agent 循环。
+ *
+ * 要求上下文中最后一条消息不能是 assistant，且消息列表不能为空。
+ *
+ * @param context - 当前 agent 上下文
+ * @param config - agent 循环配置
+ * @param emit - 事件发射器
+ * @param signal - 可选的取消信号
+ * @param streamFn - 可选的流式请求函数
+ * @returns 本轮产生的新消息数组
+ */
 export async function runAgentLoopContinue(
   context: AgentContext,
   config: AgentLoopConfig,
