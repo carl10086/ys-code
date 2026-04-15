@@ -13,9 +13,19 @@ export function formatAICardStart(_modelName: string): string {
   return "Assistant\n---\n";
 }
 
+/** 格式化 Thinking 标签前缀 */
+export function formatThinkingPrefix(): string {
+  return "Thinking:\n  ";
+}
+
 /** 格式化 thinking 增量 */
 export function formatThinkingDelta(delta: string): string {
-  return `> ${delta}`;
+  return delta;
+}
+
+/** 格式化 Answer 标签前缀 */
+export function formatAnswerPrefix(): string {
+  return "\nAnswer:\n";
 }
 
 /** 格式化正文增量 */
@@ -23,9 +33,14 @@ export function formatTextDelta(delta: string): string {
   return delta;
 }
 
+/** 格式化 Tools 标签前缀 */
+export function formatToolsPrefix(): string {
+  return "\nTools:\n";
+}
+
 /** 格式化工具开始 */
 export function formatToolStart(toolName: string, args: unknown): string {
-  return `\n-> ${toolName}${formatToolArgs(args)}\n`;
+  return `-> ${toolName}${formatToolArgs(args)}\n`;
 }
 
 /** 格式化工具结束 */

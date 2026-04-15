@@ -7,6 +7,9 @@ import {
   formatToolStart,
   formatToolEnd,
   formatAICardEnd,
+  formatThinkingPrefix,
+  formatAnswerPrefix,
+  formatToolsPrefix,
 } from "../format.js";
 
 describe("format", () => {
@@ -18,16 +21,28 @@ describe("format", () => {
     expect(formatAICardStart("test-model")).toBe("Assistant\n---\n");
   });
 
+  it("formatThinkingPrefix", () => {
+    expect(formatThinkingPrefix()).toBe("Thinking:\n  ");
+  });
+
   it("formatThinkingDelta", () => {
-    expect(formatThinkingDelta("think")).toBe("> think");
+    expect(formatThinkingDelta("think")).toBe("think");
+  });
+
+  it("formatAnswerPrefix", () => {
+    expect(formatAnswerPrefix()).toBe("\nAnswer:\n");
   });
 
   it("formatTextDelta", () => {
     expect(formatTextDelta("hi")).toBe("hi");
   });
 
+  it("formatToolsPrefix", () => {
+    expect(formatToolsPrefix()).toBe("\nTools:\n");
+  });
+
   it("formatToolStart", () => {
-    expect(formatToolStart("read_file", { path: "src/main.ts" })).toBe('\n-> read_file(path: "src/main.ts")\n');
+    expect(formatToolStart("read_file", { path: "src/main.ts" })).toBe('-> read_file(path: "src/main.ts")\n');
   });
 
   it("formatToolEnd 成功", () => {
