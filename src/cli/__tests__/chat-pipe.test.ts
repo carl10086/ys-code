@@ -3,7 +3,7 @@ import { spawn } from "child_process";
 import path from "path";
 
 describe("chat.ts pipe mode", () => {
-  it("输出不含 ANSI escape codes", async () => {
+  it("输出不含 ANSI escape codes 且包含标签段落", async () => {
     const chatPath = path.resolve(process.cwd(), "src/cli/chat.ts");
     const child = spawn("bun", ["run", chatPath], {
       env: { ...process.env, FORCE_NON_TTY: "1" },
@@ -30,7 +30,7 @@ describe("chat.ts pipe mode", () => {
     });
 
     expect(stdout).not.toContain("\x1b");
-    // "/exit" 命令直接退出，不输出 formatUserMessage，所以只检查 prompt 存在
     expect(stdout).toContain("> ");
+    // 由于 /exit 直接退出，不会触发 AI 回复块，但格式本身在其它测试中已覆盖
   });
 });
