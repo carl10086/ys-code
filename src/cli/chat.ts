@@ -55,7 +55,7 @@ agent.subscribe((event) => {
       toolStartTimes.delete(event.toolCallId);
       const summary = event.isError
         ? String((event.result as any)?.content?.[0]?.text ?? "error")
-        : "";
+        : String((event.result as any)?.content?.[0]?.text ?? "");
       const elapsed = Date.now() - startTime;
       process.stdout.write(formatToolEnd(event.toolName, event.isError, summary || "done", elapsed));
       break;
