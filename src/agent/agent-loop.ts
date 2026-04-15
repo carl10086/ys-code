@@ -1,5 +1,5 @@
 // src/agent/agent-loop.ts
-import { EventStream, type ToolResultMessage } from "../core/ai/index.js";
+import { EventStream, type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
 import type {
@@ -15,6 +15,46 @@ function createAgentStream(): EventStream<AgentEvent, AgentMessage[]> {
     (event: AgentEvent) => event.type === "agent_end",
     (event: AgentEvent) => (event.type === "agent_end" ? event.messages : []),
   );
+}
+
+async function runTurnOnce(
+  currentContext: AgentContext,
+  newMessages: AgentMessage[],
+  pendingMessages: AgentMessage[],
+  config: AgentLoopConfig,
+  signal: AbortSignal | undefined,
+  emit: AgentEventSink,
+  streamFn?: StreamFn,
+): Promise<{ assistantMessage: AssistantMessage; toolResults: ToolResultMessage[] }> {
+  if (pendingMessages.length > 0) {
+    for (const message of pendingMessages) {
+      await emit({ type: "message_start", message });
+      await emit({ type: "message_end", message });
+      currentContext.messages.push(message);
+      newMessages.push(message);
+    }
+    pendingMessages.length = 0;
+  }
+
+  const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+  newMessages.push(message);
+
+  const toolCalls = message.content.filter((c) => c.type === "toolCall");
+  const hasMoreToolCalls = toolCalls.length > 0;
+
+  const toolResults: ToolResultMessage[] = [];
+  if (hasMoreToolCalls) {
+    toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
+
+    for (const result of toolResults) {
+      currentContext.messages.push(result);
+      newMessages.push(result);
+    }
+  }
+
+  await emit({ type: "turn_end", message, toolResults });
+
+  return { assistantMessage: message, toolResults };
 }
 
 // 主循环逻辑
@@ -38,40 +78,22 @@ async function runLoop(
       }
       hasPreEmittedTurnStart = false;
 
-      if (pendingMessages.length > 0) {
-        for (const message of pendingMessages) {
-          await emit({ type: "message_start", message });
-          await emit({ type: "message_end", message });
-          currentContext.messages.push(message);
-          newMessages.push(message);
-        }
-        pendingMessages = [];
-      }
-
-      const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
-      newMessages.push(message);
+      const { assistantMessage: message, toolResults } = await runTurnOnce(
+        currentContext,
+        newMessages,
+        pendingMessages,
+        config,
+        signal,
+        emit,
+        streamFn,
+      );
 
       if (message.stopReason === "error" || message.stopReason === "aborted") {
-        await emit({ type: "turn_end", message, toolResults: [] });
         await emit({ type: "agent_end", messages: newMessages });
         return;
       }
 
-      const toolCalls = message.content.filter((c) => c.type === "toolCall");
-      hasMoreToolCalls = toolCalls.length > 0;
-
-      const toolResults: ToolResultMessage[] = [];
-      if (hasMoreToolCalls) {
-        toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
-
-        for (const result of toolResults) {
-          currentContext.messages.push(result);
-          newMessages.push(result);
-        }
-      }
-
-      await emit({ type: "turn_end", message, toolResults });
-
+      hasMoreToolCalls = message.content.filter((c) => c.type === "toolCall").length > 0;
       pendingMessages = (await config.getSteeringMessages?.()) || [];
     }
 
