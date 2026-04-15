@@ -47,10 +47,11 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): any {
     return toolCall.arguments;
   }
 
-  let validate = validatorCache.get(tool.name);
+  const cacheKey = `${tool.name}::${JSON.stringify(tool.parameters)}`;
+  let validate = validatorCache.get(cacheKey);
   if (!validate) {
     validate = ajv.compile(tool.parameters);
-    validatorCache.set(tool.name, validate);
+    validatorCache.set(cacheKey, validate);
   }
 
   const args = structuredClone(toolCall.arguments);
