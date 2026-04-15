@@ -2,7 +2,7 @@
 import readline from "readline/promises";
 import chalk from "chalk";
 import { Agent } from "../agent/agent.js";
-import type { AgentEvent, AgentMessage } from "../agent/types.js";
+import type { AgentEvent } from "../agent/types.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool } from "../tools/index.js";
 
@@ -29,8 +29,6 @@ const agent = new Agent({
   },
 });
 
-let isStreaming = false;
-
 agent.subscribe((event) => {
   handleEvent(event);
 });
@@ -38,13 +36,15 @@ agent.subscribe((event) => {
 function handleEvent(event: AgentEvent): void {
   switch (event.type) {
     case "agent_start": {
-      isStreaming = true;
-      process.stdout.write("▶ ");
+      process.stdout.write(chalk.dim("\n▶ "));
       break;
     }
     case "agent_end": {
-      isStreaming = false;
       process.stdout.write("\n");
+      break;
+    }
+    case "turn_start": {
+      process.stdout.write(chalk.dim("\n···\n"));
       break;
     }
     case "message_update": {
@@ -53,6 +53,8 @@ function handleEvent(event: AgentEvent): void {
         process.stdout.write(ae.delta);
       } else if (ae.type === "thinking_delta") {
         process.stdout.write(chalk.gray(ae.delta));
+      } else if (ae.type === "toolcall_start" || ae.type === "toolcall_delta") {
+        // 静默处理 toolcall 流式 JSON，不输出到终端
       }
       break;
     }
@@ -62,15 +64,14 @@ function handleEvent(event: AgentEvent): void {
     }
     case "tool_execution_end": {
       const result = event.result as { content?: Array<{ type: string; text?: string }> } | undefined;
-      const isError = event.isError;
-      const prefix = isError ? "✗" : "✓";
+      const prefix = event.isError ? chalk.red("✗") : chalk.green("✓");
       const summary = result?.content?.map((c) => (c.type === "text" ? c.text : "")).join("").slice(0, 80) ?? "";
       process.stdout.write(`${prefix} ${summary}${summary.length >= 80 ? "..." : ""}\n`);
       break;
     }
     case "turn_end": {
       if (event.message.role === "assistant") {
-        const usage = (event.message as Extract<AgentMessage, { role: "assistant" }>).usage;
+        const usage = event.message.usage;
         if (usage) {
           process.stdout.write(
             chalk.dim(
@@ -138,23 +139,31 @@ async function main(): Promise<void> {
     }
 
     try {
-      if (isStreaming) {
+      if (agent.state.isStreaming) {
         agent.steer({
           role: "user",
           content: [{ type: "text", text: input }],
           timestamp: Date.now(),
         });
+        rl.prompt();
       } else {
+        rl.pause();
         await agent.prompt(input);
+        rl.resume();
+        rl.prompt();
       }
     } catch (err) {
+      rl.resume();
       console.error(chalk.red(`Error: ${err}`));
+      rl.prompt();
     }
-
-    rl.prompt();
   });
 
-  rl.on("close", () => {
+  rl.on("close", async () => {
+    if (agent.state.isStreaming) {
+      agent.abort();
+      await agent.waitForIdle().catch(() => {});
+    }
     process.exit(0);
   });
 }
