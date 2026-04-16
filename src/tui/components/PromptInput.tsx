@@ -21,6 +21,16 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
   useInput((input, key) => {
     if (disabled) return;
 
+    const insertNewline = () => {
+      const line = lines[cursorLine] ?? "";
+      const newLines = [...lines];
+      newLines[cursorLine] = line.slice(0, cursorCol);
+      newLines.splice(cursorLine + 1, 0, line.slice(cursorCol));
+      setLines(newLines);
+      setCursorLine((l) => l + 1);
+      setCursorCol(0);
+    };
+
     if (key.return) {
       const text = lines.join("\n").trim();
       if (!text) return;
@@ -119,8 +129,20 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
       return;
     }
 
-    if (input === "\r" || input === "\n") {
-      // Shift+Enter 或者普通换行（已由 return 处理，此处忽略）
+    if (key.ctrl && input === "u") {
+      setLines((prev) => prev.map((l, i) => (i === cursorLine ? "" : l)));
+      setCursorCol(0);
+      return;
+    }
+
+    if (input === "\r" || input === "\n" || input === "\r\n") {
+      insertNewline();
+      return;
+    }
+
+    // 处理某些终端中 Shift+Enter 发送的 escape sequence（如 [27;2;13~）
+    if (input && input.startsWith("[") && input.endsWith("~") && input.includes(";")) {
+      insertNewline();
       return;
     }
 
