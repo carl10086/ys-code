@@ -13,7 +13,7 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 export function App(): React.ReactElement {
-  const { agent, messages, shouldScrollToBottom, markScrolled } = useAgent({
+  const { agent, messages, shouldScrollToBottom, markScrolled, appendUserMessage } = useAgent({
     systemPrompt,
     model,
     apiKey,
@@ -55,6 +55,8 @@ export function App(): React.ReactElement {
   const handleSubmit = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    appendUserMessage(trimmed);
 
     if (isStreaming) {
       agent.steer({ role: "user", content: [{ type: "text", text: trimmed }], timestamp: Date.now() });

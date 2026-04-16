@@ -24,6 +24,8 @@ export interface UseAgentResult {
   shouldScrollToBottom: boolean;
   /** 标记滚动已执行 */
   markScrolled: () => void;
+  /** 添加用户消息到列表 */
+  appendUserMessage: (text: string) => void;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
@@ -118,5 +120,9 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     messages,
     shouldScrollToBottom,
     markScrolled: () => setShouldScrollToBottom(false),
+    appendUserMessage: (text: string) => {
+      setMessages((prev) => [...prev, { type: "user", text }]);
+      setShouldScrollToBottom(true);
+    },
   };
 }
