@@ -54,7 +54,13 @@ export interface AfterToolCallContext {
 }
 
 /** thinking 等级 */
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type ThinkingLevel =
+  | "off"   // 不使用 thinking
+  | "minimal"   // 极简 thinking，仅最终答案
+  | "low"   // 低级别 thinking
+  | "medium"   // 中等级别 thinking（平衡速度和深度）
+  | "high"   // 高级别 thinking（更深入分析）
+  | "xhigh";   // 极高 thinking（最深度推理）
 
 /** 自定义消息扩展接口（通过 declaration merging 扩展） */
 export interface CustomAgentMessages {}
@@ -62,19 +68,27 @@ export interface CustomAgentMessages {}
 /** Agent 消息类型 */
 export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessages];
 
-/** 工具执行结果 */
+/** 工具执行结果
+ * @template T 详细信息类型
+ */
 export interface AgentToolResult<T> {
   content: (TextContent | ImageContent)[];
   details: T;
 }
 
 /** 工具定义 */
-export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> {
+export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unknown> {
   name: string;
   description: string;
   parameters: TParameters;
   label: string;
   prepareArguments?: (args: unknown) => Static<TParameters>;
+  /** 执行工具
+   * @param toolCallId 工具调用唯一标识
+   * @param params 经过 prepareArguments 处理后的参数
+   * @param signal 可选的 abort 信号
+   * @param onUpdate 可选的进度回调
+   */
   execute: (
     toolCallId: string,
     params: Static<TParameters>,
@@ -105,26 +119,26 @@ export interface AgentState {
 
 /** Agent 事件类型 */
 export type AgentEvent =
-  | { type: "agent_start" }
-  | { type: "agent_end"; messages: AgentMessage[] }
-  | { type: "turn_start" }
-  | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }
-  | { type: "message_start"; message: AgentMessage }
-  | { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
-  | { type: "message_end"; message: AgentMessage }
-  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: unknown }
-  | { type: "tool_execution_update"; toolCallId: string; toolName: string; args: unknown; partialResult: unknown }
-  | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: unknown; isError: boolean };
+  | { type: "agent_start" }   // Agent 开始
+  | { type: "agent_end"; messages: AgentMessage[] }   // Agent 结束
+  | { type: "turn_start" }   // 轮次开始
+  | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }   // 轮次结束
+  | { type: "message_start"; message: AgentMessage }   // 消息开始
+  | { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }   // 消息更新
+  | { type: "message_end"; message: AgentMessage }   // 消息结束
+  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: unknown }   // 工具执行开始
+  | { type: "tool_execution_update"; toolCallId: string; toolName: string; args: unknown; partialResult: unknown }   // 工具执行进度更新
+  | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: unknown; isError: boolean };   // 工具执行结束
 
 /** AgentLoop 配置 */
 export interface AgentLoopConfig extends SimpleStreamOptions {
-  model: Model<any>;
-  convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-  getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  getSteeringMessages?: () => Promise<AgentMessage[]>;
-  getFollowUpMessages?: () => Promise<AgentMessage[]>;
-  toolExecution?: ToolExecutionMode;
-  beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
-  afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
+  model: Model<any>;   // 使用的 AI 模型
+  convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;   // 将 Agent 消息转换为 LLM 消息格式
+  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;   // 可选的消息转换/过滤函数
+  getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;   // 可选的自定义 API Key 获取函数
+  getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
+  getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数
+  toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
+  beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;   // 工具执行前的钩子，可阻止或修改行为
+  afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;   // 工具执行后的钩子，可覆盖结果
 }
