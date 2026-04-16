@@ -6,6 +6,7 @@ import type {
   Message,
   Model,
   SimpleStreamOptions,
+  SystemPrompt,
   TextContent,
   ToolResultMessage,
 } from "../core/ai/index.js";
@@ -99,14 +100,16 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 
 /** Agent 上下文快照 */
 export interface AgentContext {
-  systemPrompt: string;
+  /** 系统提示词 */
+  systemPrompt: SystemPrompt;
   messages: AgentMessage[];
   tools?: AgentTool<any>[];
 }
 
 /** Agent 公开状态 */
 export interface AgentState {
-  systemPrompt: string;
+  /** 系统提示词 */
+  systemPrompt: SystemPrompt;
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
   tools: AgentTool<any>[];
@@ -132,8 +135,8 @@ export type AgentEvent =
 
 /** AgentLoop 配置 */
 export interface AgentLoopConfig extends SimpleStreamOptions {
-  /** 系统提示词（支持 section 数组） */
-  systemPrompt?: string | string[];
+  /** 系统提示词 */
+  systemPrompt?: SystemPrompt;
   model: Model<any>;   // 使用的 AI 模型
   convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;   // 将 Agent 消息转换为 LLM 消息格式
   transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;   // 可选的消息转换/过滤函数
