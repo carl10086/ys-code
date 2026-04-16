@@ -178,9 +178,15 @@ export interface Tool<TParameters extends TSchema = TSchema> {
 	parameters: TParameters;
 }
 
+export type SystemPrompt = readonly string[] & { readonly __brand: 'SystemPrompt' };
+
+export function asSystemPrompt(value: readonly string[]): SystemPrompt {
+  return value as unknown as SystemPrompt;
+}
+
 export interface Context {
 	/** 系统提示词 */
-	systemPrompt?: string | string[];
+	systemPrompt?: SystemPrompt;
 	/** 消息列表 */
 	messages: Message[];
 	/** 工具列表 */
