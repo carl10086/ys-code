@@ -7,7 +7,6 @@ import { Type } from "@sinclair/typebox";
 
 function createMockContext(tools: AgentTool<any>[] = []): AgentContext {
   return {
-    systemPrompt: asSystemPrompt(["test"]),
     messages: [],
     tools,
   };

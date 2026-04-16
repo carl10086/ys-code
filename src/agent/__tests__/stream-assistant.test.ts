@@ -20,13 +20,13 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
       maxTokens: 100,
     },
     convertToLlm: (messages: any[]) => messages as Message[],
+    systemPrompt: asSystemPrompt(["test"]),
     ...overrides,
   } as AgentLoopConfig;
 }
 
 function createMockContext(): AgentContext {
   return {
-    systemPrompt: asSystemPrompt(["test"]),
     messages: [],
     tools: [],
   };

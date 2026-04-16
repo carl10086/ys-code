@@ -39,13 +39,13 @@ function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason:
 describe("runAgentLoop", () => {
   it("完整流程：用户消息 -> assistant 回复 -> 无工具 -> 正常结束", async () => {
     const context: AgentContext = {
-      systemPrompt: asSystemPrompt(["test"]),
       messages: [],
       tools: [],
     };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
     } as any;
 
     const events: AgentEvent[] = [];
@@ -76,11 +76,12 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在 turn 之间正确注入", async () => {
-    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
+    const context: AgentContext = { messages: [], tools: [] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
       getSteeringMessages: async () => {
         steeringCall++;
         if (steeringCall === 1) return [createUserMessage("steer-1")];
@@ -111,11 +112,12 @@ describe("runAgentLoop", () => {
   });
 
   it("followUpMessages 在即将停止时触发新一轮", async () => {
-    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
+    const context: AgentContext = { messages: [], tools: [] };
     let followUpCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
       getFollowUpMessages: async () => {
         followUpCall++;
         if (followUpCall === 1) return [createUserMessage("follow-up")];
@@ -146,10 +148,11 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 error 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
+    const context: AgentContext = { messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
     } as any;
 
     const events: AgentEvent[] = [];
@@ -172,10 +175,11 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 aborted 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
+    const context: AgentContext = { messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
     } as any;
 
     const events: AgentEvent[] = [];
@@ -201,13 +205,13 @@ describe("runAgentLoop", () => {
 describe("runAgentLoopContinue", () => {
   it("从已有上下文继续并生成新消息", async () => {
     const context: AgentContext = {
-      systemPrompt: asSystemPrompt(["test"]),
       messages: [createUserMessage("hello")],
       tools: [],
     };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
     } as any;
 
     const events: AgentEvent[] = [];
@@ -231,18 +235,17 @@ describe("runAgentLoopContinue", () => {
 
   it("最后一条消息为 assistant 时抛出错误", async () => {
     const context: AgentContext = {
-      systemPrompt: asSystemPrompt(["test"]),
       messages: [createAssistantMessage("hi")],
       tools: [],
     };
-    const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[] } as any;
+    const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[], systemPrompt: asSystemPrompt(["test"]) } as any;
 
     expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue from message role: assistant");
   });
 
   it("空消息时抛出错误", async () => {
-    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
-    const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[] } as any;
+    const context: AgentContext = { messages: [], tools: [] };
+    const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[], systemPrompt: asSystemPrompt(["test"]) } as any;
 
     expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");
   });
