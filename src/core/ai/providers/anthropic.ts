@@ -29,6 +29,7 @@ import { parseStreamingJson } from "../utils/json-parse.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
 import { adjustMaxTokensForThinking, buildBaseOptions } from "./simple-options.js";
 import { transformMessages } from "./transform-messages.js";
+import { SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from "../../../agent/system-prompt/types.js";
 
 function resolveCacheRetention(cacheRetention?: CacheRetention): CacheRetention {
 	if (cacheRetention) return cacheRetention;
@@ -393,6 +394,34 @@ function createClient(
 	});
 }
 
+function buildSystemBlocks(
+	sections: string[],
+	cacheControl?: { type: "ephemeral"; ttl?: "1h" },
+): Anthropic.Messages.TextBlockParam[] {
+	const boundaryIndex = sections.indexOf(SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
+	const staticSections = boundaryIndex >= 0 ? sections.slice(0, boundaryIndex) : sections;
+	const dynamicSections = boundaryIndex >= 0 ? sections.slice(boundaryIndex + 1) : [];
+
+	const blocks: Anthropic.Messages.TextBlockParam[] = [];
+	const staticText = staticSections.filter((s) => s.trim().length > 0).join("\n\n");
+	const dynamicText = dynamicSections.filter((s) => s.trim().length > 0).join("\n\n");
+
+	if (staticText) {
+		blocks.push({
+			type: "text",
+			text: sanitizeSurrogates(staticText),
+			...(cacheControl ? { cache_control: cacheControl } : {}),
+		});
+	}
+	if (dynamicText) {
+		blocks.push({
+			type: "text",
+			text: sanitizeSurrogates(dynamicText),
+		});
+	}
+	return blocks;
+}
+
 function buildParams(
 	model: Model<"anthropic-messages">,
 	context: Context,
@@ -407,17 +436,17 @@ function buildParams(
 	};
 
 	if (context.systemPrompt) {
-		params.system = [
-			{
-				type: "text",
-				text: sanitizeSurrogates(
-					Array.isArray(context.systemPrompt)
-						? context.systemPrompt.join("\n")
-						: context.systemPrompt
-				),
-				...(cacheControl ? { cache_control: cacheControl } : {}),
-			},
-		];
+		if (Array.isArray(context.systemPrompt)) {
+			params.system = buildSystemBlocks(context.systemPrompt, cacheControl);
+		} else {
+			params.system = [
+				{
+					type: "text",
+					text: sanitizeSurrogates(context.systemPrompt),
+					...(cacheControl ? { cache_control: cacheControl } : {}),
+				},
+			];
+		}
 	}
 
 	if (options?.temperature !== undefined && !options?.thinkingEnabled) {
