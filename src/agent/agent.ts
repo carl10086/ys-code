@@ -59,7 +59,7 @@ const DEFAULT_MODEL = {
 type QueueMode = "all" | "one-at-a-time";
 
 /** 可变 Agent 状态 */
-type MutableAgentState = Omit<AgentState, "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
+type MutableAgentState = Omit<AgentState, "systemPrompt" | "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
   isStreaming: boolean;
   streamingMessage?: AgentMessage;
   pendingToolCalls: Set<string>;
@@ -73,7 +73,6 @@ function createMutableAgentState(
   let messages = initialState?.messages?.slice() ?? [];
 
   return {
-    systemPrompt: initialState?.systemPrompt ?? asSystemPrompt([""]),
     model: initialState?.model ?? DEFAULT_MODEL,
     thinkingLevel: initialState?.thinkingLevel ?? "off",
     get tools() {
@@ -150,9 +149,9 @@ type ActiveRun = {
 /** Agent 构造选项 */
 export interface AgentOptions {
   /** 初始状态 */
-  initialState?: Partial<Omit<AgentState, "systemPrompt" | "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
-  /** 系统提示词（静态数组或构建函数） */
-  systemPrompt?: SystemPrompt | ((context: AgentContext) => Promise<SystemPrompt>);
+  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
+  /** 系统提示词构建函数 */
+  systemPrompt?: (context: AgentContext) => Promise<SystemPrompt>;
   /** 将 Agent 消息转换为 LLM 消息格式 */
   convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
   /** 消息转换/过滤函数 */
@@ -207,8 +206,8 @@ export class Agent {
   public streamFn: StreamFn;
   /** 自定义 API Key 获取函数 */
   public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  /** 系统提示词（静态数组或构建函数） */
-  public systemPrompt?: SystemPrompt | ((context: AgentContext) => Promise<SystemPrompt>);
+  /** 系统提示词构建函数 */
+  public systemPrompt: (context: AgentContext) => Promise<SystemPrompt>;
   /** 载荷回调函数 */
   public onPayload?: SimpleStreamOptions["onPayload"];
   /** 工具执行前的钩子 */
@@ -234,16 +233,12 @@ export class Agent {
   public toolExecution: ToolExecutionMode;
 
   constructor(options: AgentOptions = {}) {
-    const staticPrompt =
-      typeof options.systemPrompt === "function"
-        ? asSystemPrompt([""])
-        : options.systemPrompt ?? asSystemPrompt([""]);
-    this._state = createMutableAgentState({ ...options.initialState, systemPrompt: staticPrompt });
+    this._state = createMutableAgentState(options.initialState);
+    this.systemPrompt = options.systemPrompt ?? (async () => asSystemPrompt([""]));
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
     this.transformContext = options.transformContext;
     this.streamFn = options.streamFn ?? streamSimple;
     this.getApiKey = options.getApiKey;
-    this.systemPrompt = options.systemPrompt;
     this.onPayload = options.onPayload;
     this.beforeToolCall = options.beforeToolCall;
     this.afterToolCall = options.afterToolCall;
@@ -458,7 +453,6 @@ export class Agent {
   /** 创建上下文快照 */
   private createContextSnapshot(): AgentContext {
     return {
-      systemPrompt: this._state.systemPrompt,
       messages: this._state.messages.slice(),
       tools: this._state.tools.slice(),
     };
@@ -467,14 +461,7 @@ export class Agent {
   /** 创建循环配置 */
   private async createLoopConfig(options: { skipInitialSteeringPoll?: boolean } = {}): Promise<AgentLoopConfig> {
     let skipInitialSteeringPoll = options.skipInitialSteeringPoll === true;
-
-    let resolvedSystemPrompt: SystemPrompt;
-    if (typeof this.systemPrompt === "function") {
-      resolvedSystemPrompt = await this.systemPrompt(this.createContextSnapshot());
-      this._state.systemPrompt = resolvedSystemPrompt;
-    } else {
-      resolvedSystemPrompt = this._state.systemPrompt;
-    }
+    const resolvedSystemPrompt = await this.systemPrompt(this.createContextSnapshot());
 
     return {
       model: this._state.model,
