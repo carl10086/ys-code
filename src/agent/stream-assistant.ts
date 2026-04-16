@@ -79,22 +79,24 @@ export async function streamAssistantResponse(
 
   for await (const event of response) {
     switch (event.type) {
-      case "start":
+      case "start": {
+        // 消息开始，创建 partial message
         partialMessage = event.partial;
         context.messages.push(partialMessage);
         addedPartial = true;
         await emit({ type: "message_start", message: { ...partialMessage } });
         break;
+      }
 
-      case "text_start":
-      case "text_delta":
-      case "text_end":
-      case "thinking_start":
-      case "thinking_delta":
-      case "thinking_end":
-      case "toolcall_start":
-      case "toolcall_delta":
-      case "toolcall_end":
+      case "text_start":   // 文本块开始
+      case "text_delta":   // 文本增量
+      case "text_end":     // 文本块结束
+      case "thinking_start":   // 思考开始
+      case "thinking_delta":   // 思考增量
+      case "thinking_end":     // 思考结束
+      case "toolcall_start":   // 工具调用开始
+      case "toolcall_delta":   // 工具调用增量
+      case "toolcall_end":     // 工具调用结束
         if (partialMessage) {
           partialMessage = event.partial;
           context.messages[context.messages.length - 1] = partialMessage;
@@ -106,8 +108,8 @@ export async function streamAssistantResponse(
         }
         break;
 
-      case "done":
-      case "error": {
+      case "done":   // 流式响应完成
+      case "error": {   // 流式响应错误
         const finalMessage = await response.result();
         await finalizeStreamMessage(context, finalMessage, addedPartial, emit);
         return finalMessage;
