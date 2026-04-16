@@ -6,8 +6,8 @@ import type {
   AgentEvent,
   AgentLoopConfig,
   AgentTool,
-  AgentToolCall,
   AgentToolResult,
+  ToolUseContext,
 } from "./types.js";
 
 function createErrorToolResult(message: string): AgentToolResult<any> {
@@ -17,8 +17,22 @@ function createErrorToolResult(message: string): AgentToolResult<any> {
   };
 }
 
+function buildToolUseContext(
+  currentContext: AgentContext,
+  config: AgentLoopConfig,
+  signal: AbortSignal | undefined,
+): ToolUseContext {
+  return {
+    abortSignal: signal ?? new AbortController().signal,
+    messages: currentContext.messages,
+    tools: currentContext.tools ?? [],
+    sessionId: (config as any).sessionId,
+    model: config.model,
+  };
+}
+
 async function emitToolCallOutcome(
-  toolCall: AgentToolCall,
+  toolCall: import("../core/ai/index.js").ToolCall,
   result: AgentToolResult<any>,
   isError: boolean,
   emit: AgentEventSink,
@@ -49,11 +63,11 @@ async function emitToolCallOutcome(
 async function prepareToolCall(
   currentContext: AgentContext,
   assistantMessage: AssistantMessage,
-  toolCall: AgentToolCall,
+  toolCall: import("../core/ai/index.js").ToolCall,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
 ): Promise<
-  | { kind: "prepared"; toolCall: AgentToolCall; tool: AgentTool<any>; args: unknown }
+  | { kind: "prepared"; toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown }
   | { kind: "immediate"; result: AgentToolResult<any>; isError: boolean }
 > {
   const tool = currentContext.tools?.find((t) => t.name === toolCall.name);
@@ -66,25 +80,34 @@ async function prepareToolCall(
   }
 
   try {
-    const validatedArgs = validateToolArguments(tool as any, toolCall);
-    if (config.beforeToolCall) {
-      const beforeResult = await config.beforeToolCall(
-        {
-          assistantMessage,
-          toolCall,
-          args: validatedArgs,
-          context: currentContext,
-        },
-        signal,
-      );
-      if (beforeResult?.block) {
+    const validatedArgs = tool.prepareArguments
+      ? tool.prepareArguments(toolCall.arguments)
+      : validateToolArguments(tool as any, toolCall);
+
+    const context = buildToolUseContext(currentContext, config, signal);
+
+    if (tool.validateInput) {
+      const validation = await tool.validateInput(validatedArgs, context);
+      if (!validation.ok) {
         return {
           kind: "immediate",
-          result: createErrorToolResult(beforeResult.reason || "Tool execution was blocked"),
+          result: createErrorToolResult(validation.message),
           isError: true,
         };
       }
     }
+
+    if (tool.checkPermissions) {
+      const permission = await tool.checkPermissions(validatedArgs, context);
+      if (!permission.allowed) {
+        return {
+          kind: "immediate",
+          result: createErrorToolResult(permission.reason),
+          isError: true,
+        };
+      }
+    }
+
     return {
       kind: "prepared",
       toolCall,
@@ -101,18 +124,21 @@ async function prepareToolCall(
 }
 
 async function executePreparedToolCall(
-  prepared: { toolCall: AgentToolCall; tool: AgentTool<any>; args: unknown },
+  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown },
+  currentContext: AgentContext,
+  config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<{ result: AgentToolResult<any>; isError: boolean }> {
+): Promise<{ output: unknown; isError: boolean }> {
   const updateEvents: Promise<void>[] = [];
+  const context = buildToolUseContext(currentContext, config, signal);
 
   try {
-    const result = await prepared.tool.execute(
+    const output = await prepared.tool.execute(
       prepared.toolCall.id,
       prepared.args as never,
-      signal,
-      (partialResult) => {
+      context,
+      (partialOutput) => {
         updateEvents.push(
           Promise.resolve(
             emit({
@@ -120,63 +146,52 @@ async function executePreparedToolCall(
               toolCallId: prepared.toolCall.id,
               toolName: prepared.toolCall.name,
               args: prepared.toolCall.arguments,
-              partialResult,
+              partialResult: partialOutput,
             }),
           ),
         );
       },
     );
     await Promise.all(updateEvents);
-    return { result, isError: false };
+    return { output, isError: false };
   } catch (error) {
     await Promise.all(updateEvents);
     return {
-      result: createErrorToolResult(error instanceof Error ? error.message : String(error)),
+      output: error instanceof Error ? error.message : String(error),
       isError: true,
     };
   }
 }
 
 async function finalizeExecutedToolCall(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  prepared: { toolCall: AgentToolCall; tool: AgentTool<any>; args: unknown },
-  executed: { result: AgentToolResult<any>; isError: boolean },
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
+  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown },
+  executed: { output: unknown; isError: boolean },
   emit: AgentEventSink,
 ): Promise<ToolResultMessage> {
-  let result = executed.result;
-  let isError = executed.isError;
+  let content: (import("../core/ai/index.js").TextContent | import("../core/ai/index.js").ImageContent)[];
+  let details: unknown;
 
-  if (config.afterToolCall) {
-    const afterResult = await config.afterToolCall(
-      {
-        assistantMessage,
-        toolCall: prepared.toolCall,
-        args: prepared.args,
-        result,
-        isError,
-        context: currentContext,
-      },
-      signal,
-    );
-    if (afterResult) {
-      result = {
-        content: afterResult.content ?? result.content,
-        details: afterResult.details ?? result.details,
-      };
-      isError = afterResult.isError ?? isError;
+  if (executed.isError) {
+    content = [{ type: "text", text: String(executed.output) }];
+    details = {};
+  } else {
+    details = executed.output;
+    if (prepared.tool.formatResult) {
+      const formatted = prepared.tool.formatResult(executed.output, prepared.toolCall.id);
+      content = typeof formatted === "string" ? [{ type: "text", text: formatted }] : formatted;
+    } else {
+      content = [{ type: "text", text: String(executed.output) }];
     }
   }
 
-  return await emitToolCallOutcome(prepared.toolCall, result, isError, emit);
+  const result: AgentToolResult<any> = { content, details };
+  return await emitToolCallOutcome(prepared.toolCall, result, executed.isError, emit);
 }
 
 async function executeToolCallsSequential(
   currentContext: AgentContext,
   assistantMessage: AssistantMessage,
-  toolCalls: AgentToolCall[],
+  toolCalls: import("../core/ai/index.js").ToolCall[],
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
@@ -195,18 +210,8 @@ async function executeToolCallsSequential(
     if (preparation.kind === "immediate") {
       results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
-      const executed = await executePreparedToolCall(preparation, signal, emit);
-      results.push(
-        await finalizeExecutedToolCall(
-          currentContext,
-          assistantMessage,
-          preparation,
-          executed,
-          config,
-          signal,
-          emit,
-        ),
-      );
+      const executed = await executePreparedToolCall(preparation, currentContext, config, signal, emit);
+      results.push(await finalizeExecutedToolCall(preparation, executed, emit));
     }
   }
 
@@ -216,13 +221,13 @@ async function executeToolCallsSequential(
 async function executeToolCallsParallel(
   currentContext: AgentContext,
   assistantMessage: AssistantMessage,
-  toolCalls: AgentToolCall[],
+  toolCalls: import("../core/ai/index.js").ToolCall[],
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
 ): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
-  const runnableCalls: Array<{ toolCall: AgentToolCall; tool: AgentTool<any>; args: unknown }> = [];
+  const runnableCalls: Array<{ toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown }> = [];
 
   for (const toolCall of toolCalls) {
     await emit({
@@ -242,7 +247,7 @@ async function executeToolCallsParallel(
 
   const runningCalls = runnableCalls.map((prepared) => ({
     prepared,
-    execution: executePreparedToolCall(prepared, signal, emit),
+    execution: executePreparedToolCall(prepared, currentContext, config, signal, emit),
   }));
 
   const executedResults = await Promise.all(runningCalls.map((r) => r.execution));
@@ -250,15 +255,7 @@ async function executeToolCallsParallel(
   for (let i = 0; i < executedResults.length; i++) {
     const executed = executedResults[i];
     const prepared = runningCalls[i].prepared;
-    const finalResult = await finalizeExecutedToolCall(
-      currentContext,
-      assistantMessage,
-      prepared,
-      executed,
-      config,
-      signal,
-      emit,
-    );
+    const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);
     results.push(finalResult);
   }
 
@@ -272,7 +269,7 @@ export async function executeToolCalls(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
 ): Promise<ToolResultMessage[]> {
-  const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall") as AgentToolCall[];
+  const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall") as import("../core/ai/index.js").ToolCall[];
   if (config.toolExecution === "sequential") {
     return executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit);
   }
