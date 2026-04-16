@@ -90,3 +90,4 @@ bun run examples/agent-math.ts
 - [Tools](./tools.md) - 定义和使用工具
 - [状态管理](./state.md) - state 属性详解
 - [Loop](./loop.md) - 低级 runAgentLoop 函数
+- [架构](./architecture.md) - 内部模块职责与数据流
