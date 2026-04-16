@@ -35,6 +35,12 @@ async function finalizeStreamMessage(
 
 /**
  * 流式获取 assistant 响应
+ * @param context Agent 上下文
+ * @param config AgentLoop 配置
+ * @param signal 可选的 abort 信号
+ * @param emit 事件发射器
+ * @param streamFn 可选的流函数
+ * @returns AssistantMessage 最终消息
  */
 export async function streamAssistantResponse(
   context: AgentContext,
