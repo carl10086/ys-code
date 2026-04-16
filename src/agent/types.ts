@@ -99,14 +99,14 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 
 /** Agent 上下文快照 */
 export interface AgentContext {
-  systemPrompt: string;
+  systemPrompt: string | string[];
   messages: AgentMessage[];
   tools?: AgentTool<any>[];
 }
 
 /** Agent 公开状态 */
 export interface AgentState {
-  systemPrompt: string;
+  systemPrompt: string | string[];
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
   tools: AgentTool<any>[];
