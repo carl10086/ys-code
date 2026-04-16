@@ -5,9 +5,11 @@ import {
   type Model,
   type SimpleStreamOptions,
   streamSimple,
+  type SystemPrompt,
   type TextContent,
   type ThinkingBudgets,
   type Transport,
+  asSystemPrompt,
 } from "../core/ai/index.js";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import type {
@@ -71,7 +73,7 @@ function createMutableAgentState(
   let messages = initialState?.messages?.slice() ?? [];
 
   return {
-    systemPrompt: initialState?.systemPrompt ?? "",
+    systemPrompt: initialState?.systemPrompt ?? asSystemPrompt([""]),
     model: initialState?.model ?? DEFAULT_MODEL,
     thinkingLevel: initialState?.thinkingLevel ?? "off",
     get tools() {
@@ -148,7 +150,9 @@ type ActiveRun = {
 /** Agent 构造选项 */
 export interface AgentOptions {
   /** 初始状态 */
-  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
+  initialState?: Partial<Omit<AgentState, "systemPrompt" | "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
+  /** 系统提示词（静态数组或构建函数） */
+  systemPrompt?: SystemPrompt | ((context: AgentContext) => Promise<SystemPrompt>);
   /** 将 Agent 消息转换为 LLM 消息格式 */
   convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
   /** 消息转换/过滤函数 */
@@ -157,8 +161,6 @@ export interface AgentOptions {
   streamFn?: StreamFn;
   /** 自定义 API Key 获取函数 */
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  /** 构建 system prompt 的函数 */
-  buildSystemPrompt?: (context: AgentContext) => Promise<string[]>;
   /** 载荷回调函数 */
   onPayload?: SimpleStreamOptions["onPayload"];
   /** 工具执行前的钩子 */
@@ -205,8 +207,8 @@ export class Agent {
   public streamFn: StreamFn;
   /** 自定义 API Key 获取函数 */
   public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  /** 构建 system prompt 的函数 */
-  public buildSystemPrompt?: (context: AgentContext) => Promise<string[]>;
+  /** 系统提示词（静态数组或构建函数） */
+  public systemPrompt?: SystemPrompt | ((context: AgentContext) => Promise<SystemPrompt>);
   /** 载荷回调函数 */
   public onPayload?: SimpleStreamOptions["onPayload"];
   /** 工具执行前的钩子 */
@@ -232,12 +234,16 @@ export class Agent {
   public toolExecution: ToolExecutionMode;
 
   constructor(options: AgentOptions = {}) {
-    this._state = createMutableAgentState(options.initialState);
+    const staticPrompt =
+      typeof options.systemPrompt === "function"
+        ? asSystemPrompt([""])
+        : options.systemPrompt ?? asSystemPrompt([""]);
+    this._state = createMutableAgentState({ ...options.initialState, systemPrompt: staticPrompt });
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
     this.transformContext = options.transformContext;
     this.streamFn = options.streamFn ?? streamSimple;
     this.getApiKey = options.getApiKey;
-    this.buildSystemPrompt = options.buildSystemPrompt;
+    this.systemPrompt = options.systemPrompt;
     this.onPayload = options.onPayload;
     this.beforeToolCall = options.beforeToolCall;
     this.afterToolCall = options.afterToolCall;
@@ -461,6 +467,15 @@ export class Agent {
   /** 创建循环配置 */
   private async createLoopConfig(options: { skipInitialSteeringPoll?: boolean } = {}): Promise<AgentLoopConfig> {
     let skipInitialSteeringPoll = options.skipInitialSteeringPoll === true;
+
+    let resolvedSystemPrompt: SystemPrompt;
+    if (typeof this.systemPrompt === "function") {
+      resolvedSystemPrompt = await this.systemPrompt(this.createContextSnapshot());
+      this._state.systemPrompt = resolvedSystemPrompt;
+    } else {
+      resolvedSystemPrompt = this._state.systemPrompt;
+    }
+
     return {
       model: this._state.model,
       reasoning: this._state.thinkingLevel === "off" ? undefined : this._state.thinkingLevel,
@@ -475,9 +490,7 @@ export class Agent {
       convertToLlm: this.convertToLlm,
       transformContext: this.transformContext,
       getApiKey: this.getApiKey,
-      systemPrompt: this.buildSystemPrompt
-        ? await this.buildSystemPrompt(this.createContextSnapshot())
-        : this._state.systemPrompt,
+      systemPrompt: resolvedSystemPrompt,
       getSteeringMessages: async () => {
         if (skipInitialSteeringPoll) {
           skipInitialSteeringPoll = false;
