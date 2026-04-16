@@ -20,20 +20,20 @@
 
 在正常模式（非 `CLAUDE_CODE_SIMPLE`、非 proactive 模式）下，`getSystemPrompt()` 返回的数组通常包含 **12 个元素**：
 
-| 索引 | Section 名称 | 类型 | 缓存策略 |
-|------|-------------|------|---------|
-| 0 | `intro` | 静态 | 全局缓存 |
-| 1 | `system` | 静态 | 全局缓存 |
-| 2 | `doing_tasks` | 静态 | 全局缓存 |
-| 3 | `actions` | 静态 | 全局缓存 |
-| 4 | `using_your_tools` | 静态 | 全局缓存 |
-| 5 | `tone_and_style` | 静态 | 全局缓存 |
-| 6 | `output_efficiency` | 静态 | 全局缓存 |
-| 7 | `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` | 边界标记 | — |
-| 8 | `session_specific_guidance` | 动态 | 每轮重算 |
-| 9 | `memory` | 动态 | 每轮重算 |
-| 10 | `env_info` | 动态 | 每轮重算 |
-| 11 | `summarize_tool_results` | 动态 | 每轮重算 |
+| 索引  | Section 名称                       | 类型   | 缓存策略 | 核心职责 |
+| --- | -------------------------------- | ---- | ---- | ---- |
+| 0   | `intro`                          | 静态   | 全局缓存 | 建立 AI 身份定位，声明基本交互前提（帮助用户完成软件工程任务） |
+| 1   | `system`                         | 静态   | 全局缓存 | 定义基础协议规则：工具权限模式、system-reminder 语义、hook 反馈处理、自动压缩机制 |
+| 2   | `doing_tasks`                    | 静态   | 全局缓存 | 核心工作方法论：先读后改、不创建多余文件、不做时间估计、保持简洁等 |
+| 3   | `actions`                        | 静态   | 全局缓存 | 风险管理：评估操作的可逆性和影响范围，明确需要用户确认的高风险行为 |
+| 4   | `using_your_tools`               | 静态   | 全局缓存 | 工具使用最佳实践：优先使用专用工具、合理使用 Bash、最大化并行调用效率 |
+| 5   | `tone_and_style`                 | 静态   | 全局缓存 | 表达风格规范：简洁直接、emoji 使用规则、代码引用与 GitHub 链接格式 |
+| 6   | `output_efficiency`              | 静态   | 全局缓存 | 输出效率约束：直切要点、避免冗余铺垫、优先给出答案而非 reasoning |
+| 7   | `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` | 边界标记 | —    | 缓存策略分界线，分隔可全局缓存的静态部分与不可缓存的动态部分 |
+| 8   | `session_specific_guidance`      | 动态   | 每轮重算 | 根据当前会话状态动态注入的特殊规则（如可用 tools、skills、非交互模式等） |
+| 9   | `memory`                         | 动态   | 每轮重算 | 告知 AI 持久化记忆系统的存在、位置和使用规范 |
+| 10  | `env_info`                       | 动态   | 每轮重算 | 提供当前运行时环境上下文（cwd、git 状态、平台、shell、模型信息等） |
+| 11  | `summarize_tool_results`         | 动态   | 每轮重算 | 提醒 AI 主动记录工具结果中的重要信息，防止后续被清除后丢失上下文 |
 
 > 注：动态部分的实际数量会因 feature flag、MCP 连接状态、settings 等而变化，上表是一个标准快照中的 12 层结构。
 
@@ -471,6 +471,25 @@ When working with tool results, write down any important information you might n
 
 ---
 
+### 动态 Section 为何要每轮重算
+
+正常模式下，索引 8~11 的 section 被标记为「动态」且需要每轮重新计算，根本原因是它们依赖**可能在单次会话内发生变化的外部状态**。如果将这些 section 缓存起来，AI 会在后续 turn 中使用过期信息做决策，导致行为不一致或上下文丢失。
+
+具体而言：
+
+- **`env_info`**：当前工作目录（`cwd`）、git 分支状态、shell 环境、甚至模型本身都可能在会话过程中发生变化。用户可能切换目录、checkout 分支、或通过 `/model` 切换模型，这些变化必须即时反映到 system prompt 中。
+- **`memory`**：记忆系统基于文件（`MEMORY.md` 和 memory 目录下的条目）。用户随时可能要求「记住」或「忘记」某些内容，memory 文件会在会话期间被修改。每轮重算确保 AI 能访问最新的记忆条目。
+- **`session_specific_guidance`**：其内容直接取决于当前**已激活的 tools 和 skills**。例如用户通过设置启用了 `AgentTool` 或连接了新的 MCP server 时，对应的指引（如 "Use the Agent tool with specialized agents..."）必须立即生效；如果 tool 被禁用，相关指引也应同步移除。
+- **`summarize_tool_results`**：它的出现取决于 `CACHED_MICROCOMPACT` feature flag 和当前模型是否支持该功能。这些条件可能在会话中期被切换（如通过内部配置或 A/B 测试分组调整），因此不能一成不变。
+
+此外，动态 section 位于 `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` 之后，API 层（如 Anthropic）会对 boundary 前的静态部分应用 `cache_control: ephemeral` 进行全局缓存，而动态部分不附加该缓存标记。这意味着：
+- **静态部分**：只会在首次请求时消耗 prompt cache write tokens，后续 turn 几乎零成本复用。
+- **动态部分**：每轮作为新内容发送给模型，虽然会产生额外的 input tokens，但换取了上下文的实时性和准确性。
+
+这种「静态可缓存 + 动态实时更新」的分割策略，是在**降低 API 成本**与**保证上下文新鲜度**之间的最佳平衡。
+
+---
+
 ## 4. 动态 Section 的完整清单（扩展情况）
 
 上文基于一个标准 snapshot 展示了 12 层结构。在实际运行中，boundary 之后还可能出现以下额外 section：
@@ -527,25 +546,26 @@ Date: 2026/04/14
 
 ## 6. ys-code 复刻对照
 
-| cc 模块/功能 | ys-code 当前实现 | 状态 | 差异说明 |
-|-------------|-----------------|------|---------|
-| `getSystemPrompt() -> string[]` | `buildSystemPrompt() -> SystemPrompt`（brand type） | 已复刻 | 结构对齐，返回类型加了 brand |
-| `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` | 同名常量 | 已复刻 | 值完全一致 |
-| `systemPromptSections.ts` 缓存框架 | 无 | 已简化 | ys-code 直接 `await Promise.all` 计算动态 sections，无 section 级缓存 |
-| `getSimpleIntroSection()` | `getSimpleIntroSection()` | 已复刻 | 文本基本一致，无 `outputStyleConfig` 分支 |
-| `getSimpleSystemSection()` | `getSimpleSystemSection()` | 已复刻 | 文本对齐 |
-| `getSimpleDoingTasksSection()` | `getSimpleDoingTasksSection()` | 已复刻 | 文本对齐，不含 ant-only 子项 |
-| `getActionsSection()` | `getActionsSection()` | 已复刻 | 文本对齐 |
-| `getUsingYourToolsSection()` | `getUsingYourToolsSection()` | 已复刻 | 文本对齐，是简化版（无 tool 名称变量替换）|
-| `getSimpleToneAndStyleSection()` | `getSimpleToneAndStyleSection()` | 已复刻 | 文本对齐 |
-| `getOutputEfficiencySection()` | `getOutputEfficiencySection()` | 已复刻 | 使用外部构建版本（精简版）|
-| `computeSimpleEnvInfo()` | `getEnvironmentSection()` | 已复刻 | 字段和格式基本一致 |
-| `getSessionSpecificGuidanceSection()` | `getSessionSpecificGuidanceSection()` | 已复刻 | 是简化版，无条件分支 |
-| `loadMemoryPrompt()` | `loadMemoryEntries()` + `getAutoMemorySection()` | 已复刻 | 机制不同但效果等价 |
-| MCP instructions | 无 | 缺失 | ys-code 当前无 MCP 系统 |
-| Feature flag 动态 sections | 无 | 缺失 | 无 feature gate 系统 |
-| `CLAUDE_CODE_SIMPLE` | 无 | 缺失 | 无简化模式 |
-| Proactive mode | 无 | 缺失 | 无自主代理模式 |
+| cc 模块/功能                              | ys-code 当前实现                                      | 状态  | 差异说明                                                       |
+| ------------------------------------- | ------------------------------------------------- | --- | ---------------------------------------------------------- |
+| `getSystemPrompt() -> string[]`       | `buildSystemPrompt() -> SystemPrompt`（brand type） | 已复刻 | 结构对齐，返回类型加了 brand                                          |
+| `SYSTEM_PROMPT_DYNAMIC_BOUNDARY`      | 同名常量                                              | 已复刻 | 值完全一致                                                      |
+| `systemPromptSections.ts` 缓存框架        | 无                                                 | 已简化 | ys-code 直接 `await Promise.all` 计算动态 sections，无 section 级缓存 |
+| `getSimpleIntroSection()`             | `getSimpleIntroSection()`                         | 已复刻 | 文本基本一致，无 `outputStyleConfig` 分支                            |
+| `getSimpleSystemSection()`            | `getSimpleSystemSection()`                        | 已复刻 | 文本对齐                                                       |
+| `getSimpleDoingTasksSection()`        | `getSimpleDoingTasksSection()`                    | 已复刻 | 文本对齐，不含 ant-only 子项                                        |
+| `getActionsSection()`                 | `getActionsSection()`                             | 已复刻 | 文本对齐                                                       |
+| `getUsingYourToolsSection()`          | `getUsingYourToolsSection()`                      | 已复刻 | 文本对齐，是简化版（无 tool 名称变量替换）                                   |
+| `getSimpleToneAndStyleSection()`      | `getSimpleToneAndStyleSection()`                  | 已复刻 | 文本对齐                                                       |
+| `getOutputEfficiencySection()`        | `getOutputEfficiencySection()`                    | 已复刻 | 使用外部构建版本（精简版）                                              |
+| `computeSimpleEnvInfo()`              | `getEnvironmentSection()`                         | 已复刻 | 字段和格式基本一致                                                  |
+| `getSessionSpecificGuidanceSection()` | `getSessionSpecificGuidanceSection()`             | 已复刻 | 是简化版，无条件分支                                                 |
+| `loadMemoryPrompt()`                  | `loadMemoryEntries()` + `getAutoMemorySection()`  | 已复刻 | 机制不同但效果等价                                                  |
+| MCP instructions                      | 无                                                 | 缺失  | ys-code 当前无 MCP 系统                                         |
+| Feature flag 动态 sections              | 无                                                 | 缺失  | 无 feature gate 系统                                          |
+| `CLAUDE_CODE_SIMPLE`                  | 无                                                 | 缺失  | 无简化模式                                                      |
+| Proactive mode                        | 无                                                 | 缺失  | 无自主代理模式                                                    |
+|                                       |                                                   |     |                                                            |
 
 ---
 
