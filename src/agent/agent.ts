@@ -157,6 +157,8 @@ export interface AgentOptions {
   streamFn?: StreamFn;
   /** 自定义 API Key 获取函数 */
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
+  /** 构建 system prompt 的函数 */
+  buildSystemPrompt?: (context: AgentContext) => Promise<string[]>;
   /** 载荷回调函数 */
   onPayload?: SimpleStreamOptions["onPayload"];
   /** 工具执行前的钩子 */
@@ -203,6 +205,8 @@ export class Agent {
   public streamFn: StreamFn;
   /** 自定义 API Key 获取函数 */
   public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
+  /** 构建 system prompt 的函数 */
+  public buildSystemPrompt?: (context: AgentContext) => Promise<string[]>;
   /** 载荷回调函数 */
   public onPayload?: SimpleStreamOptions["onPayload"];
   /** 工具执行前的钩子 */
@@ -233,6 +237,7 @@ export class Agent {
     this.transformContext = options.transformContext;
     this.streamFn = options.streamFn ?? streamSimple;
     this.getApiKey = options.getApiKey;
+    this.buildSystemPrompt = options.buildSystemPrompt;
     this.onPayload = options.onPayload;
     this.beforeToolCall = options.beforeToolCall;
     this.afterToolCall = options.afterToolCall;
@@ -423,7 +428,7 @@ export class Agent {
       await runAgentLoop(
         messages,
         this.createContextSnapshot(),
-        this.createLoopConfig(options),
+        await this.createLoopConfig(options),
         (event) => this.processEvents(event),
         signal,
         this.streamFn,
@@ -436,7 +441,7 @@ export class Agent {
     await this.runWithLifecycle(async (signal) => {
       await runAgentLoopContinue(
         this.createContextSnapshot(),
-        this.createLoopConfig(),
+        await this.createLoopConfig(),
         (event) => this.processEvents(event),
         signal,
         this.streamFn,
@@ -454,7 +459,7 @@ export class Agent {
   }
 
   /** 创建循环配置 */
-  private createLoopConfig(options: { skipInitialSteeringPoll?: boolean } = {}): AgentLoopConfig {
+  private async createLoopConfig(options: { skipInitialSteeringPoll?: boolean } = {}): Promise<AgentLoopConfig> {
     let skipInitialSteeringPoll = options.skipInitialSteeringPoll === true;
     return {
       model: this._state.model,
@@ -470,6 +475,9 @@ export class Agent {
       convertToLlm: this.convertToLlm,
       transformContext: this.transformContext,
       getApiKey: this.getApiKey,
+      systemPrompt: this.buildSystemPrompt
+        ? await this.buildSystemPrompt(this.createContextSnapshot())
+        : this._state.systemPrompt,
       getSteeringMessages: async () => {
         if (skipInitialSteeringPoll) {
           skipInitialSteeringPoll = false;
