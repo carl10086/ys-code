@@ -1,7 +1,7 @@
 import readline from "readline/promises";
 import { Agent } from "../agent/agent.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool } from "../tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool } from "../agent/tools/index.js";
 import {
   formatAICardEnd,
   formatAICardStart,

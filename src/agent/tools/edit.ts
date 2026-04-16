@@ -1,8 +1,8 @@
-// src/tools/edit.ts
+// src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile, writeFile } from "fs/promises";
 import { resolve } from "path";
-import type { AgentTool } from "../agent/index.js";
+import type { AgentTool } from "../types.js";
 
 const replaceEditSchema = Type.Object({
   oldText: Type.String({ description: "Exact text to replace" }),

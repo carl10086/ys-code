@@ -1,8 +1,8 @@
-// src/tools/read.ts
+// src/agent/tools/read.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile } from "fs/promises";
 import { resolve } from "path";
-import type { AgentTool } from "../agent/index.js";
+import type { AgentTool } from "../types.js";
 
 const readSchema = Type.Object({
   path: Type.String({ description: "Path to the file to read (relative or absolute)" }),

@@ -1,8 +1,8 @@
-// src/tools/write.ts
+// src/agent/tools/write.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { mkdir, writeFile } from "fs/promises";
 import { dirname, resolve } from "path";
-import type { AgentTool } from "../agent/index.js";
+import type { AgentTool } from "../types.js";
 
 const writeSchema = Type.Object({
   path: Type.String({ description: "Path to the file to write (relative or absolute)" }),

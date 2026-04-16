@@ -1,7 +1,7 @@
-// src/tools/bash.ts
+// src/agent/tools/bash.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { spawn } from "child_process";
-import type { AgentTool } from "../agent/index.js";
+import type { AgentTool } from "../types.js";
 
 const bashSchema = Type.Object({
   command: Type.String({ description: "Bash command to execute" }),
