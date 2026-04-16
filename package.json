@@ -28,6 +28,7 @@
     "picomatch": "4.0.4",
     "proper-lockfile": "4.1.2",
     "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "strip-ansi": "7.2.0",
     "vscode-jsonrpc": "8.2.1",
     "vscode-languageserver-types": "3.17.5",
