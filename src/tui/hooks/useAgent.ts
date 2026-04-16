@@ -32,7 +32,7 @@ export interface UseAgentResult {
 export function useAgent(options: UseAgentOptions): UseAgentResult {
   const agent = useMemo(() => {
     return new Agent({
-      systemPrompt: asSystemPrompt([options.systemPrompt]),
+      systemPrompt: async () => asSystemPrompt([options.systemPrompt]),
       initialState: {
         model: options.model,
         thinkingLevel: "medium",

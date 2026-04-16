@@ -19,7 +19,7 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 const agent = new Agent({
-    systemPrompt: asSystemPrompt(["你是一个乐于助人的助手。"]),
+    systemPrompt: async () => asSystemPrompt(["你是一个乐于助人的助手。"]),
     initialState: {
         model,
         thinkingLevel: "medium",

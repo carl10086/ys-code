@@ -21,7 +21,7 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 const agent = new Agent({
-  systemPrompt: asSystemPrompt([systemPromptText]),
+  systemPrompt: async () => asSystemPrompt([systemPromptText]),
   initialState: {
     model,
     thinkingLevel: "medium",
@@ -105,7 +105,6 @@ rl.on("line", async (line) => {
   if (!input) { rl.prompt(); return; }
   if (input === "/exit") { rl.close(); return; }
   if (input === "/new") { agent.reset(); console.log("Session reset."); rl.prompt(); return; }
-  if (input === "/system") { console.log(agent.state.systemPrompt.join("\n\n")); rl.prompt(); return; }
   if (input === "/tools") { console.log(agent.state.tools.map((t) => t.name).join(", ")); rl.prompt(); return; }
   if (input === "/messages") { console.log(JSON.stringify(agent.state.messages, null, 2)); rl.prompt(); return; }
   if (input === "/abort") { agent.abort(); rl.prompt(); return; }

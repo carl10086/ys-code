@@ -47,7 +47,10 @@ const subtractTool: AgentTool = {
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 
 const agent = new Agent({
-  systemPrompt: asSystemPrompt(["You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool."]),
+  systemPrompt: async () =>
+    asSystemPrompt([
+      "You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool.",
+    ]),
   initialState: {
     model,
     tools: [addTool, subtractTool],
