@@ -395,7 +395,7 @@ function createClient(
 }
 
 function buildSystemBlocks(
-	sections: string[],
+	sections: readonly string[],
 	cacheControl?: { type: "ephemeral"; ttl?: "1h" },
 ): Anthropic.Messages.TextBlockParam[] {
 	const boundaryIndex = sections.indexOf(SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
@@ -436,17 +436,7 @@ function buildParams(
 	};
 
 	if (context.systemPrompt) {
-		if (Array.isArray(context.systemPrompt)) {
-			params.system = buildSystemBlocks(context.systemPrompt, cacheControl);
-		} else {
-			params.system = [
-				{
-					type: "text",
-					text: sanitizeSurrogates(context.systemPrompt),
-					...(cacheControl ? { cache_control: cacheControl } : {}),
-				},
-			];
-		}
+		params.system = buildSystemBlocks(context.systemPrompt, cacheControl);
 	}
 
 	if (options?.temperature !== undefined && !options?.thinkingEnabled) {
