@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "../types.js";
 import type { AssistantMessage, Message } from "../../core/ai/types.js";
+import { asSystemPrompt } from "../../core/ai/types.js";
 
 function createMockModel(): any {
   return {
@@ -38,7 +39,7 @@ function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason:
 describe("runAgentLoop", () => {
   it("完整流程：用户消息 -> assistant 回复 -> 无工具 -> 正常结束", async () => {
     const context: AgentContext = {
-      systemPrompt: "test",
+      systemPrompt: asSystemPrompt(["test"]),
       messages: [],
       tools: [],
     };
@@ -75,7 +76,7 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在 turn 之间正确注入", async () => {
-    const context: AgentContext = { systemPrompt: "test", messages: [], tools: [] };
+    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -110,7 +111,7 @@ describe("runAgentLoop", () => {
   });
 
   it("followUpMessages 在即将停止时触发新一轮", async () => {
-    const context: AgentContext = { systemPrompt: "test", messages: [], tools: [] };
+    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
     let followUpCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -145,7 +146,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 error 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { systemPrompt: "test", messages: [], tools: [] };
+    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -171,7 +172,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 aborted 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { systemPrompt: "test", messages: [], tools: [] };
+    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -200,7 +201,7 @@ describe("runAgentLoop", () => {
 describe("runAgentLoopContinue", () => {
   it("从已有上下文继续并生成新消息", async () => {
     const context: AgentContext = {
-      systemPrompt: "test",
+      systemPrompt: asSystemPrompt(["test"]),
       messages: [createUserMessage("hello")],
       tools: [],
     };
@@ -230,7 +231,7 @@ describe("runAgentLoopContinue", () => {
 
   it("最后一条消息为 assistant 时抛出错误", async () => {
     const context: AgentContext = {
-      systemPrompt: "test",
+      systemPrompt: asSystemPrompt(["test"]),
       messages: [createAssistantMessage("hi")],
       tools: [],
     };
@@ -240,7 +241,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("空消息时抛出错误", async () => {
-    const context: AgentContext = { systemPrompt: "test", messages: [], tools: [] };
+    const context: AgentContext = { systemPrompt: asSystemPrompt(["test"]), messages: [], tools: [] };
     const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[] } as any;
 
     expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");

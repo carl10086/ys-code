@@ -3,6 +3,7 @@ import { streamAssistantResponse } from "../stream-assistant.js";
 import { createAssistantMessageEventStream } from "../../core/ai/utils/event-stream.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig } from "../types.js";
 import type { AssistantMessage, Message } from "../../core/ai/types.js";
+import { asSystemPrompt } from "../../core/ai/types.js";
 
 function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopConfig {
   return {
@@ -25,7 +26,7 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
 
 function createMockContext(): AgentContext {
   return {
-    systemPrompt: "test",
+    systemPrompt: asSystemPrompt(["test"]),
     messages: [],
     tools: [],
   };

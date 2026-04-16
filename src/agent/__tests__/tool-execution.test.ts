@@ -2,11 +2,12 @@ import { describe, it, expect, mock } from "bun:test";
 import { executeToolCalls } from "../tool-execution.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig, AgentTool } from "../types.js";
 import type { AssistantMessage } from "../../core/ai/types.js";
+import { asSystemPrompt } from "../../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
 
 function createMockContext(tools: AgentTool<any>[] = []): AgentContext {
   return {
-    systemPrompt: "test",
+    systemPrompt: asSystemPrompt(["test"]),
     messages: [],
     tools,
   };
