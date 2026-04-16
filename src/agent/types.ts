@@ -100,16 +100,12 @@ export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unk
 
 /** Agent 上下文快照 */
 export interface AgentContext {
-  /** 系统提示词 */
-  systemPrompt: SystemPrompt;
   messages: AgentMessage[];
   tools?: AgentTool<any>[];
 }
 
 /** Agent 公开状态 */
 export interface AgentState {
-  /** 系统提示词 */
-  systemPrompt: SystemPrompt;
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
   tools: AgentTool<any>[];
