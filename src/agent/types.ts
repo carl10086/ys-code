@@ -23,37 +23,6 @@ export type ToolExecutionMode = "sequential" | "parallel";
 /** Agent toolCall 类型 */
 export type AgentToolCall = Extract<AssistantMessage["content"][number], { type: "toolCall" }>;
 
-/** 阻止工具执行的结果 */
-export interface BeforeToolCallResult {
-  block?: boolean;
-  reason?: string;
-}
-
-/** afterToolCall 可覆盖的字段 */
-export interface AfterToolCallResult {
-  content?: (TextContent | ImageContent)[];
-  details?: unknown;
-  isError?: boolean;
-}
-
-/** beforeToolCall 上下文 */
-export interface BeforeToolCallContext {
-  assistantMessage: AssistantMessage;
-  toolCall: AgentToolCall;
-  args: unknown;
-  context: AgentContext;
-}
-
-/** afterToolCall 上下文 */
-export interface AfterToolCallContext {
-  assistantMessage: AssistantMessage;
-  toolCall: AgentToolCall;
-  args: unknown;
-  result: AgentToolResult<unknown>;
-  isError: boolean;
-  context: AgentContext;
-}
-
 /** thinking 等级 */
 export type ThinkingLevel =
   | "off"   // 不使用 thinking
@@ -77,25 +46,95 @@ export interface AgentToolResult<T> {
   details: T;
 }
 
+/** 工具执行上下文 */
+export interface ToolUseContext {
+  /** 中止信号 */
+  abortSignal: AbortSignal;
+  /** 当前会话消息列表 */
+  messages: AgentMessage[];
+  /** 当前可用工具列表 */
+  tools: AgentTool<any>[];
+  /** 会话 ID */
+  sessionId?: string;
+  /** 当前模型 */
+  model?: Model<any>;
+}
+
 /** 工具定义 */
-export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = unknown> {
+export interface AgentTool<
+  TParameters extends TSchema = TSchema,
+  TOutput = unknown,
+> {
+  /** 工具名称 */
   name: string;
-  description: string;
+
+  /**
+   * 工具描述。
+   * - 若为 string，则作为静态描述直接使用
+   * - 若为函数，则根据输入参数和上下文动态生成最终描述
+   */
+  description:
+    | string
+    | ((params: Static<TParameters>, context: ToolUseContext) => string | Promise<string>);
+
+  /** 输入参数 schema（TypeBox） */
   parameters: TParameters;
+
+  /** 结构化输出 schema（TypeBox） */
+  outputSchema: TSchema;
+
+  /** 显示标签 */
   label: string;
+
+  /** 参数预处理：将 LLM 原始参数转换为符合 schema 的输入 */
   prepareArguments?: (args: unknown) => Static<TParameters>;
-  /** 执行工具
-   * @param toolCallId 工具调用唯一标识
-   * @param params 经过 prepareArguments 处理后的参数
-   * @param signal 可选的 abort 信号
-   * @param onUpdate 可选的进度回调
+
+  /**
+   * 参数校验（在权限检查前调用）。
+   * 用于执行 Tool 级别的参数合法性验证。
+   */
+  validateInput?: (
+    params: Static<TParameters>,
+    context: ToolUseContext,
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
+
+  /**
+   * 权限检查（在 validateInput 通过后调用）。
+   * 用于执行 Tool 级别的权限决策。
+   */
+  checkPermissions?: (
+    params: Static<TParameters>,
+    context: ToolUseContext,
+  ) => Promise<{ allowed: true } | { allowed: false; reason: string }>;
+
+  /**
+   * 执行工具，返回原始业务输出。
+   * tool-execution.ts 会负责调用 formatResult 将其转为 LLM 内容。
    */
   execute: (
     toolCallId: string,
     params: Static<TParameters>,
-    signal?: AbortSignal,
-    onUpdate?: (partialResult: AgentToolResult<TDetails>) => void,
-  ) => Promise<AgentToolResult<TDetails>>;
+    context: ToolUseContext,
+    onUpdate?: (partialOutput: TOutput) => void,
+  ) => Promise<TOutput>;
+
+  /**
+   * 将执行结果格式化为 LLM 可用的内容。
+   * 若未提供，则由 tool-execution.ts 提供默认 fallback（String(output) 转文本）。
+   */
+  formatResult?: (
+    output: TOutput,
+    toolCallId: string,
+  ) => (TextContent | ImageContent)[] | string;
+
+  /** 是否为只读操作 */
+  isReadOnly?: boolean;
+
+  /** 是否支持并发执行 */
+  isConcurrencySafe?: boolean;
+
+  /** 是否为破坏性操作（如删除、覆盖、发送） */
+  isDestructive?: boolean;
 }
 
 /** Agent 上下文快照 */
@@ -140,6 +179,4 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
   getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数
   toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
-  beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;   // 工具执行前的钩子，可阻止或修改行为
-  afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;   // 工具执行后的钩子，可覆盖结果
 }
