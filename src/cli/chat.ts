@@ -1,6 +1,7 @@
 import readline from "readline/promises";
 import { Agent } from "../agent/agent.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
+import { asSystemPrompt } from "../core/ai/index.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool } from "../agent/tools/index.js";
 import {
   formatAICardEnd,
@@ -15,13 +16,13 @@ import {
   formatUserMessage,
 } from "./format.js";
 
-const systemPrompt = process.argv[2] ?? "You are a helpful assistant.";
+const systemPromptText = process.argv[2] ?? "You are a helpful assistant.";
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 const agent = new Agent({
+  systemPrompt: asSystemPrompt([systemPromptText]),
   initialState: {
-    systemPrompt,
     model,
     thinkingLevel: "medium",
     tools: [createReadTool(process.cwd()), createWriteTool(process.cwd()), createEditTool(process.cwd()), createBashTool(process.cwd())],
@@ -104,7 +105,7 @@ rl.on("line", async (line) => {
   if (!input) { rl.prompt(); return; }
   if (input === "/exit") { rl.close(); return; }
   if (input === "/new") { agent.reset(); console.log("Session reset."); rl.prompt(); return; }
-  if (input === "/system") { console.log(agent.state.systemPrompt); rl.prompt(); return; }
+  if (input === "/system") { console.log(agent.state.systemPrompt.join("\n\n")); rl.prompt(); return; }
   if (input === "/tools") { console.log(agent.state.tools.map((t) => t.name).join(", ")); rl.prompt(); return; }
   if (input === "/messages") { console.log(JSON.stringify(agent.state.messages, null, 2)); rl.prompt(); return; }
   if (input === "/abort") { agent.abort(); rl.prompt(); return; }

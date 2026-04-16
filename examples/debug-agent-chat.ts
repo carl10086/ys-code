@@ -1,5 +1,5 @@
 import {Agent} from "../src/agent/agent.js";
-import {getModel, getEnvApiKey} from "../src/core/ai/index.js";
+import {getModel, getEnvApiKey, asSystemPrompt} from "../src/core/ai/index.js";
 import {createReadTool, createWriteTool, createEditTool, createBashTool} from "../src/agent/tools/index.js";
 import {
     formatAICardEnd,
@@ -19,8 +19,8 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 const agent = new Agent({
+    systemPrompt: asSystemPrompt(["你是一个乐于助人的助手。"]),
     initialState: {
-        systemPrompt: "你是一个乐于助人的助手。",
         model,
         thinkingLevel: "medium",
         tools: [

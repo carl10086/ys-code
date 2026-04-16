@@ -2,6 +2,7 @@
 import { describe, it, expect } from "bun:test";
 import { createSystemPromptBuilder, type SystemPromptSection } from "./systemPrompt.js";
 import { SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from "./types.js";
+import { asSystemPrompt } from "../../core/ai/types.js";
 
 describe("createSystemPromptBuilder", () => {
   it("should return sections with boundary between static and dynamic", async () => {
@@ -11,7 +12,7 @@ describe("createSystemPromptBuilder", () => {
     ];
     const builder = createSystemPromptBuilder(sections);
     const result = await builder({ cwd: "/tmp", tools: [], model: { id: "m1" } as any });
-    expect(result).toEqual(["static1", SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "dynamic1"]);
+    expect(result).toEqual(asSystemPrompt(["static1", SYSTEM_PROMPT_DYNAMIC_BOUNDARY, "dynamic1"]));
   });
 
   it("should cache static sections", async () => {
@@ -58,6 +59,6 @@ describe("createSystemPromptBuilder", () => {
     const builder = createSystemPromptBuilder(sections);
     const ctx = { cwd: "/tmp", tools: [], model: { id: "m1" } as any };
     const result = await builder(ctx);
-    expect(result).toEqual([""]);
+    expect(result).toEqual(asSystemPrompt([""]));
   });
 });

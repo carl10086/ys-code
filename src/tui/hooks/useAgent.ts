@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Agent } from "../../agent/agent.js";
 import type { AgentEvent, AgentMessage, AgentState, AgentTool } from "../../agent/types.js";
+import { asSystemPrompt } from "../../core/ai/index.js";
 import type { Model } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
@@ -31,8 +32,8 @@ export interface UseAgentResult {
 export function useAgent(options: UseAgentOptions): UseAgentResult {
   const agent = useMemo(() => {
     return new Agent({
+      systemPrompt: asSystemPrompt([options.systemPrompt]),
       initialState: {
-        systemPrompt: options.systemPrompt,
         model: options.model,
         thinkingLevel: "medium",
         tools: options.tools,
