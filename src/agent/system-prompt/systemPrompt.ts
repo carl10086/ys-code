@@ -4,6 +4,8 @@ import type {
   SystemPromptSection,
 } from "./types.js";
 import { SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from "./types.js";
+import type { SystemPrompt } from "../../core/ai/index.js";
+import { asSystemPrompt } from "../../core/ai/index.js";
 
 /** 缓存条目 */
 interface CacheEntry {
@@ -16,10 +18,10 @@ interface CacheEntry {
 /** 创建 system prompt 构建器 */
 export function createSystemPromptBuilder(
   sections: SystemPromptSection[],
-): (context: SystemPromptContext) => Promise<string[]> {
+): (context: SystemPromptContext) => Promise<SystemPrompt> {
   const cache = new Map<string, CacheEntry>();
 
-  return async (context: SystemPromptContext): Promise<string[]> => {
+  return async (context: SystemPromptContext): Promise<SystemPrompt> => {
     const staticValues: string[] = [];
     for (const section of sections) {
       if (!section.getCacheKey) continue;
@@ -65,7 +67,7 @@ export function createSystemPromptBuilder(
     if (dynamicValues.length > 0) {
       result.push(...dynamicValues);
     }
-    return result;
+    return asSystemPrompt(result);
   };
 }
 
