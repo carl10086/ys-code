@@ -410,7 +410,11 @@ function buildParams(
 		params.system = [
 			{
 				type: "text",
-				text: sanitizeSurrogates(context.systemPrompt),
+				text: sanitizeSurrogates(
+					Array.isArray(context.systemPrompt)
+						? context.systemPrompt.join("\n")
+						: context.systemPrompt
+				),
 				...(cacheControl ? { cache_control: cacheControl } : {}),
 			},
 		];

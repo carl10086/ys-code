@@ -180,7 +180,7 @@ export interface Tool<TParameters extends TSchema = TSchema> {
 
 export interface Context {
 	/** 系统提示词 */
-	systemPrompt?: string;
+	systemPrompt?: string | string[];
 	/** 消息列表 */
 	messages: Message[];
 	/** 工具列表 */
