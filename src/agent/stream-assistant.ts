@@ -4,6 +4,7 @@ import {
   type Context,
   streamSimple,
   type AssistantMessageEvent,
+  type Tool,
 } from "../core/ai/index.js";
 import type {
   AgentContext,
@@ -59,7 +60,7 @@ export async function streamAssistantResponse(
   const llmContext: Context = {
     systemPrompt: context.systemPrompt,
     messages: llmMessages,
-    tools: context.tools as any,
+    tools: (context.tools ?? []) as Tool[],
   };
 
   const streamFunction = streamFn || streamSimple;
