@@ -58,7 +58,7 @@ export async function streamAssistantResponse(
   const llmMessages = await config.convertToLlm(messages);
 
   const llmContext: Context = {
-    systemPrompt: context.systemPrompt,
+    systemPrompt: config.systemPrompt,
     messages: llmMessages,
     tools: (context.tools ?? []) as Tool[],
   };
