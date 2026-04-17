@@ -5,7 +5,7 @@ import type { AssistantMessage } from "../../core/ai/types.js";
 import { asSystemPrompt } from "../../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
 
-function createMockContext(tools: AgentTool<any>[] = []): AgentContext {
+function createMockContext(tools: AgentTool<any, any>[] = []): AgentContext {
   return {
     messages: [],
     tools,
@@ -32,15 +32,14 @@ describe("executeToolCalls", () => {
       name: "echo",
       description: "echo",
       parameters: Type.Object({ msg: Type.String() }),
+      outputSchema: Type.Object({ text: Type.String() }),
       label: "test",
       execute: async (id, params) => {
         order.push(id);
         await new Promise(r => setTimeout(r, 10));
-        return {
-          content: [{ type: "text", text: (params as any).msg }],
-          details: {},
-        };
+        return { text: (params as any).msg };
       },
+      formatResult: (output) => [{ type: "text", text: (output as any).text }],
     };
 
     const context = createMockContext([tool]);
@@ -65,14 +64,13 @@ describe("executeToolCalls", () => {
       name: "delay",
       description: "delay",
       parameters: Type.Object({ ms: Type.Number() }),
+      outputSchema: Type.Object({ id: Type.String() }),
       label: "test",
       execute: async (id, params) => {
         await new Promise(r => setTimeout(r, (params as any).ms));
-        return {
-          content: [{ type: "text", text: id }],
-          details: {},
-        };
+        return { id };
       },
+      formatResult: (output) => [{ type: "text", text: (output as any).id }],
     };
 
     const context = createMockContext([tool]);
@@ -109,23 +107,23 @@ describe("executeToolCalls", () => {
     expect((results[0].content[0] as any).text).toContain("missing");
   });
 
-  it("beforeToolCall 拦截时返回错误且不执行", async () => {
-    const executeMock = mock(() => Promise.resolve({ content: [], details: {} }));
+  it("validateInput 失败时返回错误且不执行", async () => {
+    const executeMock = mock(() => Promise.resolve({}));
     const tool: AgentTool = {
       name: "blocked",
       description: "blocked",
       parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
       label: "test",
       execute: executeMock,
+      validateInput: async () => ({ ok: false, message: "参数非法" }),
     };
 
     const context = createMockContext([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "blocked", arguments: {} },
     ]);
-    const config: AgentLoopConfig = {
-      beforeToolCall: async () => ({ block: true, reason: "不允许执行" }),
-    } as any;
+    const config: AgentLoopConfig = {} as any;
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
@@ -133,35 +131,59 @@ describe("executeToolCalls", () => {
 
     expect(executeMock).not.toHaveBeenCalled();
     expect(results[0].isError).toBe(true);
-    expect((results[0].content[0] as any).text).toBe("不允许执行");
+    expect((results[0].content[0] as any).text).toBe("参数非法");
   });
 
-  it("afterToolCall 覆盖结果和错误状态", async () => {
+  it("checkPermissions 拒绝时返回错误且不执行", async () => {
+    const executeMock = mock(() => Promise.resolve({}));
+    const tool: AgentTool = {
+      name: "blocked",
+      description: "blocked",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: executeMock,
+      checkPermissions: async () => ({ allowed: false, reason: "权限不足" }),
+    };
+
+    const context = createMockContext([tool]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "blocked", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(executeMock).not.toHaveBeenCalled();
+    expect(results[0].isError).toBe(true);
+    expect((results[0].content[0] as any).text).toBe("权限不足");
+  });
+
+  it("formatResult 覆盖输出内容", async () => {
     const tool: AgentTool = {
       name: "modify",
       description: "modify",
       parameters: Type.Object({}),
+      outputSchema: Type.Object({ raw: Type.String() }),
       label: "test",
-      execute: async () => ({ content: [{ type: "text", text: "orig" }], details: {} }),
+      execute: async () => ({ raw: "orig" }),
+      formatResult: () => [{ type: "text", text: "formatted" }],
     };
 
     const context = createMockContext([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "modify", arguments: {} },
     ]);
-    const config: AgentLoopConfig = {
-      afterToolCall: async () => ({
-        content: [{ type: "text", text: "modified" }],
-        isError: true,
-      }),
-    } as any;
+    const config: AgentLoopConfig = {} as any;
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
     const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
-    expect(results[0].content).toEqual([{ type: "text", text: "modified" }]);
-    expect(results[0].isError).toBe(true);
+    expect(results[0].content).toEqual([{ type: "text", text: "formatted" }]);
+    expect(results[0].details).toEqual({ raw: "orig" });
   });
 
   it("工具 execute 抛出异常时被捕获并转为错误结果", async () => {
@@ -169,6 +191,7 @@ describe("executeToolCalls", () => {
       name: "fail",
       description: "fail",
       parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
       label: "test",
       execute: async () => { throw new Error("boom"); },
     };
@@ -192,11 +215,13 @@ describe("executeToolCalls", () => {
       name: "echo",
       description: "echo",
       parameters: Type.Object({}),
+      outputSchema: Type.Object({ text: Type.String() }),
       label: "test",
-      execute: async (id, _params, _signal, onUpdate) => {
-        onUpdate?.({ content: [{ type: "text", text: "partial" }], details: {} });
-        return { content: [{ type: "text", text: "final" }], details: {} };
+      execute: async (id, _params, _ctx, onUpdate) => {
+        onUpdate?.({ text: "partial" });
+        return { text: "final" };
       },
+      formatResult: (output) => [{ type: "text", text: (output as any).text }],
     };
 
     const context = createMockContext([tool]);

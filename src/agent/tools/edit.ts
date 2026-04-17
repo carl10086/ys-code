@@ -2,6 +2,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile, writeFile } from "fs/promises";
 import { resolve } from "path";
+import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
 const replaceEditSchema = Type.Object({
@@ -16,15 +17,23 @@ const editSchema = Type.Object({
   }),
 });
 
-type EditInput = Static<typeof editSchema>;
+const editOutputSchema = Type.Object({
+  path: Type.String(),
+  edits: Type.Number(),
+});
 
-export function createEditTool(cwd: string): AgentTool<typeof editSchema> {
-  return {
+type EditInput = Static<typeof editSchema>;
+type EditOutput = Static<typeof editOutputSchema>;
+
+export function createEditTool(cwd: string): AgentTool<typeof editSchema, EditOutput> {
+  return defineAgentTool({
     name: "edit",
     label: "Edit",
     description: "Edit a file by replacing exact text segments.",
     parameters: editSchema,
-    async execute(toolCallId, params) {
+    outputSchema: editOutputSchema,
+    isDestructive: true,
+    async execute(toolCallId, params, context) {
       const absolutePath = resolve(cwd, params.path);
       let content = await readFile(absolutePath, "utf-8");
 
@@ -41,10 +50,10 @@ export function createEditTool(cwd: string): AgentTool<typeof editSchema> {
 
       await writeFile(absolutePath, content, "utf-8");
 
-      return {
-        content: [{ type: "text", text: `Edited ${absolutePath} with ${params.edits.length} replacement(s)` }],
-        details: { path: absolutePath, edits: params.edits.length },
-      };
+      return { path: absolutePath, edits: params.edits.length };
     },
-  };
+    formatResult(output) {
+      return [{ type: "text", text: `Edited ${output.path} with ${output.edits} replacement(s)` }];
+    },
+  });
 }

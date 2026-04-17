@@ -1,6 +1,7 @@
 // src/agent/tools/bash.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { spawn } from "child_process";
+import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
 const bashSchema = Type.Object({
@@ -8,15 +9,25 @@ const bashSchema = Type.Object({
   timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (optional)" })),
 });
 
-type BashInput = Static<typeof bashSchema>;
+const bashOutputSchema = Type.Object({
+  stdout: Type.String(),
+  stderr: Type.String(),
+  exitCode: Type.Union([Type.Number(), Type.Null()]),
+});
 
-export function createBashTool(cwd: string): AgentTool<typeof bashSchema> {
-  return {
+type BashInput = Static<typeof bashSchema>;
+type BashOutput = Static<typeof bashOutputSchema>;
+
+export function createBashTool(cwd: string): AgentTool<typeof bashSchema, BashOutput> {
+  return defineAgentTool({
     name: "bash",
     label: "Bash",
     description: "Execute a bash command in the working directory.",
     parameters: bashSchema,
-    async execute(toolCallId, params, signal) {
+    outputSchema: bashOutputSchema,
+    isReadOnly: false,
+    isConcurrencySafe: true,
+    async execute(toolCallId, params, context) {
       return new Promise((resolve, reject) => {
         const child = spawn("bash", ["-c", params.command], { cwd });
         const stdoutChunks: Buffer[] = [];
@@ -39,21 +50,19 @@ export function createBashTool(cwd: string): AgentTool<typeof bashSchema> {
 
         child.on("close", (code) => {
           if (timeoutId) clearTimeout(timeoutId);
-          if (signal?.aborted) {
+          if (context.abortSignal.aborted) {
             reject(new Error("Aborted"));
             return;
           }
           const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
           const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-          const output = stdout + (stderr ? `\nstderr:\n${stderr}` : "");
-          const isError = code !== 0;
-
-          resolve({
-            content: [{ type: "text", text: output || "(no output)" }],
-            details: { exitCode: code, command: params.command },
-          });
+          resolve({ stdout, stderr, exitCode: code });
         });
       });
     },
-  };
+    formatResult(output) {
+      const text = output.stdout + (output.stderr ? `\nstderr:\n${output.stderr}` : "");
+      return [{ type: "text", text: text || "(no output)" }];
+    },
+  });
 }

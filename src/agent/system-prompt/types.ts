@@ -7,7 +7,7 @@ export interface SystemPromptContext {
   /** 当前工作目录 */
   cwd: string;
   /** 可用工具列表 */
-  tools: AgentTool<any>[];
+  tools: AgentTool<any, any>[];
   /** 当前模型 */
   model: Model<any>;
   /** memory 文件内容（可选） */

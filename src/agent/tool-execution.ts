@@ -67,7 +67,7 @@ async function prepareToolCall(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
 ): Promise<
-  | { kind: "prepared"; toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown }
+  | { kind: "prepared"; toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown }
   | { kind: "immediate"; result: AgentToolResult<any>; isError: boolean }
 > {
   const tool = currentContext.tools?.find((t) => t.name === toolCall.name);
@@ -124,7 +124,7 @@ async function prepareToolCall(
 }
 
 async function executePreparedToolCall(
-  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown },
+  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown },
   currentContext: AgentContext,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
@@ -164,7 +164,7 @@ async function executePreparedToolCall(
 }
 
 async function finalizeExecutedToolCall(
-  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown },
+  prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown },
   executed: { output: unknown; isError: boolean },
   emit: AgentEventSink,
 ): Promise<ToolResultMessage> {
@@ -227,7 +227,7 @@ async function executeToolCallsParallel(
   emit: AgentEventSink,
 ): Promise<ToolResultMessage[]> {
   const results: ToolResultMessage[] = [];
-  const runnableCalls: Array<{ toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any>; args: unknown }> = [];
+  const runnableCalls: Array<{ toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown }> = [];
 
   for (const toolCall of toolCalls) {
     await emit({

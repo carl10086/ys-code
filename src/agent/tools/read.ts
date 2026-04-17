@@ -2,6 +2,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile } from "fs/promises";
 import { resolve } from "path";
+import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
 const readSchema = Type.Object({
@@ -10,37 +11,38 @@ const readSchema = Type.Object({
   limit: Type.Optional(Type.Number({ description: "Maximum number of lines to read" })),
 });
 
-type ReadInput = Static<typeof readSchema>;
+const readOutputSchema = Type.Object({
+  text: Type.String(),
+  path: Type.String(),
+});
 
-export function createReadTool(cwd: string): AgentTool<typeof readSchema, { path: string }> {
-  return {
+type ReadInput = Static<typeof readSchema>;
+type ReadOutput = Static<typeof readOutputSchema>;
+
+export function createReadTool(cwd: string): AgentTool<typeof readSchema, ReadOutput> {
+  return defineAgentTool({
     name: "read",
     label: "Read",
     description: "Read the contents of a file.",
     parameters: readSchema,
-    async execute(toolCallId, params) {
+    outputSchema: readOutputSchema,
+    isReadOnly: true,
+    isConcurrencySafe: true,
+    async execute(toolCallId, params, context) {
       const absolutePath = resolve(cwd, params.path);
-      try {
-        let text = await readFile(absolutePath, "utf-8");
+      let text = await readFile(absolutePath, "utf-8");
 
-        if (params.offset !== undefined || params.limit !== undefined) {
-          const lines = text.split("\n");
-          const start = Math.max(0, (params.offset ?? 1) - 1);
-          const end = params.limit !== undefined ? start + params.limit : lines.length;
-          text = lines.slice(start, end).join("\n");
-        }
-
-        return {
-          content: [{ type: "text", text }],
-          details: { path: absolutePath },
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return {
-          content: [{ type: "text", text: `Error reading file: ${message}` }],
-          details: { path: absolutePath },
-        };
+      if (params.offset !== undefined || params.limit !== undefined) {
+        const lines = text.split("\n");
+        const start = Math.max(0, (params.offset ?? 1) - 1);
+        const end = params.limit !== undefined ? start + params.limit : lines.length;
+        text = lines.slice(start, end).join("\n");
       }
+
+      return { text, path: absolutePath };
     },
-  };
+    formatResult(output) {
+      return [{ type: "text", text: output.text }];
+    },
+  });
 }

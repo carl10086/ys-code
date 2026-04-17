@@ -53,7 +53,7 @@ export interface ToolUseContext {
   /** 当前会话消息列表 */
   messages: AgentMessage[];
   /** 当前可用工具列表 */
-  tools: AgentTool<any>[];
+  tools: AgentTool<any, any>[];
   /** 会话 ID */
   sessionId?: string;
   /** 当前模型 */
@@ -140,14 +140,14 @@ export interface AgentTool<
 /** Agent 上下文快照 */
 export interface AgentContext {
   messages: AgentMessage[];
-  tools?: AgentTool<any>[];
+  tools?: AgentTool<any, any>[];
 }
 
 /** Agent 公开状态 */
 export interface AgentState {
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
-  tools: AgentTool<any>[];
+  tools: AgentTool<any, any>[];
   messages: AgentMessage[];
   readonly isStreaming: boolean;
   readonly streamingMessage?: AgentMessage;

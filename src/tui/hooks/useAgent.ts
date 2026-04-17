@@ -13,7 +13,7 @@ export interface UseAgentOptions {
   /** API Key */
   apiKey: string | undefined;
   /** 工具列表 */
-  tools: AgentTool<any>[];
+  tools: AgentTool<any, any>[];
 }
 
 export interface UseAgentResult {

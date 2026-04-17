@@ -13,16 +13,12 @@ import {
 } from "../core/ai/index.js";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import type {
-  AfterToolCallContext,
-  AfterToolCallResult,
   AgentContext,
   AgentEvent,
   AgentLoopConfig,
   AgentMessage,
   AgentState,
   AgentTool,
-  BeforeToolCallContext,
-  BeforeToolCallResult,
   StreamFn,
   ToolExecutionMode,
 } from "./types.js";
@@ -78,7 +74,7 @@ function createMutableAgentState(
     get tools() {
       return tools;
     },
-    set tools(nextTools: AgentTool<any>[]) {
+    set tools(nextTools: AgentTool<any, any>[]) {
       tools = nextTools.slice();
     },
     get messages() {
@@ -162,16 +158,6 @@ export interface AgentOptions {
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   /** 载荷回调函数 */
   onPayload?: SimpleStreamOptions["onPayload"];
-  /** 工具执行前的钩子 */
-  beforeToolCall?: (
-    context: BeforeToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<BeforeToolCallResult | undefined>;
-  /** 工具执行后的钩子 */
-  afterToolCall?: (
-    context: AfterToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<AfterToolCallResult | undefined>;
   /** 引导模式 */
   steeringMode?: QueueMode;
   /** 后续消息模式 */
@@ -210,16 +196,6 @@ export class Agent {
   public systemPrompt: (context: AgentContext) => Promise<SystemPrompt>;
   /** 载荷回调函数 */
   public onPayload?: SimpleStreamOptions["onPayload"];
-  /** 工具执行前的钩子 */
-  public beforeToolCall?: (
-    context: BeforeToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<BeforeToolCallResult | undefined>;
-  /** 工具执行后的钩子 */
-  public afterToolCall?: (
-    context: AfterToolCallContext,
-    signal?: AbortSignal,
-  ) => Promise<AfterToolCallResult | undefined>;
   private activeRun?: ActiveRun;
   /** 会话 ID */
   public sessionId?: string;
@@ -240,8 +216,6 @@ export class Agent {
     this.streamFn = options.streamFn ?? streamSimple;
     this.getApiKey = options.getApiKey;
     this.onPayload = options.onPayload;
-    this.beforeToolCall = options.beforeToolCall;
-    this.afterToolCall = options.afterToolCall;
     this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
     this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
     this.sessionId = options.sessionId;
@@ -472,8 +446,6 @@ export class Agent {
       thinkingBudgets: this.thinkingBudgets,
       maxRetryDelayMs: this.maxRetryDelayMs,
       toolExecution: this.toolExecution,
-      beforeToolCall: this.beforeToolCall,
-      afterToolCall: this.afterToolCall,
       convertToLlm: this.convertToLlm,
       transformContext: this.transformContext,
       getApiKey: this.getApiKey,
