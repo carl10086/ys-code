@@ -100,6 +100,11 @@ export class AgentSession {
     return this.agent.state.tools;
   }
 
+  /** 当前待执行的工具调用 ID 集合（只读） */
+  get pendingToolCalls(): ReadonlySet<string> {
+    return this.agent.state.pendingToolCalls;
+  }
+
   /** 发送用户消息 */
   async prompt(text: string): Promise<void> {
     await this.refreshSystemPrompt();
