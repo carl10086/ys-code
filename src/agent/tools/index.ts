@@ -1,4 +1,4 @@
-export { createReadTool } from "./read.js";
+export { createReadTool } from "./read/index.js";
 export { createWriteTool } from "./write.js";
 export { createEditTool } from "./edit.js";
 export { createBashTool } from "./bash.js";
