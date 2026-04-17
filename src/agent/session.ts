@@ -2,7 +2,7 @@
 import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { Agent } from "./agent.js";
-import type { AgentEvent, AgentMessage, ThinkingLevel } from "./types.js";
+import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool } from "./tools/index.js";
 import { createSystemPromptBuilder } from "./system-prompt/systemPrompt.js";
 import type { SystemPromptContext, SystemPromptSection } from "./system-prompt/types.js";
@@ -61,6 +61,9 @@ export class AgentSession {
       getApiKey: () => options.apiKey,
     });
 
+    if (options.systemPromptSections && options.systemPrompt) {
+      throw new Error("Cannot provide both systemPrompt and systemPromptSections");
+    }
     if (options.systemPromptSections) {
       this.systemPromptBuilder = createSystemPromptBuilder(options.systemPromptSections);
     } else {
@@ -90,6 +93,11 @@ export class AgentSession {
   /** 当前使用的模型 */
   get model(): Model<any> {
     return this.agent.state.model;
+  }
+
+  /** 当前可用工具列表（只读） */
+  get tools(): readonly AgentTool<any, any>[] {
+    return this.agent.state.tools;
   }
 
   /** 发送用户消息 */
@@ -135,6 +143,10 @@ export class AgentSession {
 
   private handleAgentEvent(event: AgentEvent): void {
     switch (event.type) {
+      // agent_start / agent_end 是 Agent 内部生命周期事件，UI 层通过 turn_start / turn_end 已足够感知状态变化，此处有意不转发
+      case "agent_start":
+      case "agent_end":
+        return;
       case "turn_start": {
         this.turnStartTime = Date.now();
         this.toolStartTimes.clear();
