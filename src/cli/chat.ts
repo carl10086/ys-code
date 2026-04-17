@@ -1,6 +1,6 @@
 import readline from "readline/promises";
 import { AgentSession } from "../agent/session.js";
-import { getModel, getEnvApiKey } from "../core/ai/index.js";
+import { getModel, getEnvApiKey, asSystemPrompt } from "../core/ai/index.js";
 import {
   formatAICardEnd,
   formatAICardStart,
@@ -22,7 +22,7 @@ const session = new AgentSession({
   cwd: process.cwd(),
   model,
   apiKey,
-  systemPrompt: systemPromptText,
+  systemPrompt: async () => asSystemPrompt([systemPromptText]),
 });
 
 session.subscribe((event) => {

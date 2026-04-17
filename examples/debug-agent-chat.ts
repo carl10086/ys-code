@@ -1,5 +1,5 @@
 import { AgentSession } from "../src/agent/index.js";
-import { getModel, getEnvApiKey } from "../src/core/ai/index.js";
+import { getModel, getEnvApiKey, asSystemPrompt } from "../src/core/ai/index.js";
 import {
   formatAICardEnd,
   formatAICardStart,
@@ -20,7 +20,7 @@ const session = new AgentSession({
   cwd: process.cwd(),
   model,
   apiKey,
-  systemPrompt: "你是一个乐于助人的助手。",
+  systemPrompt: async () => asSystemPrompt(["你是一个乐于助人的助手。"]),
 });
 
 session.subscribe((event) => {

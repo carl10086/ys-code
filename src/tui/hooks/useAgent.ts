@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
-import type { Model } from "../../core/ai/index.js";
+import { asSystemPrompt, type Model } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
 export interface UseAgentOptions {
@@ -32,7 +32,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
-      systemPrompt: options.systemPrompt,
+      systemPrompt: async () => asSystemPrompt([options.systemPrompt]),
     });
   }, []);
 
