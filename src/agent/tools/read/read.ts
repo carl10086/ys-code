@@ -82,7 +82,10 @@ export function createReadTool(cwd: string): AgentTool<typeof readSchema, ReadOu
     },
 
     formatResult: (output: ReadOutput) => {
-      return [{ type: 'text' as const, text: output.file.content }];
+      if (output.type === 'text') {
+        return [{ type: 'text' as const, text: output.file.content }];
+      }
+      return [{ type: 'text' as const, text: '' }];
     },
   });
 }
