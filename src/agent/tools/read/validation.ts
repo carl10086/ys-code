@@ -4,11 +4,11 @@ import { stat } from 'fs/promises';
 import type { ValidationError } from './types.js';
 import { DEFAULT_LIMITS } from './limits.js';
 
-/** 二进制文件扩展名集合 */
+/** 二进制文件扩展名集合（ReadTool 不支持的类型） */
 const BINARY_EXTENSIONS = new Set([
   'exe', 'dll', 'so', 'dylib', 'bin', 'dat',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp', 'tiff', 'tif',
-  'pdf', 'zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'iso',
+  'ico', 'svg', 'bmp', 'tiff', 'tif',
+  'zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz', 'tgz', 'iso',
   'mp3', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'm4v', 'mpeg', 'mpg',
   'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'aiff', 'opus',
   'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
@@ -72,5 +72,40 @@ export async function validateReadInput(
     }
     return { ok: false, message: `Cannot read '${path}': ${error.message ?? 'Unknown error'}`, errorCode: 1 };
   }
+  return { ok: true };
+}
+
+/**
+ * 校验 PDF 特定参数
+ */
+export async function validatePDFInput(
+  filePath: string,
+  pages?: string,
+): Promise<{ ok: true } | ValidationError> {
+  if (pages !== undefined) {
+    // 动态导入避免循环依赖
+    const { parsePDFPageRange } = await import('./pdf.js');
+    const parsed = parsePDFPageRange(pages);
+    if (!parsed) {
+      return {
+        ok: false,
+        message: `Invalid pages parameter: "${pages}". Use formats like "1-5", "3", or "10-20". Pages are 1-indexed.`,
+        errorCode: 8,
+      };
+    }
+
+    const rangeSize = parsed.lastPage === Infinity
+      ? 21  // PDF_MAX_PAGES_PER_READ + 1
+      : parsed.lastPage - parsed.firstPage + 1;
+
+    if (rangeSize > 20) {  // PDF_MAX_PAGES_PER_READ
+      return {
+        ok: false,
+        message: `Page range "${pages}" exceeds maximum of 20 pages per request. Please use a smaller range.`,
+        errorCode: 8,
+      };
+    }
+  }
+
   return { ok: true };
 }

@@ -1,34 +1,21 @@
 // src/agent/__tests__/session.test.ts
 import { describe, it, expect } from "bun:test";
 import { AgentSession } from "../session.js";
-import { getModel } from "../../core/ai/index.js";
+import { getModel, asSystemPrompt } from "../../core/ai/index.js";
 
 describe("AgentSession", () => {
   it("should initialize with correct state", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     expect(session.isStreaming).toBe(false);
     expect(session.messages).toEqual([]);
     expect(session.model).toBe(model);
     expect(session.tools).toHaveLength(4);
   });
 
-  it("should reject both systemPrompt and systemPromptSections", () => {
-    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    expect(() => {
-      new AgentSession({
-        cwd: "/tmp",
-        model,
-        apiKey: "test",
-        systemPrompt: "hello",
-        systemPromptSections: [{ name: "test", compute: async () => "test" }],
-      });
-    }).toThrow("Cannot provide both systemPrompt and systemPromptSections");
-  });
-
   it("should emit turn_start when agent emits turn_start", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -45,7 +32,7 @@ describe("AgentSession", () => {
 
   it("should convert thinking_delta with isFirst flag", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -77,7 +64,7 @@ describe("AgentSession", () => {
 
   it("should convert text_delta with isFirst flag", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -99,7 +86,7 @@ describe("AgentSession", () => {
 
   it("should convert tool_execution_start and tool_execution_end", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -141,7 +128,7 @@ describe("AgentSession", () => {
 
   it("should convert tool_execution_end error to tool_end with error summary", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -174,7 +161,7 @@ describe("AgentSession", () => {
 
   it("should emit turn_end with usage for assistant message", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -204,7 +191,7 @@ describe("AgentSession", () => {
 
   it("should emit turn_end with zeros for non-assistant message", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -229,7 +216,7 @@ describe("AgentSession", () => {
 
   it("should ignore agent_start and agent_end events", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -245,7 +232,7 @@ describe("AgentSession", () => {
 
   it("should reset agent state when reset() is called", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const agent = (session as any).agent;
     agent._state.messages.push({ role: "user", content: [{ type: "text", text: "test" }], timestamp: Date.now() });
     expect(session.messages).toHaveLength(1);
@@ -255,7 +242,7 @@ describe("AgentSession", () => {
 
   it("should clear per-turn state when reset() is called mid-turn", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 

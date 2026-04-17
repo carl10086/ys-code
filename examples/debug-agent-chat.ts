@@ -20,7 +20,6 @@ const session = new AgentSession({
   cwd: process.cwd(),
   model,
   apiKey,
-  systemPrompt: "你是一个乐于助人的助手。",
 });
 
 session.subscribe((event) => {

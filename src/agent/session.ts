@@ -4,8 +4,8 @@ import { asSystemPrompt } from "../core/ai/index.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool } from "./tools/index.js";
-import { createSystemPromptBuilder } from "./system-prompt/systemPrompt.js";
-import type { SystemPromptContext, SystemPromptSection } from "./system-prompt/types.js";
+import type { SystemPromptContext } from "./system-prompt/types.js";
+import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 
 /** AgentSession 向 UI 层发出的事件 */
 export type AgentSessionEvent =
@@ -26,10 +26,8 @@ export interface AgentSessionOptions {
   apiKey: string | undefined;
   /** 思考级别 */
   thinkingLevel?: ThinkingLevel;
-  /** 简单系统提示字符串（与 systemPromptSections 二选一） */
-  systemPrompt?: string;
-  /** system prompt sections，用于 createSystemPromptBuilder（与 systemPrompt 二选一） */
-  systemPromptSections?: SystemPromptSection[];
+  /** 自定义 system prompt（不传则使用内置 coding-agent prompt） */
+  systemPrompt?: (context: SystemPromptContext) => Promise<SystemPrompt>;
   /** 自定义工具列表（不传则使用默认的 read/write/edit/bash） */
   tools?: AgentTool<any, any>[];
 }
@@ -63,15 +61,7 @@ export class AgentSession {
       getApiKey: () => options.apiKey,
     });
 
-    if (options.systemPromptSections && options.systemPrompt) {
-      throw new Error("Cannot provide both systemPrompt and systemPromptSections");
-    }
-    if (options.systemPromptSections) {
-      this.systemPromptBuilder = createSystemPromptBuilder(options.systemPromptSections);
-    } else {
-      const staticPrompt = asSystemPrompt([options.systemPrompt ?? ""]);
-      this.systemPromptBuilder = async () => staticPrompt;
-    }
+    this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
   }
