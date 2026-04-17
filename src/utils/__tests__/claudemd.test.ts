@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { getMemoryFiles, clearMemoryFilesCache, processMemoryFile } from "../claudemd.js";
+import { getMemoryFiles, clearMemoryFilesCache, processMemoryFile, getClaudeMds } from "../claudemd.js";
 
 describe("getMemoryFiles", () => {
   let tempDir: string;
@@ -60,5 +60,50 @@ describe("processMemoryFile @include", () => {
     expect(info).not.toBeNull();
     expect(info!.content).toContain("A");
     expect(info!.content).toContain("B");
+  });
+});
+
+describe("processMemoryFile frontmatter & stripping", () => {
+  let tempDir: string;
+  let originalCwd: () => string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "claudemd-fm-"));
+    originalCwd = process.cwd;
+    process.cwd = () => tempDir;
+  });
+
+  afterEach(() => {
+    process.cwd = originalCwd;
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("paths 不匹配时应过滤掉文件", async () => {
+    const rulePath = join(tempDir, "rule.md");
+    writeFileSync(rulePath, "---\npaths:\n  - \"src/**/*.ts\"\n---\nRule content");
+    const info = await processMemoryFile(rulePath, "project", { cwd: tempDir });
+    expect(info).toBeNull();
+  });
+
+  it("应移除 HTML 块级注释", async () => {
+    const mdPath = join(tempDir, "comment.md");
+    writeFileSync(mdPath, "Hello\n\n<!-- hidden -->\n\nWorld");
+    const info = await processMemoryFile(mdPath, "project");
+    expect(info).not.toBeNull();
+    expect(info!.content).not.toContain("<!-- hidden -->");
+    expect(info!.content).toContain("Hello");
+    expect(info!.content).toContain("World");
+  });
+
+  it("getClaudeMds 应返回格式化字符串", () => {
+    const result = getClaudeMds([
+      { path: "a.md", fullPath: "/a.md", content: "A", source: "project" },
+      { path: "b.md", fullPath: "/b.md", content: "B", source: "project" },
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain("Contents of a.md:");
+    expect(result).toContain("A");
+    expect(result).toContain("Contents of b.md:");
+    expect(result).toContain("B");
   });
 });

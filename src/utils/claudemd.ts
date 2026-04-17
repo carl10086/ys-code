@@ -153,13 +153,25 @@ export async function processMemoryFile(
     return null;
   }
 
+  const { frontmatter, body } = parseFrontmatter(rawContent);
+
+  if (frontmatter?.paths) {
+    const patterns = Array.isArray(frontmatter.paths) ? frontmatter.paths : [frontmatter.paths];
+    const matches = patterns.some((pattern: string) => {
+      return picomatch(pattern, { contains: true, dot: true })(cwd);
+    });
+    if (!matches) {
+      return null;
+    }
+  }
+
   const newChain = new Set(includeChain);
   newChain.add(resolvedPath);
 
   const includeRegex = /^@([~.\/][^\s]+)$/gm;
-  const matches = Array.from(rawContent.matchAll(includeRegex));
+  const matches = Array.from(body.matchAll(includeRegex));
 
-  let processedContent = rawContent;
+  let processedContent = body;
   for (let i = matches.length - 1; i >= 0; i--) {
     const match = matches[i];
     const includePathRaw = match[1];
@@ -180,10 +192,12 @@ export async function processMemoryFile(
     processedContent = before + replacement + after;
   }
 
+  const strippedContent = stripHtmlBlockComments(processedContent);
+
   return {
     path: relative(cwd, resolvedPath) || resolvedPath,
     fullPath: resolvedPath,
-    content: processedContent,
+    content: strippedContent,
     source,
   };
 }
@@ -200,6 +214,42 @@ function resolveIncludePath(raw: string, baseFile: string): string | null {
   return resolve(join(baseDir, raw));
 }
 
+/** 解析 YAML frontmatter */
+function parseFrontmatter(content: string): { frontmatter: Record<string, any> | null; body: string } {
+  if (!content.startsWith("---\n")) {
+    return { frontmatter: null, body: content };
+  }
+  const endIndex = content.indexOf("\n---\n", 4);
+  if (endIndex === -1) {
+    return { frontmatter: null, body: content };
+  }
+  const yamlText = content.slice(4, endIndex);
+  const body = content.slice(endIndex + 5);
+  try {
+    const frontmatter = parseYaml(yamlText) as Record<string, any>;
+    return { frontmatter, body };
+  } catch {
+    return { frontmatter: null, body: content };
+  }
+}
+
+/** 移除 HTML 块级注释 */
+function stripHtmlBlockComments(content: string): string {
+  try {
+    const tokens = marked.lexer(content);
+    const filtered = tokens.filter((token: any) => {
+      if (token.type === "html") {
+        const raw = token.raw?.trim() || "";
+        return !/^<!--[\s\S]*?-->$/m.test(raw);
+      }
+      return true;
+    });
+    return filtered.map((token: any) => token.raw || "").join("");
+  } catch {
+    return content;
+  }
+}
+
 /** 过滤已被注入的文件 */
 export function filterInjectedMemoryFiles(
   files: MemoryFileInfo[],
@@ -209,8 +259,17 @@ export function filterInjectedMemoryFiles(
   return files.filter((f) => !injectedPaths.has(f.fullPath));
 }
 
-/** 将 memory 文件列表格式化为 claudeMd 字符串（占位） */
+const MEMORY_INSTRUCTION_PROMPT = `The following additional context was automatically retrieved. It may or may not be relevant to the user's request. You should use it if it is relevant, and ignore it if it is not.`;
+
+/** 将 memory 文件列表格式化为 claudeMd 字符串 */
 export function getClaudeMds(files: MemoryFileInfo[]): string | null {
   if (files.length === 0) return null;
-  return files.map((f) => f.content).join("\n\n");
+  const parts = [MEMORY_INSTRUCTION_PROMPT, ""];
+  for (const file of files) {
+    const desc = file.description ? ` (${file.description})` : "";
+    parts.push(`Contents of ${file.path}${desc}:`);
+    parts.push(file.content);
+    parts.push("");
+  }
+  return parts.join("\n");
 }
