@@ -7,13 +7,11 @@ import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { useAgent } from "./hooks/useAgent.js";
 
-const systemPrompt = process.argv[2] ?? "You are a helpful assistant.";
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 export function App(): React.ReactElement {
   const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage } = useAgent({
-    systemPrompt,
     model,
     apiKey,
   });

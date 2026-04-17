@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
-import { asSystemPrompt, type Model } from "../../core/ai/index.js";
+import type { Model } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
 export interface UseAgentOptions {
-  /** 系统提示词 */
-  systemPrompt: string;
   /** 使用的模型 */
   model: Model<any>;
   /** API Key */
@@ -32,7 +30,6 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
-      systemPrompt: async () => asSystemPrompt([options.systemPrompt]),
     });
   }, []);
 
