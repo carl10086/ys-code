@@ -124,6 +124,15 @@ export class AgentSession {
   /** 重置会话 */
   reset(): void {
     this.agent.reset();
+    this.clearTurnState();
+  }
+
+  private clearTurnState(): void {
+    this.turnStartTime = 0;
+    this.toolStartTimes.clear();
+    this.hasEmittedThinking = false;
+    this.hasEmittedAnswer = false;
+    this.hasEmittedTools = false;
   }
 
   /** 中止当前运行 */
@@ -153,11 +162,8 @@ export class AgentSession {
       case "agent_end":
         return;
       case "turn_start": {
+        this.clearTurnState();
         this.turnStartTime = Date.now();
-        this.toolStartTimes.clear();
-        this.hasEmittedThinking = false;
-        this.hasEmittedAnswer = false;
-        this.hasEmittedTools = false;
         this.emit({ type: "turn_start", modelName: this.agent.state.model.name });
         break;
       }
@@ -205,7 +211,7 @@ export class AgentSession {
         break;
       }
       case "turn_end": {
-        const elapsed = Date.now() - this.turnStartTime;
+        const elapsed = this.turnStartTime > 0 ? Date.now() - this.turnStartTime : 0;
         if (event.message.role === "assistant") {
           const usage = event.message.usage;
           this.emit({

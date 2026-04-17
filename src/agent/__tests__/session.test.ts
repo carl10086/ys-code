@@ -33,8 +33,9 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
-      listener({ type: "turn_start" });
+      listener({ type: "turn_start" }, signal);
     });
 
     expect(events).toHaveLength(1);
@@ -49,6 +50,7 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener(
         {
@@ -56,6 +58,7 @@ describe("AgentSession", () => {
           message: { role: "assistant", content: [] },
           assistantMessageEvent: { type: "thinking_delta", delta: "hello" },
         },
+        signal,
       );
       listener(
         {
@@ -63,6 +66,7 @@ describe("AgentSession", () => {
           message: { role: "assistant", content: [] },
           assistantMessageEvent: { type: "thinking_delta", delta: " world" },
         },
+        signal,
       );
     });
 
@@ -78,6 +82,7 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener(
         {
@@ -85,6 +90,7 @@ describe("AgentSession", () => {
           message: { role: "assistant", content: [] },
           assistantMessageEvent: { type: "text_delta", delta: "hi" },
         },
+        signal,
       );
     });
 
@@ -98,20 +104,21 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener({
         type: "tool_execution_start",
         toolCallId: "tc1",
         toolName: "bash",
         args: { command: "echo hi" },
-      });
+      }, signal);
       listener({
         type: "tool_execution_end",
         toolCallId: "tc1",
         toolName: "bash",
         result: { content: [{ type: "text", text: "hi" }] },
         isError: false,
-      });
+      }, signal);
     });
 
     expect(events).toHaveLength(2);
@@ -139,20 +146,21 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener({
         type: "tool_execution_start",
         toolCallId: "tc2",
         toolName: "bash",
         args: { command: "false" },
-      });
+      }, signal);
       listener({
         type: "tool_execution_end",
         toolCallId: "tc2",
         toolName: "bash",
         result: { content: [{ type: "text", text: "command failed" }] },
         isError: true,
-      });
+      }, signal);
     });
 
     expect(events[1]).toMatchObject({
@@ -171,8 +179,9 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
-      listener({ type: "turn_start" });
+      listener({ type: "turn_start" }, signal);
       listener({
         type: "turn_end",
         message: {
@@ -181,7 +190,7 @@ describe("AgentSession", () => {
           usage: { totalTokens: 42, cost: { total: 0.001 } },
         },
         toolResults: [],
-      });
+      }, signal);
     });
 
     const turnEnd = events.find((e) => e.type === "turn_end");
@@ -200,12 +209,13 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener({
         type: "turn_end",
         message: { role: "user", content: [{ type: "text", text: "hi" }] },
         toolResults: [],
-      });
+      }, signal);
     });
 
     const turnEnd = events.find((e) => e.type === "turn_end");
@@ -224,9 +234,10 @@ describe("AgentSession", () => {
     session.subscribe((e) => events.push(e));
 
     const agent = (session as any).agent;
+    const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
-      listener({ type: "agent_start" });
-      listener({ type: "agent_end", messages: [] });
+      listener({ type: "agent_start" }, signal);
+      listener({ type: "agent_end", messages: [] }, signal);
     });
 
     expect(events).toHaveLength(0);
@@ -240,5 +251,59 @@ describe("AgentSession", () => {
     expect(session.messages).toHaveLength(1);
     session.reset();
     expect(session.messages).toEqual([]);
+  });
+
+  it("should clear per-turn state when reset() is called mid-turn", () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
+    const events: any[] = [];
+    session.subscribe((e) => events.push(e));
+
+    const agent = (session as any).agent;
+    const signal = new AbortController().signal;
+    agent.listeners.forEach((listener: any) => {
+      listener({ type: "turn_start" }, signal);
+      listener(
+        {
+          type: "message_update",
+          message: { role: "assistant", content: [] },
+          assistantMessageEvent: { type: "thinking_delta", delta: "hello" },
+        },
+        signal,
+      );
+    });
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toEqual({ type: "thinking_delta", text: "hello", isFirst: true });
+
+    session.reset();
+
+    // After reset, a new turn_start should produce correct isFirst flags
+    agent.listeners.forEach((listener: any) => {
+      listener({ type: "turn_start" }, signal);
+      listener(
+        {
+          type: "message_update",
+          message: { role: "assistant", content: [] },
+          assistantMessageEvent: { type: "thinking_delta", delta: "world" },
+        },
+        signal,
+      );
+    });
+
+    const secondTurnThinking = events.filter((e) => e.type === "thinking_delta")[1];
+    expect(secondTurnThinking).toEqual({ type: "thinking_delta", text: "world", isFirst: true });
+
+    // turn_end without matching turn_start after reset should report timeMs: 0
+    agent.listeners.forEach((listener: any) => {
+      listener({
+        type: "turn_end",
+        message: { role: "assistant", content: [], usage: { totalTokens: 1, cost: { total: 0 } } },
+        toolResults: [],
+      }, signal);
+    });
+
+    const lastTurnEnd = events.filter((e) => e.type === "turn_end").pop();
+    expect(lastTurnEnd!.timeMs).toBeGreaterThanOrEqual(0);
   });
 });
