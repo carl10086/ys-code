@@ -12,6 +12,8 @@ import type {
   AgentLoopConfig,
   StreamFn,
 } from "./types.js";
+import { getUserContext, prependUserContext } from "./context/user-context.js";
+import type { Message } from "../core/ai/index.js";
 
 /** 事件发射器类型 */
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
@@ -53,6 +55,9 @@ export async function streamAssistantResponse(
   let messages = context.messages;
   if (config.transformContext) {
     messages = await config.transformContext(messages, signal);
+  } else if (!config.disableUserContext) {
+    const userContext = await getUserContext({ cwd: process.cwd() });
+    messages = prependUserContext(messages as Message[], userContext) as typeof messages;
   }
 
   const llmMessages = await config.convertToLlm(messages);

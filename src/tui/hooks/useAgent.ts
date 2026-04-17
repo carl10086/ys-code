@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Agent } from "../../agent/agent.js";
-import type { AgentEvent, AgentMessage, AgentState, AgentTool } from "../../agent/types.js";
-import { asSystemPrompt } from "../../core/ai/index.js";
+import { useEffect, useMemo, useState } from "react";
+import { AgentSession } from "../../agent/session.js";
+import type { AgentSessionEvent } from "../../agent/session.js";
 import type { Model } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
@@ -12,13 +11,11 @@ export interface UseAgentOptions {
   model: Model<any>;
   /** API Key */
   apiKey: string | undefined;
-  /** 工具列表 */
-  tools: AgentTool<any, any>[];
 }
 
 export interface UseAgentResult {
-  /** Agent 实例 */
-  agent: Agent;
+  /** AgentSession 实例 */
+  session: AgentSession;
   /** UI 消息列表 */
   messages: UIMessage[];
   /** 是否应自动滚动到底部 */
@@ -30,83 +27,66 @@ export interface UseAgentResult {
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
-  const agent = useMemo(() => {
-    return new Agent({
-      systemPrompt: async () => asSystemPrompt([options.systemPrompt]),
-      initialState: {
-        model: options.model,
-        thinkingLevel: "medium",
-        tools: options.tools,
-      },
-      getApiKey: () => options.apiKey,
+  const session = useMemo(() => {
+    return new AgentSession({
+      cwd: process.cwd(),
+      model: options.model,
+      apiKey: options.apiKey,
+      systemPrompt: options.systemPrompt,
     });
   }, []);
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
-  const toolStartTimes = useRef<Map<string, number>>(new Map());
-  const turnStartTime = useRef<number>(0);
 
   useEffect(() => {
-    return agent.subscribe((event) => {
+    return session.subscribe((event: AgentSessionEvent) => {
       setMessages((prev) => {
         const next = [...prev];
         switch (event.type) {
           case "turn_start": {
-            turnStartTime.current = Date.now();
             next.push({ type: "assistant_start" });
             break;
           }
-          case "message_update": {
-            const ae = event.assistantMessageEvent;
-            if (ae.type === "thinking_delta") {
-              const last = next[next.length - 1];
-              if (last && last.type === "thinking") {
-                last.text += ae.delta;
-              } else {
-                next.push({ type: "thinking", text: ae.delta });
-              }
-            } else if (ae.type === "text_delta") {
-              const last = next[next.length - 1];
-              if (last && last.type === "text") {
-                last.text += ae.delta;
-              } else {
-                next.push({ type: "text", text: ae.delta });
-              }
+          case "thinking_delta": {
+            const last = next[next.length - 1];
+            if (last && last.type === "thinking") {
+              last.text += event.text;
+            } else {
+              next.push({ type: "thinking", text: event.text });
             }
             break;
           }
-          case "tool_execution_start": {
-            toolStartTimes.current.set(event.toolCallId, Date.now());
+          case "answer_delta": {
+            const last = next[next.length - 1];
+            if (last && last.type === "text") {
+              last.text += event.text;
+            } else {
+              next.push({ type: "text", text: event.text });
+            }
+            break;
+          }
+          case "tool_start": {
             next.push({ type: "tool_start", toolName: event.toolName, args: event.args });
             break;
           }
-          case "tool_execution_end": {
-            const startTime = toolStartTimes.current.get(event.toolCallId) ?? Date.now();
-            toolStartTimes.current.delete(event.toolCallId);
-            const summary = event.isError
-              ? String((event.result as any)?.content?.[0]?.text ?? "error")
-              : String((event.result as any)?.content?.[0]?.text ?? "");
+          case "tool_end": {
             next.push({
               type: "tool_end",
               toolName: event.toolName,
               isError: event.isError,
-              summary: summary || "done",
-              timeMs: Date.now() - startTime,
+              summary: event.summary,
+              timeMs: event.timeMs,
             });
             break;
           }
           case "turn_end": {
-            const elapsed = Date.now() - turnStartTime.current;
-            if (event.message.role === "assistant") {
-              const usage = event.message.usage;
-              next.push({
-                type: "assistant_end",
-                tokens: usage.totalTokens,
-                cost: usage.cost.total,
-                timeMs: elapsed,
-              });
-            }
+            next.push({
+              type: "assistant_end",
+              tokens: event.tokens,
+              cost: event.cost,
+              timeMs: event.timeMs,
+            });
             break;
           }
         }
@@ -114,10 +94,10 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       });
       setShouldScrollToBottom(true);
     });
-  }, [agent]);
+  }, [session]);
 
   return {
-    agent,
+    session,
     messages,
     shouldScrollToBottom,
     markScrolled: () => setShouldScrollToBottom(false),

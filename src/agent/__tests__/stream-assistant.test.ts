@@ -1,9 +1,14 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { streamAssistantResponse } from "../stream-assistant.js";
 import { createAssistantMessageEventStream } from "../../core/ai/utils/event-stream.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig } from "../types.js";
 import type { AssistantMessage, Message } from "../../core/ai/types.js";
 import { asSystemPrompt } from "../../core/ai/types.js";
+import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { clearMemoryFilesCache } from "../../utils/claudemd.js";
+import { clearUserContextCache } from "../context/user-context.js";
 
 function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopConfig {
   return {
@@ -19,7 +24,7 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
       contextWindow: 1000,
       maxTokens: 100,
     },
-    convertToLlm: (messages: any[]) => messages as Message[],
+    convertToLlm: (messages: any[]) => [...messages] as Message[],
     systemPrompt: asSystemPrompt(["test"]),
     ...overrides,
   } as AgentLoopConfig;
@@ -143,5 +148,85 @@ describe("streamAssistantResponse", () => {
     await streamAssistantResponse(context, config, controller.signal, emit, streamFn as any);
 
     expect(receivedSignal?.aborted).toBe(true);
+  });
+});
+
+describe("streamAssistantResponse userContext integration", () => {
+  let tempDir: string;
+  let originalCwd: () => string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "sa-uc-"));
+    originalCwd = process.cwd;
+    process.cwd = () => tempDir;
+    clearMemoryFilesCache();
+    clearUserContextCache();
+  });
+
+  afterEach(() => {
+    process.cwd = originalCwd;
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("默认应自动 prepend userContext 到 messages", async () => {
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
+
+    const context = createMockContext();
+    const config = createMockConfig();
+
+    let capturedMessages: Message[] | undefined;
+    const streamFn = async (_model: any, ctx: any) => {
+      capturedMessages = ctx.messages;
+      const stream = createAssistantMessageEventStream();
+      const final: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.end(final);
+      return stream;
+    };
+
+    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+
+    expect(capturedMessages).toBeDefined();
+    expect(capturedMessages!.length).toBeGreaterThan(0);
+    expect((capturedMessages![0] as any).role).toBe("user");
+    expect((capturedMessages![0] as any).content).toContain("<system-reminder>");
+  });
+
+  it("disableUserContext 为 true 时不应 prepend meta message", async () => {
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
+
+    const context = createMockContext();
+    const config = createMockConfig({ disableUserContext: true });
+
+    let capturedMessages: Message[] | undefined;
+    const streamFn = async (_model: any, ctx: any) => {
+      capturedMessages = ctx.messages;
+      const stream = createAssistantMessageEventStream();
+      const final: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.end(final);
+      return stream;
+    };
+
+    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+
+    expect(capturedMessages).toBeDefined();
+    expect(capturedMessages!.length).toBe(0);
   });
 });
