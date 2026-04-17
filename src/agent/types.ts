@@ -179,4 +179,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
   getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数
   toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
+  /** 禁用自动 userContext prepend */
+  disableUserContext?: boolean;
 }
