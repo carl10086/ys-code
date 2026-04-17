@@ -96,7 +96,7 @@ export interface AgentTool<
   validateInput?: (
     params: Static<TParameters>,
     context: ToolUseContext,
-  ) => Promise<{ ok: true } | { ok: false; message: string }>;
+  ) => Promise<{ ok: true } | { ok: false; message: string; errorCode?: number }>;
 
   /**
    * 权限检查（在 validateInput 通过后调用）。
