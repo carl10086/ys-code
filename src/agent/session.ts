@@ -30,6 +30,8 @@ export interface AgentSessionOptions {
   systemPrompt?: string;
   /** system prompt sections，用于 createSystemPromptBuilder（与 systemPrompt 二选一） */
   systemPromptSections?: SystemPromptSection[];
+  /** 自定义工具列表（不传则使用默认的 read/write/edit/bash） */
+  tools?: AgentTool<any, any>[];
 }
 
 export class AgentSession {
@@ -45,7 +47,7 @@ export class AgentSession {
 
   constructor(options: AgentSessionOptions) {
     this.cwd = options.cwd;
-    const tools = [
+    const tools = options.tools ?? [
       createReadTool(options.cwd),
       createWriteTool(options.cwd),
       createEditTool(options.cwd),
