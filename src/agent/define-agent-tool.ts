@@ -8,7 +8,7 @@ export function defineAgentTool<TParams extends TSchema, TOutput>(
     isReadOnly: false,
     isConcurrencySafe: false,
     isDestructive: false,
-    validateInput: async () => ({ ok: true }),
+    validateInput: async (_params, _context) => ({ ok: true }),
     checkPermissions: async () => ({ allowed: true }),
     formatResult: (output) => [{ type: "text", text: String(output) }],
     ...tool,
