@@ -36,16 +36,17 @@ export function expandPath(inputPath: string, cwd?: string): string {
 }
 
 export function hasBinaryExtension(filePath: string): boolean {
-  const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
+  const dotIndex = filePath.lastIndexOf('.');
+  const ext = dotIndex === -1 ? '' : filePath.slice(dotIndex).toLowerCase();
   return BINARY_EXTENSIONS.has(ext);
 }
 
 export function isBlockedDevicePath(filePath: string): boolean {
   if (BLOCKED_DEVICE_PATHS.has(filePath)) return true;
-  if (
-    filePath.startsWith('/proc/') &&
-    (filePath.endsWith('/fd/0') || filePath.endsWith('/fd/1') || filePath.endsWith('/fd/2'))
-  ) return true;
+  if (filePath.startsWith('/proc/')) {
+    const procFdMatch = /^\/proc\/[^\/]+\/fd\/[012]$/.test(filePath);
+    if (procFdMatch) return true;
+  }
   return false;
 }
 
@@ -69,7 +70,7 @@ export async function validateReadInput(
     if (error.code === 'ENOENT') {
       return { ok: false, message: `File does not exist: ${fullPath}`, errorCode: 1 };
     }
-    throw error;
+    return { ok: false, message: `Cannot read '${path}': ${error.message ?? 'Unknown error'}`, errorCode: 1 };
   }
   return { ok: true };
 }
