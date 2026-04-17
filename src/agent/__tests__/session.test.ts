@@ -86,8 +86,9 @@ describe("AgentSession", () => {
   it("should reset agent state when reset() is called", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
     const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test" });
-    session.steer("test");
-    expect((session as any).agent.state.messages).toHaveLength(0);
+    const agent = (session as any).agent;
+    agent._state.messages.push({ role: "user", content: [{ type: "text", text: "test" }], timestamp: Date.now() });
+    expect(session.messages).toHaveLength(1);
     session.reset();
     expect(session.messages).toEqual([]);
   });
