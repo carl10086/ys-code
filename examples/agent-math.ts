@@ -6,7 +6,7 @@
 
 import { Type } from "@sinclair/typebox";
 import { Agent, type AgentTool } from "../src/agent/index.js";
-import { getModel } from "../src/core/ai/index.js";
+import { getModel, asSystemPrompt } from "../src/core/ai/index.js";
 
 // 定义 math tools
 const addTool: AgentTool = {
@@ -47,8 +47,11 @@ const subtractTool: AgentTool = {
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 
 const agent = new Agent({
+  systemPrompt: async () =>
+    asSystemPrompt([
+      "You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool.",
+    ]),
   initialState: {
-    systemPrompt: "You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool.",
     model,
     tools: [addTool, subtractTool],
     thinkingLevel: "off",

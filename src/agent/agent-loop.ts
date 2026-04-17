@@ -1,417 +1,76 @@
 // src/agent/agent-loop.ts
-import {
-  type AssistantMessage,
-  type Context,
-  EventStream,
-  streamSimple,
-  type ToolResultMessage,
-  validateToolArguments,
-} from "../core/ai/index.js";
+import { type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
+import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
+import { executeToolCalls } from "./tool-execution.js";
 import type {
   AgentContext,
-  AgentEvent,
   AgentLoopConfig,
   AgentMessage,
-  AgentTool,
-  AgentToolCall,
-  AgentToolResult,
   StreamFn,
 } from "./types.js";
 
-export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
-
-function createAgentStream(): EventStream<AgentEvent, AgentMessage[]> {
-  return new EventStream<AgentEvent, AgentMessage[]>(
-    (event: AgentEvent) => event.type === "agent_end",
-    (event: AgentEvent) => (event.type === "agent_end" ? event.messages : []),
-  );
-}
-
 /**
- * 流式获取 assistant 响应
+ * 执行单次 turn：注入 pendingMessages、请求 assistant 回复、执行工具调用并发射 turn_end。
+ *
+ * @param currentContext - 当前 agent 上下文
+ * @param newMessages - 本轮 agent 产生的新消息集合
+ * @param pendingMessages - 待注入的 steering / follow-up 消息数组（会被清空）
+ * @param config - agent 循环配置
+ * @param signal - 可选的取消信号
+ * @param emit - 事件发射器
+ * @param streamFn - 可选的流式请求函数
+ * @returns assistant 消息与工具执行结果
  */
-async function streamAssistantResponse(
-  context: AgentContext,
+async function runTurnOnce(
+  currentContext: AgentContext,
+  newMessages: AgentMessage[],
+  pendingMessages: AgentMessage[],
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
-): Promise<AssistantMessage> {
-  let messages = context.messages;
-  if (config.transformContext) {
-    messages = await config.transformContext(messages, signal);
+): Promise<{ assistantMessage: AssistantMessage; toolResults: ToolResultMessage[] }> {
+  if (pendingMessages.length > 0) {
+    for (const message of pendingMessages) {
+      await emit({ type: "message_start", message });
+      await emit({ type: "message_end", message });
+      currentContext.messages.push(message);
+      newMessages.push(message);
+    }
+    pendingMessages.length = 0;
   }
 
-  const llmMessages = await config.convertToLlm(messages);
+  const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+  newMessages.push(message);
 
-  const llmContext: Context = {
-    systemPrompt: context.systemPrompt,
-    messages: llmMessages,
-    tools: context.tools as any,
-  };
+  const toolCalls = message.content.filter((c) => c.type === "toolCall");
+  const hasMoreToolCalls = toolCalls.length > 0;
 
-  const streamFunction = streamFn || streamSimple;
+  const toolResults: ToolResultMessage[] = [];
+  if (hasMoreToolCalls) {
+    toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
 
-  const resolvedApiKey =
-    (config.getApiKey ? await config.getApiKey(config.model.provider) : undefined) || config.apiKey;
-
-  const response = await streamFunction(config.model, llmContext, {
-    ...config,
-    apiKey: resolvedApiKey,
-    signal,
-  });
-
-  let partialMessage: AssistantMessage | null = null;
-  let addedPartial = false;
-
-  for await (const event of response) {
-    switch (event.type) {
-      case "start":
-        partialMessage = event.partial;
-        context.messages.push(partialMessage);
-        addedPartial = true;
-        await emit({ type: "message_start", message: { ...partialMessage } });
-        break;
-
-      case "text_start":
-      case "text_delta":
-      case "text_end":
-      case "thinking_start":
-      case "thinking_delta":
-      case "thinking_end":
-      case "toolcall_start":
-      case "toolcall_delta":
-      case "toolcall_end":
-        if (partialMessage) {
-          partialMessage = event.partial;
-          context.messages[context.messages.length - 1] = partialMessage;
-          await emit({
-            type: "message_update",
-            assistantMessageEvent: event,
-            message: { ...partialMessage },
-          });
-        }
-        break;
-
-      case "done":
-      case "error": {
-        const finalMessage = await response.result();
-        if (addedPartial) {
-          context.messages[context.messages.length - 1] = finalMessage;
-        } else {
-          context.messages.push(finalMessage);
-        }
-        if (!addedPartial) {
-          await emit({ type: "message_start", message: { ...finalMessage } });
-        }
-        await emit({ type: "message_end", message: finalMessage });
-        return finalMessage;
-      }
+    for (const result of toolResults) {
+      currentContext.messages.push(result);
+      newMessages.push(result);
     }
   }
 
-  const finalMessage = await response.result();
-  if (addedPartial) {
-    context.messages[context.messages.length - 1] = finalMessage;
-  } else {
-    context.messages.push(finalMessage);
-    await emit({ type: "message_start", message: { ...finalMessage } });
-  }
-  await emit({ type: "message_end", message: finalMessage });
-  return finalMessage;
+  await emit({ type: "turn_end", message, toolResults });
+
+  return { assistantMessage: message, toolResults };
 }
 
-// 工具执行相关类型
-type PreparedToolCall = {
-  kind: "prepared";
-  toolCall: AgentToolCall;
-  tool: AgentTool<any>;
-  args: unknown;
-};
-
-type ImmediateToolCallOutcome = {
-  kind: "immediate";
-  result: AgentToolResult<any>;
-  isError: boolean;
-};
-
-type ExecutedToolCallOutcome = {
-  result: AgentToolResult<any>;
-  isError: boolean;
-};
-
-function createErrorToolResult(message: string): AgentToolResult<any> {
-  return {
-    content: [{ type: "text", text: message }],
-    details: {},
-  };
-}
-
-async function emitToolCallOutcome(
-  toolCall: AgentToolCall,
-  result: AgentToolResult<any>,
-  isError: boolean,
-  emit: AgentEventSink,
-): Promise<ToolResultMessage> {
-  await emit({
-    type: "tool_execution_end",
-    toolCallId: toolCall.id,
-    toolName: toolCall.name,
-    result,
-    isError,
-  });
-
-  const toolResultMessage: ToolResultMessage = {
-    role: "toolResult",
-    toolCallId: toolCall.id,
-    toolName: toolCall.name,
-    content: result.content,
-    details: result.details,
-    isError,
-    timestamp: Date.now(),
-  };
-
-  await emit({ type: "message_start", message: toolResultMessage });
-  await emit({ type: "message_end", message: toolResultMessage });
-  return toolResultMessage;
-}
-
-async function prepareToolCall(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  toolCall: AgentToolCall,
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-): Promise<PreparedToolCall | ImmediateToolCallOutcome> {
-  const tool = currentContext.tools?.find((t) => t.name === toolCall.name);
-  if (!tool) {
-    return {
-      kind: "immediate",
-      result: createErrorToolResult(`Tool ${toolCall.name} not found`),
-      isError: true,
-    };
-  }
-
-  try {
-    const validatedArgs = validateToolArguments(tool as any, toolCall);
-    if (config.beforeToolCall) {
-      const beforeResult = await config.beforeToolCall(
-        {
-          assistantMessage,
-          toolCall,
-          args: validatedArgs,
-          context: currentContext,
-        },
-        signal,
-      );
-      if (beforeResult?.block) {
-        return {
-          kind: "immediate",
-          result: createErrorToolResult(beforeResult.reason || "Tool execution was blocked"),
-          isError: true,
-        };
-      }
-    }
-    return {
-      kind: "prepared",
-      toolCall,
-      tool,
-      args: validatedArgs,
-    };
-  } catch (error) {
-    return {
-      kind: "immediate",
-      result: createErrorToolResult(error instanceof Error ? error.message : String(error)),
-      isError: true,
-    };
-  }
-}
-
-async function executePreparedToolCall(
-  prepared: PreparedToolCall,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-): Promise<ExecutedToolCallOutcome> {
-  const updateEvents: Promise<void>[] = [];
-
-  try {
-    const result = await prepared.tool.execute(
-      prepared.toolCall.id,
-      prepared.args as never,
-      signal,
-      (partialResult) => {
-        updateEvents.push(
-          Promise.resolve(
-            emit({
-              type: "tool_execution_update",
-              toolCallId: prepared.toolCall.id,
-              toolName: prepared.toolCall.name,
-              args: prepared.toolCall.arguments,
-              partialResult,
-            }),
-          ),
-        );
-      },
-    );
-    await Promise.all(updateEvents);
-    return { result, isError: false };
-  } catch (error) {
-    await Promise.all(updateEvents);
-    return {
-      result: createErrorToolResult(error instanceof Error ? error.message : String(error)),
-      isError: true,
-    };
-  }
-}
-
-async function finalizeExecutedToolCall(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  prepared: PreparedToolCall,
-  executed: ExecutedToolCallOutcome,
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-): Promise<ToolResultMessage> {
-  let result = executed.result;
-  let isError = executed.isError;
-
-  if (config.afterToolCall) {
-    const afterResult = await config.afterToolCall(
-      {
-        assistantMessage,
-        toolCall: prepared.toolCall,
-        args: prepared.args,
-        result,
-        isError,
-        context: currentContext,
-      },
-      signal,
-    );
-    if (afterResult) {
-      result = {
-        content: afterResult.content ?? result.content,
-        details: afterResult.details ?? result.details,
-      };
-      isError = afterResult.isError ?? isError;
-    }
-  }
-
-  return await emitToolCallOutcome(prepared.toolCall, result, isError, emit);
-}
-
-// 工具执行入口函数
-async function executeToolCalls(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
-  const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall") as AgentToolCall[];
-  if (config.toolExecution === "sequential") {
-    return executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit);
-  }
-  return executeToolCallsParallel(currentContext, assistantMessage, toolCalls, config, signal, emit);
-}
-
-async function executeToolCallsSequential(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  toolCalls: AgentToolCall[],
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
-  const results: ToolResultMessage[] = [];
-
-  for (const toolCall of toolCalls) {
-    await emit({
-      type: "tool_execution_start",
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      args: toolCall.arguments,
-    });
-
-    const preparation = await prepareToolCall(currentContext, assistantMessage, toolCall, config, signal);
-    if (preparation.kind === "immediate") {
-      results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
-    } else {
-      const executed = await executePreparedToolCall(preparation, signal, emit);
-      results.push(
-        await finalizeExecutedToolCall(
-          currentContext,
-          assistantMessage,
-          preparation,
-          executed,
-          config,
-          signal,
-          emit,
-        ),
-      );
-    }
-  }
-
-  return results;
-}
-
-async function executeToolCallsParallel(
-  currentContext: AgentContext,
-  assistantMessage: AssistantMessage,
-  toolCalls: AgentToolCall[],
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
-  const results: ToolResultMessage[] = [];
-  const runnableCalls: PreparedToolCall[] = [];
-
-  for (const toolCall of toolCalls) {
-    await emit({
-      type: "tool_execution_start",
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      args: toolCall.arguments,
-    });
-
-    const preparation = await prepareToolCall(currentContext, assistantMessage, toolCall, config, signal);
-    if (preparation.kind === "immediate") {
-      results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
-    } else {
-      runnableCalls.push(preparation);
-    }
-  }
-
-  const runningCalls = runnableCalls.map((prepared) => ({
-    prepared,
-    execution: executePreparedToolCall(prepared, signal, emit),
-  }));
-
-  // 并行执行所有工具
-  const executedResults = await Promise.all(
-    runningCalls.map((r) => r.execution),
-  );
-
-  // 顺序处理结果（保持原结果的顺序）
-  for (let i = 0; i < executedResults.length; i++) {
-    const executed = executedResults[i];
-    const prepared = runningCalls[i].prepared;
-    const finalResult = await finalizeExecutedToolCall(
-      currentContext,
-      assistantMessage,
-      prepared,
-      executed,
-      config,
-      signal,
-      emit,
-    );
-    results.push(finalResult);
-  }
-
-  return results;
-}
-
-// 主循环逻辑
+/**
+ * 核心循环逻辑：反复执行 turn，直到没有更多工具调用、steering 消息或 follow-up 消息为止。
+ *
+ * @param currentContext - 当前 agent 上下文
+ * @param newMessages - 本轮 agent 产生的新消息集合
+ * @param config - agent 循环配置
+ * @param signal - 可选的取消信号
+ * @param emit - 事件发射器
+ * @param streamFn - 可选的流式请求函数
+ */
 async function runLoop(
   currentContext: AgentContext,
   newMessages: AgentMessage[],
@@ -420,59 +79,41 @@ async function runLoop(
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<void> {
-  let firstTurn = true;
+  let hasPreEmittedTurnStart = true;
   let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
 
   while (true) {
     let hasMoreToolCalls = true;
 
     while (hasMoreToolCalls || pendingMessages.length > 0) {
-      if (!firstTurn) {
+      if (!hasPreEmittedTurnStart) {
         await emit({ type: "turn_start" });
-      } else {
-        firstTurn = false;
       }
+      hasPreEmittedTurnStart = false;
 
-      if (pendingMessages.length > 0) {
-        for (const message of pendingMessages) {
-          await emit({ type: "message_start", message });
-          await emit({ type: "message_end", message });
-          currentContext.messages.push(message);
-          newMessages.push(message);
-        }
-        pendingMessages = [];
-      }
-
-      const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
-      newMessages.push(message);
+      const { assistantMessage: message, toolResults } = await runTurnOnce(
+        currentContext,
+        newMessages,
+        pendingMessages,
+        config,
+        signal,
+        emit,
+        streamFn,
+      );
 
       if (message.stopReason === "error" || message.stopReason === "aborted") {
-        await emit({ type: "turn_end", message, toolResults: [] });
         await emit({ type: "agent_end", messages: newMessages });
         return;
       }
 
-      const toolCalls = message.content.filter((c) => c.type === "toolCall");
-      hasMoreToolCalls = toolCalls.length > 0;
-
-      const toolResults: ToolResultMessage[] = [];
-      if (hasMoreToolCalls) {
-        toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
-
-        for (const result of toolResults) {
-          currentContext.messages.push(result);
-          newMessages.push(result);
-        }
-      }
-
-      await emit({ type: "turn_end", message, toolResults });
-
+      hasMoreToolCalls = message.content.filter((c) => c.type === "toolCall").length > 0;
       pendingMessages = (await config.getSteeringMessages?.()) || [];
     }
 
     const followUpMessages = (await config.getFollowUpMessages?.()) || [];
     if (followUpMessages.length > 0) {
       pendingMessages = followUpMessages;
+      hasPreEmittedTurnStart = false;
       continue;
     }
 
@@ -482,6 +123,20 @@ async function runLoop(
   await emit({ type: "agent_end", messages: newMessages });
 }
 
+/**
+ * 启动全新的 agent 循环。
+ *
+ * 先发射 agent_start、turn_start 以及所有 prompt 的 message_start/end 事件，
+ * 然后进入核心循环直到结束。
+ *
+ * @param prompts - 用户初始 prompt 消息
+ * @param context - 初始 agent 上下文
+ * @param config - agent 循环配置
+ * @param emit - 事件发射器
+ * @param signal - 可选的取消信号
+ * @param streamFn - 可选的流式请求函数
+ * @returns 本轮产生的新消息数组（包含 prompts 和 assistant 回复）
+ */
 export async function runAgentLoop(
   prompts: AgentMessage[],
   context: AgentContext,
@@ -507,6 +162,18 @@ export async function runAgentLoop(
   return newMessages;
 }
 
+/**
+ * 从已有上下文继续 agent 循环。
+ *
+ * 要求上下文中最后一条消息不能是 assistant，且消息列表不能为空。
+ *
+ * @param context - 当前 agent 上下文
+ * @param config - agent 循环配置
+ * @param emit - 事件发射器
+ * @param signal - 可选的取消信号
+ * @param streamFn - 可选的流式请求函数
+ * @returns 本轮产生的新消息数组
+ */
 export async function runAgentLoopContinue(
   context: AgentContext,
   config: AgentLoopConfig,

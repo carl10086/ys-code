@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `ys-code` 是一个分阶段逼近 Claude Code 的可控实现项目：
 - 使用与 `claude-code-haha` 完全一致的内核技术栈（Bun、TypeScript）
-- 界面层改用 OpenTUI（`@opentui/core` + `@opentui/react` + Zig），不沿用 Ink
+- 界面层使用 Ink（`ink` + `react`），与 `claude-code-haha` 保持一致，以便快速复用其 TUI 组件和渲染经验
 
 ## 目录结构
 
@@ -18,6 +18,7 @@ ys-code/
   docs/                  # 设计文档
   debug/                 # 调试相关
 ```
+
 
 ## Git 工作流
 
