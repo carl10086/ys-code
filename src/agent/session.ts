@@ -5,6 +5,7 @@ import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool } from "./tools/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
+import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 
 /** AgentSession 向 UI 层发出的事件 */
 export type AgentSessionEvent =
@@ -25,8 +26,8 @@ export interface AgentSessionOptions {
   apiKey: string | undefined;
   /** 思考级别 */
   thinkingLevel?: ThinkingLevel;
-  /** system prompt 构建函数，每轮运行前调用 */
-  systemPrompt: (context: SystemPromptContext) => Promise<SystemPrompt>;
+  /** 自定义 system prompt（不传则使用内置 coding-agent prompt） */
+  systemPrompt?: (context: SystemPromptContext) => Promise<SystemPrompt>;
   /** 自定义工具列表（不传则使用默认的 read/write/edit/bash） */
   tools?: AgentTool<any, any>[];
 }
@@ -60,7 +61,7 @@ export class AgentSession {
       getApiKey: () => options.apiKey,
     });
 
-    this.systemPromptBuilder = options.systemPrompt;
+    this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
   }
