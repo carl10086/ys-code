@@ -25,5 +25,5 @@ export interface ValidationResult {
 export interface ValidationError {
   ok: false;
   message: string;
-  errorCode: number;
+  errorCode?: number;
 }
