@@ -1,12 +1,12 @@
 /**
  * Agent Math Example
  *
- * 演示 Agent 如何使用 tools（加法、减法）
+ * 演示 AgentSession 如何使用 tools（加法、减法）
  */
 
 import { Type } from "@sinclair/typebox";
-import { Agent, type AgentTool } from "../src/agent/index.js";
-import { getModel, asSystemPrompt } from "../src/core/ai/index.js";
+import { AgentSession, type AgentTool } from "../src/agent/index.js";
+import { getModel } from "../src/core/ai/index.js";
 
 // 定义 math tools
 const addTool: AgentTool = {
@@ -43,55 +43,41 @@ const subtractTool: AgentTool = {
   },
 };
 
-// 创建 Agent 实例
+// 创建 AgentSession 实例
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 
-const agent = new Agent({
-  systemPrompt: async () =>
-    asSystemPrompt([
-      "You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool.",
-    ]),
-  initialState: {
-    model,
-    tools: [addTool, subtractTool],
-    thinkingLevel: "off",
-  },
-  getApiKey: () => process.env.MINIMAX_API_KEY,
+const session = new AgentSession({
+  cwd: process.cwd(),
+  model,
+  apiKey: process.env.MINIMAX_API_KEY,
+  systemPrompt:
+    "You are a math assistant. You MUST use the provided tools (add, subtract) for ALL calculations. NEVER compute answers yourself. Always call the appropriate tool.",
+  tools: [addTool, subtractTool],
+  thinkingLevel: "off",
 });
 
-// 订阅 agent 事件
-agent.subscribe((event) => {
+// 订阅 AgentSession 事件
+session.subscribe((event) => {
   switch (event.type) {
-    case "agent_start":
-      console.log("[Agent] Started");
-      break;
-    case "agent_end":
-      console.log("[Agent] Ended");
-      break;
     case "turn_start":
       console.log("[Turn] Started");
       break;
-    case "turn_end":
-      console.log(`[Turn] Ended - stopReason: ${event.message.stopReason}`);
+    case "thinking_delta":
+      if (event.isFirst) console.log("[Thinking]");
+      process.stdout.write(event.text);
       break;
-    case "message_start":
-      if (event.message.role === "assistant") {
-        console.log("[Message] Assistant started");
-      }
+    case "answer_delta":
+      if (event.isFirst) console.log("\n[Answer]");
+      process.stdout.write(event.text);
       break;
-    case "message_end":
-      if (event.message.role === "assistant") {
-        const textContent = event.message.content.find((c) => c.type === "text");
-        if (textContent && "text" in textContent) {
-          console.log(`[Message] Assistant: ${textContent.text}`);
-        }
-      }
-      break;
-    case "tool_execution_start":
+    case "tool_start":
       console.log(`[Tool] Started: ${event.toolName}(${JSON.stringify(event.args)})`);
       break;
-    case "tool_execution_end":
+    case "tool_end":
       console.log(`[Tool] Ended: ${event.toolName}, isError: ${event.isError}`);
+      break;
+    case "turn_end":
+      console.log(`\n[Turn] Ended`);
       break;
   }
 });
@@ -101,13 +87,13 @@ async function main() {
   console.log("=== Agent Math Example ===\n");
 
   try {
-    await agent.prompt("What is 5 + 3? What is 10 - 2?");
-    await agent.waitForIdle();
+    await session.prompt("What is 5 + 3? What is 10 - 2?");
+    await session.waitForIdle();
 
     console.log("\n=== Final State ===");
-    console.log(`Messages: ${agent.state.messages.length}`);
+    console.log(`Messages: ${session.messages.length}`);
 
-    const lastMessage = agent.state.messages[agent.state.messages.length - 1];
+    const lastMessage = session.messages[session.messages.length - 1];
     if (lastMessage && lastMessage.role === "assistant") {
       console.log(`Final response: ${JSON.stringify(lastMessage.content, null, 2)}`);
     }
