@@ -46,15 +46,15 @@ describe("format", () => {
   });
 
   it("formatToolStart", () => {
-    expect(formatToolStart("read_file", { path: "src/main.ts" })).toBe('-> read_file(path: "src/main.ts")\n');
+    expect(formatToolStart("Read", { file_path: "src/main.ts" })).toBe('-> Read(file_path: "src/main.ts")\n');
   });
 
   it("formatToolEnd 成功", () => {
-    expect(formatToolEnd("read_file", false, "1.2KB", 300)).toBe("OK read_file -> 1.2KB 0.3s\n");
+    expect(formatToolEnd("Read", false, "1.2KB", 300)).toBe("OK Read -> 1.2KB 0.3s\n");
   });
 
   it("formatToolEnd 失败", () => {
-    expect(formatToolEnd("read_file", true, "ENOENT", 100)).toBe("ERR read_file -> ENOENT 0.1s\n");
+    expect(formatToolEnd("Read", true, "ENOENT", 100)).toBe("ERR Read -> ENOENT 0.1s\n");
   });
 
   it("formatAICardEnd", () => {

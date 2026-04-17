@@ -1,6 +1,6 @@
 // 输入参数
 export interface ReadInput {
-  path: string;           // 文件路径（相对或绝对）
+  file_path: string;      // 文件路径（相对或绝对）
   offset?: number;        // 起始行号（1-indexed）
   limit?: number;         // 最大读取行数
   pages?: string;         // PDF 页面范围（如 "1-5"）
