@@ -128,26 +128,76 @@ async function dirExists(path: string): Promise<boolean> {
   }
 }
 
-/** 处理单条 memory 文件（占位） */
+/** 处理单条 memory 文件 */
 export async function processMemoryFile(
   filePath: string,
   source: string,
   options?: { maxDepth?: number; includeChain?: Set<string>; cwd?: string },
 ): Promise<MemoryFileInfo | null> {
+  const maxDepth = options?.maxDepth ?? 10;
+  const includeChain = options?.includeChain ?? new Set<string>();
   const cwd = options?.cwd ?? process.cwd();
+
+  const resolvedPath = resolve(filePath);
+  if (includeChain.has(resolvedPath)) {
+    return null;
+  }
+  if (includeChain.size >= maxDepth) {
+    return null;
+  }
+
   let rawContent: string;
   try {
-    rawContent = await fs.readFile(filePath, "utf-8");
+    rawContent = await fs.readFile(resolvedPath, "utf-8");
   } catch {
     return null;
   }
 
+  const newChain = new Set(includeChain);
+  newChain.add(resolvedPath);
+
+  const includeRegex = /^@([~.\/][^\s]+)$/gm;
+  const matches = Array.from(rawContent.matchAll(includeRegex));
+
+  let processedContent = rawContent;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const match = matches[i];
+    const includePathRaw = match[1];
+    const includePath = resolveIncludePath(includePathRaw, resolvedPath);
+    let replacement = "";
+    if (includePath) {
+      const nested = await processMemoryFile(includePath, source, {
+        maxDepth,
+        includeChain: newChain,
+        cwd,
+      });
+      if (nested) {
+        replacement = nested.content;
+      }
+    }
+    const before = processedContent.slice(0, match.index);
+    const after = processedContent.slice(match.index! + match[0].length);
+    processedContent = before + replacement + after;
+  }
+
   return {
-    path: relative(cwd, resolve(filePath)) || filePath,
-    fullPath: resolve(filePath),
-    content: rawContent,
+    path: relative(cwd, resolvedPath) || resolvedPath,
+    fullPath: resolvedPath,
+    content: processedContent,
     source,
   };
+}
+
+/** 解析 include 路径 */
+function resolveIncludePath(raw: string, baseFile: string): string | null {
+  if (raw.startsWith("~/")) {
+    return resolve(join(homedir(), raw.slice(2)));
+  }
+  if (raw.startsWith("/")) {
+    return resolve(raw);
+  }
+  const baseDir = dirname(baseFile);
+  return resolve(join(baseDir, raw));
 }
 
 /** 过滤已被注入的文件 */
