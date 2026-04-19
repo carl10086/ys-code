@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import { logger } from '../../../utils/logger.js';
 import type { ImageOutput } from './types.js';
 import {
   API_IMAGE_MAX_BASE64_SIZE,
@@ -126,7 +127,7 @@ async function resizeWithSharp(
     };
   } catch (error) {
     // sharp 导入失败，返回原始 buffer
-    console.warn('sharp not available, using original image');
+    logger.warn('sharp not available, using original image');
     return { buffer: imageBuffer, format };
   }
 }
