@@ -1,6 +1,9 @@
 // src/tui/components/PromptInput.tsx
 import { Box, Text, useInput } from "ink";
 import React, { useState } from "react";
+import type { Command } from "../../commands/types.js";
+import { CommandSuggestions, type SuggestionItem } from "./CommandSuggestions.js";
+import Fuse from "fuse.js";
 
 export interface PromptInputProps {
   /** 是否禁用提交 */
@@ -9,14 +12,63 @@ export interface PromptInputProps {
   onSubmit: (text: string) => void;
   /** 执行 slash 命令回调 */
   onCommand: (command: string) => boolean | Promise<boolean>;
+  /** 可用命令列表（用于自动提示） */
+  commands?: Command[];
 }
 
-export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps): React.ReactElement {
+export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: PromptInputProps): React.ReactElement {
   const [lines, setLines] = useState<string[]>([""]);
   const [cursorLine, setCursorLine] = useState(0);
   const [cursorCol, setCursorCol] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filterCommands = React.useCallback((inputText: string, availableCommands: Command[] = []): SuggestionItem[] => {
+    const query = inputText.slice(1).toLowerCase().trim();
+
+    if (query === "") {
+      return availableCommands
+        .filter(cmd => !cmd.isHidden)
+        .map(cmd => ({
+          id: cmd.name,
+          displayText: `/${cmd.name}`,
+          description: cmd.description,
+        }));
+    }
+
+    const fuse = new Fuse(availableCommands.filter(cmd => !cmd.isHidden), {
+      keys: [
+        { name: "name", weight: 3 },
+        { name: "aliases", weight: 2 },
+        { name: "description", weight: 0.5 },
+      ],
+      threshold: 0.3,
+      includeScore: true,
+    });
+
+    const results = fuse.search(query);
+    return results.map(result => ({
+      id: result.item.name,
+      displayText: `/${result.item.name}`,
+      description: result.item.description,
+    }));
+  }, []);
+
+  React.useEffect(() => {
+    const text = lines.join("\n");
+    if (text.startsWith("/") && !text.includes(" ") && commands.length > 0) {
+      const items = filterCommands(text, commands);
+      setSuggestions(items);
+      setShowSuggestions(items.length > 0);
+      setSelectedSuggestion(0);
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  }, [lines, commands, filterCommands]);
 
   useInput((input, key) => {
     if (disabled) return;
@@ -32,6 +84,25 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
     };
 
     if (key.return) {
+      // 如果有建议列表，应用选中的建议并执行
+      if (showSuggestions && suggestions.length > 0) {
+        const selected = suggestions[selectedSuggestion];
+        if (selected) {
+          const commandText = selected.displayText;
+          setShowSuggestions(false);
+          setLines([""]);
+          setCursorLine(0);
+          setCursorCol(0);
+          void (async () => {
+            const handled = await onCommand(commandText);
+            if (!handled) {
+              onSubmit(commandText);
+            }
+          })();
+          return;
+        }
+      }
+
       const text = lines.join("\n").trim();
       if (!text) return;
 
@@ -55,12 +126,36 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
       return;
     }
 
+    if (key.tab) {
+      if (showSuggestions && suggestions.length > 0) {
+        const selected = suggestions[selectedSuggestion];
+        if (selected) {
+          const newText = selected.displayText + " ";
+          setLines([newText]);
+          setCursorLine(0);
+          setCursorCol(newText.length);
+          setShowSuggestions(false);
+        }
+        return;
+      }
+    }
+
     if (key.escape || (key.ctrl && input === "c")) {
+      // 如果有建议列表，先关闭它
+      if (showSuggestions) {
+        setShowSuggestions(false);
+        return;
+      }
       process.exit(0);
       return;
     }
 
     if (key.upArrow) {
+      // 如果建议列表可见，优先控制建议选择
+      if (showSuggestions && suggestions.length > 0) {
+        setSelectedSuggestion(prev => (prev <= 0 ? suggestions.length - 1 : prev - 1));
+        return;
+      }
       if (cursorLine > 0) {
         setCursorLine((l) => l - 1);
         setCursorCol((c) => Math.min(c, lines[cursorLine - 1]?.length ?? 0));
@@ -76,6 +171,11 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
     }
 
     if (key.downArrow) {
+      // 如果建议列表可见，优先控制建议选择
+      if (showSuggestions && suggestions.length > 0) {
+        setSelectedSuggestion(prev => (prev >= suggestions.length - 1 ? 0 : prev + 1));
+        return;
+      }
       if (cursorLine < lines.length - 1) {
         setCursorLine((l) => l + 1);
         setCursorCol((c) => Math.min(c, lines[cursorLine + 1]?.length ?? 0));
@@ -171,6 +271,9 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
   return (
     <Box flexDirection="column" marginTop={1}>
       {displayLines}
+      {showSuggestions && (
+        <CommandSuggestions items={suggestions} selectedIndex={selectedSuggestion} />
+      )}
     </Box>
   );
 }
