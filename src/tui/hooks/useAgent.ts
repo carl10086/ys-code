@@ -36,6 +36,8 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       apiKey: options.apiKey,
     })
   );
+  // 使用 useState 管理 session，确保 resetSession 时组件重渲染
+  const [sessionState, setSessionState] = useState<AgentSession>(sessionRef.current);
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
@@ -115,11 +117,13 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     });
     sessionRef.current.regenerateSessionId();
     subscribeToSession(sessionRef.current);
+    // 更新 sessionState 触发重渲染，确保 App 中的 session 引用是最新的
+    setSessionState(sessionRef.current);
     setMessages([]);
   }, [options.model, options.apiKey, subscribeToSession]);
 
   return {
-    session: sessionRef.current,
+    session: sessionState,
     messages,
     shouldScrollToBottom,
     markScrolled: () => setShouldScrollToBottom(false),
