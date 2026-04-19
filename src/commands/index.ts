@@ -36,8 +36,13 @@ export async function getCommands(skillsBasePath?: string): Promise<Command[]> {
     return builtins;
   }
 
-  const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
-  return [...builtins, ...loadedSkills];
+  try {
+    const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
+    return [...builtins, ...loadedSkills];
+  } catch {
+    // 动态加载失败时，返回内置命令作为 fallback
+    return builtins;
+  }
 }
 
 /**
@@ -115,28 +120,36 @@ export async function executeCommand(
   }
 
   if (command.type === "local") {
-    const module = await command.load();
-    const result = await module.call(args, context);
-    if (result.type === "text") {
-      return { handled: true, textResult: result.value };
+    try {
+      const module = await command.load();
+      const result = await module.call(args, context);
+      if (result.type === "text") {
+        return { handled: true, textResult: result.value };
+      }
+      return { handled: true };
+    } catch {
+      return { handled: false };
     }
-    return { handled: true };
   }
 
   if (command.type === "local-jsx") {
-    const module = await command.load();
-    let doneCalled = false;
-    const onDone: LocalJSXCommandOnDone = (result) => {
-      doneCalled = true;
-      if (result) {
-        context.appendSystemMessage(result);
+    try {
+      const module = await command.load();
+      let doneCalled = false;
+      const onDone: LocalJSXCommandOnDone = (result) => {
+        doneCalled = true;
+        if (result) {
+          context.appendSystemMessage(result);
+        }
+      };
+      const jsx = await module.call(onDone, context, args);
+      if (!doneCalled) {
+        return { handled: true, jsx, onDone };
       }
-    };
-    const jsx = await module.call(onDone, context, args);
-    if (!doneCalled) {
-      return { handled: true, jsx, onDone };
+      return { handled: true };
+    } catch {
+      return { handled: false };
     }
-    return { handled: true };
   }
 
   return { handled: false };

@@ -43,13 +43,6 @@ export function createSkillTool(getCommands: () => Promise<Command[]>): AgentToo
         };
       }
 
-      if (command.type !== 'prompt') {
-        return {
-          content: `'${params.skill}' is not a skill.`,
-          skillName: params.skill,
-        };
-      }
-
       // 执行 skill 获取内容
       const contentBlocks = await command.getPromptForCommand(params.args ?? '');
 

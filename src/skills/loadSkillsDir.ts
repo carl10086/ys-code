@@ -49,7 +49,6 @@ export async function loadSkillsFromSkillsDir(
       return createSkillCommand({
         skillName,
         markdownContent,
-        baseDir: skillDirPath,
         source,
         ...parsed,
       })
@@ -75,7 +74,6 @@ function createSkillCommand({
   disableModelInvocation,
   userInvocable,
   source,
-  baseDir,
 }: {
   /** skill 名称（唯一标识） */
   skillName: string
@@ -101,8 +99,6 @@ function createSkillCommand({
   userInvocable: boolean
   /** 配置来源 */
   source: SkillSource
-  /** skill 目录路径 */
-  baseDir: string
 }): PromptCommand {
   return {
     type: 'prompt',
