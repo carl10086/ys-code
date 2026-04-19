@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { normalizeMessages, normalizeAttachment } from "./normalize.js";
-import type { AttachmentMessage, RelevantMemoriesAttachment } from "./types.js";
+import type { AttachmentMessage, RelevantMemoriesAttachment, FileAttachment, DirectoryAttachment } from "./types.js";
 import type { UserMessage, Message } from "../../core/ai/types.js";
 import { prependUserContext } from "../context/user-context.js";
 import type { UserContext } from "../context/user-context.js";
@@ -131,5 +131,63 @@ describe("normalizeMessages", () => {
     const newContent = (newMessages[0] as UserMessage).content;
 
     expect(newContent).toBe(oldContent);
+  });
+
+  it("file 应展开为 FileReadTool tool_use + tool_result 包裹的 system-reminder", () => {
+    const att: FileAttachment = {
+      type: "file",
+      filePath: "/abs/path/to/file.ts",
+      content: {
+        type: "text",
+        file: {
+          filePath: "/abs/path/to/file.ts",
+          content: "const x = 1;\nconst y = 2;",
+          numLines: 2,
+          startLine: 1,
+          totalLines: 2,
+        },
+      },
+      displayPath: "src/file.ts",
+      truncated: false,
+      timestamp: 2000,
+    };
+    const result = normalizeAttachment(att);
+    expect(result.length).toBe(1);
+    expect(result[0].role).toBe("user");
+    expect(result[0].content).toContain("<system-reminder>");
+    expect(result[0].content).toContain("Called the FileReadTool tool");
+    expect(result[0].content).toContain('"file_path":"/abs/path/to/file.ts"');
+    expect(result[0].content).toContain("Result of calling the FileReadTool tool");
+    expect(result[0].content).toContain('"type":"text"');
+    expect(result[0].content).toContain('"filePath":"/abs/path/to/file.ts"');
+    expect(result[0].content).toContain('"content":"const x = 1;\\nconst y = 2;"');
+    expect(result[0].content).toContain('"numLines":2');
+    expect(result[0].content).toContain('"startLine":1');
+    expect(result[0].content).toContain('"totalLines":2');
+    expect(result[0].content).toContain("</system-reminder>");
+    expect(result[0].timestamp).toBe(2000);
+  });
+
+  it("directory 应展开为 BashTool(ls) tool_use + tool_result 包裹的 system-reminder", () => {
+    const att: DirectoryAttachment = {
+      type: "directory",
+      path: "/abs/path/to/dir",
+      content: "file1.ts\nfile2.ts",
+      displayPath: "src/dir",
+      timestamp: 3000,
+    };
+    const result = normalizeAttachment(att);
+    expect(result.length).toBe(1);
+    expect(result[0].role).toBe("user");
+    expect(result[0].content).toContain("<system-reminder>");
+    expect(result[0].content).toContain("Called the BashTool tool");
+    expect(result[0].content).toContain('"command":"ls /abs/path/to/dir"');
+    expect(result[0].content).toContain("Lists files in /abs/path/to/dir");
+    expect(result[0].content).toContain("Result of calling the BashTool tool");
+    expect(result[0].content).toContain('"stdout":"file1.ts\\nfile2.ts"');
+    expect(result[0].content).toContain('"stderr":""');
+    expect(result[0].content).toContain('"interrupted":false');
+    expect(result[0].content).toContain("</system-reminder>");
+    expect(result[0].timestamp).toBe(3000);
   });
 });

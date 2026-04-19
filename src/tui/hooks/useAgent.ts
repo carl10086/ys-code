@@ -106,7 +106,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     },
     appendSystemMessage: (text: string) => {
       setMessages((prev) => [...prev, { type: "system", text }]);
-      setShouldScrollToBottom(true);
+      // 不自动滚动 system 消息，避免长文本被推出可视区域
     },
   };
 }

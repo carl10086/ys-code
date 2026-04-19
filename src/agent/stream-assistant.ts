@@ -14,7 +14,9 @@ import type {
 } from "./types.js";
 import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
+import { extractAtMentionedFiles, readAtMentionedFile } from "./attachments/at-mention.js";
 import type { Message } from "../core/ai/index.js";
+import type { AttachmentMessage } from "./attachments/types.js";
 import { logger } from "../utils/logger.js";
 
 /** 事件发射器类型 */
@@ -36,6 +38,48 @@ async function finalizeStreamMessage(
     await emit({ type: "message_start", message: { ...finalMessage } });
   }
   await emit({ type: "message_end", message: finalMessage });
+}
+
+/**
+ * 扫描 user message 中的 @... 引用，注入对应的 attachment 消息
+ * @param messages 原始 AgentMessage 数组
+ * @param cwd 当前工作目录（用于解析相对路径）
+ * @returns 注入 attachment 后的新数组
+ */
+export async function injectAtMentionAttachments(
+  messages: AgentMessage[],
+  cwd: string,
+): Promise<AgentMessage[]> {
+  const result: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    result.push(msg);
+
+    if (msg.role !== "user" || typeof msg.content !== "string") {
+      continue;
+    }
+
+    const mentionedFiles = extractAtMentionedFiles(msg.content);
+    if (mentionedFiles.length === 0) {
+      continue;
+    }
+
+    const attachments = await Promise.all(
+      mentionedFiles.map((fp) => readAtMentionedFile(fp, cwd)),
+    );
+
+    for (const attachment of attachments) {
+      if (attachment) {
+        result.push({
+          role: "attachment",
+          attachment,
+          timestamp: Date.now(),
+        } as AgentMessage);
+      }
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -62,6 +106,9 @@ export async function streamAssistantResponse(
     const attachments = getUserContextAttachments(userContext);
     messages = [...attachments, ...messages];
   }
+
+  // 在 userContext 之后、normalize 之前注入 @... 附件
+  messages = await injectAtMentionAttachments(messages, process.cwd());
 
   // 在 convertToLlm 前 normalize，将 attachment 转为 UserMessage
   const normalizedMessages = normalizeMessages(messages);

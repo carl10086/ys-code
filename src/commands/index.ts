@@ -10,6 +10,7 @@ import exit from "./exit/index.js";
 import clear from "./clear/index.js";
 import tools from "./tools/index.js";
 import help from "./help/index.js";
+import system from "./system/index.js";
 
 /** 所有可用命令列表 */
 export const COMMANDS: Command[] = [
@@ -17,6 +18,7 @@ export const COMMANDS: Command[] = [
   clear,
   tools,
   help,
+  system,
 ];
 
 /**

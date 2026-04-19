@@ -17,6 +17,41 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
       ].join("\n");
       return [{ role: "user", content, timestamp: attachment.timestamp }];
     }
+    case "file": {
+      // attachment.content 是 FileReadToolOutput 对象
+      const toolInput = JSON.stringify({ file_path: attachment.filePath });
+      const toolResult = `Result of calling the FileReadTool tool:\n${JSON.stringify(attachment.content)}`;
+      const content = [
+        "<system-reminder>",
+        `Called the FileReadTool tool with the following input: ${toolInput}`,
+        "",
+        toolResult,
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
+    case "directory": {
+      const toolInput = JSON.stringify({
+        command: `ls ${attachment.path}`,
+        description: `Lists files in ${attachment.path}`,
+      });
+      const toolResult = JSON.stringify({
+        stdout: attachment.content,
+        stderr: "",
+        interrupted: false,
+      });
+      const content = [
+        "<system-reminder>",
+        `Called the BashTool tool with the following input: ${toolInput}`,
+        "",
+        `Result of calling the BashTool tool:`,
+        toolResult,
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
     default: {
       // 穷尽检查 —— 新增类型时必须添加 case
       const _exhaustive: never = attachment;

@@ -8,7 +8,7 @@ export const call: LocalCommandCall = async (_args, context) => {
 
   const lines = toolList.map((tool) => {
     const desc = typeof tool.description === "string"
-      ? tool.description
+      ? tool.description.replace(/\s+/g, " ").slice(0, 50)
       : "(动态描述)";
     return `• ${tool.name}: ${desc}`;
   });
