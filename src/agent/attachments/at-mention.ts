@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { FileAttachment, DirectoryAttachment } from "./types.js";
+
 /**
  * 从文本中提取 @ 提及的文件路径
  *
@@ -39,4 +43,73 @@ export function extractAtMentionedFiles(text: string): string[] {
   }
 
   return results;
+}
+
+/** 大文件阈值：200KB */
+const LARGE_FILE_SIZE = 200 * 1024;
+
+/** 大文件截断行数 */
+const LARGE_FILE_MAX_LINES = 1000;
+
+/**
+ * 读取 @... 提到的文件或目录，生成对应的 Attachment
+ * @param filePath 文件路径（支持绝对路径和相对路径）
+ * @param cwd 当前工作目录（用于解析相对路径）
+ * @returns FileAttachment、DirectoryAttachment 或 null（文件不存在/不可读）
+ */
+export async function readAtMentionedFile(
+  filePath: string,
+  cwd: string,
+): Promise<FileAttachment | DirectoryAttachment | null> {
+  // 解析为绝对路径
+  const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath);
+
+  let stats: fs.Stats;
+  try {
+    stats = fs.statSync(absolutePath);
+  } catch {
+    return null;
+  }
+
+  const timestamp = Date.now();
+  const displayPath = path.relative(cwd, absolutePath) || ".";
+
+  if (stats.isDirectory()) {
+    const entries = fs.readdirSync(absolutePath);
+    return {
+      type: "directory",
+      path: absolutePath,
+      content: entries.join("\n"),
+      displayPath,
+      timestamp,
+    };
+  }
+
+  // 文件读取
+  let content: string;
+  try {
+    content = fs.readFileSync(absolutePath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  let truncated: boolean | undefined;
+
+  // 大文件截断：超过 200KB 或超过 1000 行时截断前 1000 行
+  if (stats.size > LARGE_FILE_SIZE) {
+    const lines = content.split("\n");
+    if (lines.length > LARGE_FILE_MAX_LINES) {
+      content = lines.slice(0, LARGE_FILE_MAX_LINES).join("\n");
+      truncated = true;
+    }
+  }
+
+  return {
+    type: "file",
+    filePath: absolutePath,
+    content,
+    displayPath,
+    truncated,
+    timestamp,
+  };
 }

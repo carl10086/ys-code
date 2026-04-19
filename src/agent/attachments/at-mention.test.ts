@@ -1,5 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import { extractAtMentionedFiles } from "./at-mention.js";
+import { extractAtMentionedFiles, readAtMentionedFile } from "./at-mention.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 describe("extractAtMentionedFiles", () => {
   it("提取单个普通路径", () => {
@@ -60,5 +62,66 @@ describe("extractAtMentionedFiles", () => {
   it("支持中文字符后的路径", () => {
     const result = extractAtMentionedFiles("请查看@文件.ts的内容");
     expect(result).toEqual(["文件.ts"]);
+  });
+});
+
+describe("readAtMentionedFile", () => {
+  const tmpDir = "/tmp/ys-test-mention";
+
+  it("应读取存在的文件并返回 FileAttachment", async () => {
+    const result = await readAtMentionedFile(path.join(tmpDir, "small.txt"), tmpDir);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("file");
+    expect(result!.filePath).toBe(path.join(tmpDir, "small.txt"));
+    expect(result!.displayPath).toBe("small.txt");
+    expect(result!.content).toContain("line1");
+    expect(result!.truncated).toBeUndefined();
+  });
+
+  it("应读取目录并返回 DirectoryAttachment", async () => {
+    const result = await readAtMentionedFile(tmpDir, tmpDir);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("directory");
+    expect(result!.path).toBe(tmpDir);
+    expect(result!.displayPath).toBe(".");
+    expect(result!.content).toContain("small.txt");
+  });
+
+  it("相对路径应基于 cwd 解析为绝对路径", async () => {
+    const result = await readAtMentionedFile("./small.txt", tmpDir);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("file");
+    expect(result!.filePath).toBe(path.join(tmpDir, "small.txt"));
+  });
+
+  it("不存在的文件应返回 null", async () => {
+    const result = await readAtMentionedFile(path.join(tmpDir, "not-exist.txt"), tmpDir);
+    expect(result).toBeNull();
+  });
+
+  it("大文件（>200KB）应截断前 1000 行并标记 truncated", async () => {
+    const bigFile = path.join(tmpDir, "big.txt");
+    const line = "这是填充内容以使文件超过 200KB 的限制阈值，继续填充更多内容以确保超过 200KB 的限制阈值".repeat(10);
+    const lines: string[] = [];
+    for (let i = 0; i < 1200; i++) {
+      lines.push("第 " + i + " 行 " + line);
+    }
+    fs.writeFileSync(bigFile, lines.join("\n"));
+    const result = await readAtMentionedFile(bigFile, tmpDir);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe("file");
+    expect(result!.truncated).toBe(true);
+    const lineCount = (result!.content.match(/\n/g) || []).length;
+    expect(lineCount).toBeLessThanOrEqual(1000);
+    fs.unlinkSync(bigFile);
+  });
+
+  it("应包含 timestamp", async () => {
+    const before = Date.now();
+    const result = await readAtMentionedFile(path.join(tmpDir, "small.txt"), tmpDir);
+    const after = Date.now();
+    expect(result).not.toBeNull();
+    expect(result!.timestamp).toBeGreaterThanOrEqual(before);
+    expect(result!.timestamp).toBeLessThanOrEqual(after);
   });
 });
