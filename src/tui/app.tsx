@@ -2,6 +2,7 @@
 import { Box } from "ink";
 import React from "react";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
+import { executeCommand } from "../commands/index.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
@@ -20,27 +21,13 @@ export function App(): React.ReactElement {
   const hasPendingTools = session.pendingToolCalls.size > 0;
   const status = isStreaming ? (hasPendingTools ? "tool_executing" : "streaming") : "idle";
 
-  const handleCommand = (text: string): boolean => {
-    const command = text.trim();
-    switch (command) {
-      case "/exit":
-        session.waitForIdle().then(() => process.exit(0));
-        return true;
-      case "/new":
-        session.reset();
-        return true;
-      case "/system":
-        return false;
-      case "/tools":
-        return false;
-      case "/messages":
-        return false;
-      case "/abort":
-        session.abort();
-        return true;
-      default:
-        return false;
-    }
+  const handleCommand = async (text: string): Promise<boolean> => {
+    const result = await executeCommand(text, {
+      session,
+      appendUserMessage,
+      appendSystemMessage: (msg) => appendUserMessage(`[系统] ${msg}`),
+    });
+    return result.handled;
   };
 
   const handleSubmit = async (text: string) => {
