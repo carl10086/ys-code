@@ -115,7 +115,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       model: options.model,
       apiKey: options.apiKey,
     });
-    sessionRef.current.regenerateSessionId();
+    // AgentSession 构造函数已生成 sessionId，无需再调用 regenerateSessionId
     subscribeToSession(sessionRef.current);
     // 更新 sessionState 触发重渲染，确保 App 中的 session 引用是最新的
     setSessionState(sessionRef.current);
