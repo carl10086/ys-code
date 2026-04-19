@@ -152,5 +152,19 @@ export async function executeCommand(
     }
   }
 
+  // prompt 类型命令：获取 skill 内容作为文本返回
+  if (command.type === "prompt") {
+    try {
+      const contentBlocks = await command.getPromptForCommand(args);
+      const textContent = contentBlocks
+        .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+        .map(block => block.text)
+        .join('\n\n');
+      return { handled: true, textResult: textContent };
+    } catch {
+      return { handled: false };
+    }
+  }
+
   return { handled: false };
 }

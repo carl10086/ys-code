@@ -2,7 +2,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { defineAgentTool } from "../agent/define-agent-tool.js";
 import type { AgentTool } from "../agent/types.js";
-import type { Command, SkillContentBlock } from "../commands/types.js";
+import type { Command, SkillContentBlock, PromptCommand } from "../commands/types.js";
 import { getCommands } from "../commands/index.js";
 
 const SkillInputSchema = Type.Object({
@@ -34,7 +34,7 @@ export function createSkillTool(getCommands: () => Promise<Command[]>): AgentToo
 
     async execute(toolCallId, params, _context) {
       const commands = await getCommands();
-      const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt');
+      const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
 
       if (!command) {
         return {
