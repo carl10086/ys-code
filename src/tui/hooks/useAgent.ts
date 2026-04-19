@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
 import type { Model } from "../../core/ai/index.js";
@@ -24,22 +24,28 @@ export interface UseAgentResult {
   appendUserMessage: (text: string) => void;
   /** 添加系统消息到列表 */
   appendSystemMessage: (text: string) => void;
+  /** 重置 session，创建新实例并清空消息 */
+  resetSession: () => void;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
-  const session = useMemo(() => {
-    return new AgentSession({
+  const sessionRef = useRef<AgentSession>(
+    new AgentSession({
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
-    });
-  }, []);
+    })
+  );
+  // 使用 useState 管理 session，确保 resetSession 时组件重渲染
+  const [sessionState, setSessionState] = useState<AgentSession>(sessionRef.current);
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
+  const unsubscribeRef = useRef<() => void>(null);
 
-  useEffect(() => {
-    return session.subscribe((event: AgentSessionEvent) => {
+  const subscribeToSession = useCallback((session: AgentSession) => {
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = session.subscribe((event: AgentSessionEvent) => {
       setMessages((prev) => {
         const next = [...prev];
         switch (event.type) {
@@ -93,10 +99,31 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       });
       setShouldScrollToBottom(true);
     });
-  }, [session]);
+  }, []);
+
+  useEffect(() => {
+    subscribeToSession(sessionRef.current);
+    return () => {
+      unsubscribeRef.current?.();
+    };
+  }, [subscribeToSession]);
+
+  const resetSession = useCallback(() => {
+    unsubscribeRef.current?.();
+    sessionRef.current = new AgentSession({
+      cwd: process.cwd(),
+      model: options.model,
+      apiKey: options.apiKey,
+    });
+    // AgentSession 构造函数已生成 sessionId，无需再调用 regenerateSessionId
+    subscribeToSession(sessionRef.current);
+    // 更新 sessionState 触发重渲染，确保 App 中的 session 引用是最新的
+    setSessionState(sessionRef.current);
+    setMessages([]);
+  }, [options.model, options.apiKey, subscribeToSession]);
 
   return {
-    session,
+    session: sessionState,
     messages,
     shouldScrollToBottom,
     markScrolled: () => setShouldScrollToBottom(false),
@@ -108,5 +135,6 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       setMessages((prev) => [...prev, { type: "system", text }]);
       // 不自动滚动 system 消息，避免长文本被推出可视区域
     },
+    resetSession,
   };
 }

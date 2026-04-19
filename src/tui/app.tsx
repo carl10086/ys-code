@@ -13,7 +13,7 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 export function App(): React.ReactElement {
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession } = useAgent({
     model,
     apiKey,
   });
@@ -27,6 +27,7 @@ export function App(): React.ReactElement {
       session,
       appendUserMessage,
       appendSystemMessage,
+      resetSession,
     });
     if (result.handled && result.textResult) {
       appendSystemMessage(result.textResult);

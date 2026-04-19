@@ -38,12 +38,20 @@ export class AgentSession {
   private readonly cwd: string;
   private readonly listeners = new Set<(event: AgentSessionEvent) => void>();
   private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
+  /** 会话 ID，用于标识一次会话 */
+  private sessionId = crypto.randomUUID();
   private turnStartTime = 0;
   private toolStartTimes = new Map<string, number>();
   private hasEmittedThinking = false;
   private hasEmittedAnswer = false;
   private hasEmittedTools = false;
   private currentSystemPromptText = "";
+
+  /** 生成新 session ID */
+  regenerateSessionId(): void {
+    logger.info("Session ID regenerated");
+    this.sessionId = crypto.randomUUID();
+  }
 
   constructor(options: AgentSessionOptions) {
     this.cwd = options.cwd;

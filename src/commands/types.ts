@@ -9,6 +9,8 @@ export interface CommandContext {
   appendUserMessage: (text: string) => void;
   /** 添加系统消息（灰色，模型不可见） */
   appendSystemMessage: (text: string) => void;
+  /** 重置会话（创建新 AgentSession 并清空 UI） */
+  resetSession: () => void;
 }
 
 /** 本地命令执行结果 */
