@@ -3,7 +3,7 @@ import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool } from "./tools/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 
@@ -50,6 +50,7 @@ export class AgentSession {
       createWriteTool(options.cwd),
       createEditTool(options.cwd),
       createBashTool(options.cwd),
+      createGlobTool(options.cwd),
     ];
     this.agent = new Agent({
       systemPrompt: async () => asSystemPrompt([""]),

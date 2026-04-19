@@ -8,7 +8,7 @@ export interface PromptInputProps {
   /** 提交回调 */
   onSubmit: (text: string) => void;
   /** 执行 slash 命令回调 */
-  onCommand: (command: string) => boolean;
+  onCommand: (command: string) => boolean | Promise<boolean>;
 }
 
 export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps): React.ReactElement {
@@ -34,18 +34,24 @@ export function PromptInput({ disabled, onSubmit, onCommand }: PromptInputProps)
     if (key.return) {
       const text = lines.join("\n").trim();
       if (!text) return;
-      if (text.startsWith("/") && onCommand(text)) {
+
+      void (async () => {
+        if (text.startsWith("/")) {
+          const handled = await onCommand(text);
+          if (handled) {
+            setLines([""]);
+            setCursorLine(0);
+            setCursorCol(0);
+            return;
+          }
+        }
+        onSubmit(text);
+        setHistory((h) => [...h, text]);
+        setHistoryIndex(-1);
         setLines([""]);
         setCursorLine(0);
         setCursorCol(0);
-        return;
-      }
-      onSubmit(text);
-      setHistory((h) => [...h, text]);
-      setHistoryIndex(-1);
-      setLines([""]);
-      setCursorLine(0);
-      setCursorCol(0);
+      })();
       return;
     }
 
