@@ -54,7 +54,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       return (
         <Box flexDirection="column">
           <Text color={color}>
-            {status} {message.toolName} -> {message.summary} {timeSec}s
+            {status} {message.toolName} {'->'} {message.summary} {timeSec}s
           </Text>
         </Box>
       );
