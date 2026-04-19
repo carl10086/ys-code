@@ -1,6 +1,7 @@
 // src/agent/tool-execution.ts
 import { type AssistantMessage, type ToolResultMessage, validateToolArguments } from "../core/ai/index.js";
 import type { AgentEventSink } from "./stream-assistant.js";
+import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -199,6 +200,7 @@ async function executeToolCallsSequential(
   const results: ToolResultMessage[] = [];
 
   for (const toolCall of toolCalls) {
+    logger.debug("Tool execution started (sequential)", { toolName: toolCall.name, args: toolCall.arguments });
     await emit({
       type: "tool_execution_start",
       toolCallId: toolCall.id,
@@ -211,6 +213,7 @@ async function executeToolCallsSequential(
       results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
       const executed = await executePreparedToolCall(preparation, currentContext, config, signal, emit);
+      logger.debug("Tool execution result (sequential)", { toolName: toolCall.name, output: executed.output, isError: executed.isError });
       results.push(await finalizeExecutedToolCall(preparation, executed, emit));
     }
   }
@@ -230,6 +233,7 @@ async function executeToolCallsParallel(
   const runnableCalls: Array<{ toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown }> = [];
 
   for (const toolCall of toolCalls) {
+    logger.debug("Tool execution started (parallel)", { toolName: toolCall.name, args: toolCall.arguments });
     await emit({
       type: "tool_execution_start",
       toolCallId: toolCall.id,
@@ -255,6 +259,7 @@ async function executeToolCallsParallel(
   for (let i = 0; i < executedResults.length; i++) {
     const executed = executedResults[i];
     const prepared = runningCalls[i].prepared;
+    logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);
     results.push(finalResult);
   }

@@ -2,6 +2,7 @@
 import { type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
+import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
   AgentLoopConfig,
@@ -30,8 +31,11 @@ async function runTurnOnce(
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<{ assistantMessage: AssistantMessage; toolResults: ToolResultMessage[] }> {
+  logger.debug("runTurnOnce started");
+
   if (pendingMessages.length > 0) {
     for (const message of pendingMessages) {
+      logger.debug("Injecting pending message", { role: message.role });
       await emit({ type: "message_start", message });
       await emit({ type: "message_end", message });
       currentContext.messages.push(message);
@@ -100,6 +104,12 @@ async function runLoop(
         emit,
         streamFn,
       );
+
+      logger.debug("Loop condition check", {
+        hasMoreToolCalls: message.content.filter((c) => c.type === "toolCall").length > 0,
+        pendingMessages: pendingMessages.length,
+        stopReason: message.stopReason,
+      });
 
       if (message.stopReason === "error" || message.stopReason === "aborted") {
         await emit({ type: "agent_end", messages: newMessages });

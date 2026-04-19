@@ -1,6 +1,7 @@
 // src/agent/session.ts
 import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
+import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool } from "./tools/index.js";
@@ -100,22 +101,26 @@ export class AgentSession {
 
   /** 发送用户消息 */
   async prompt(text: string): Promise<void> {
+    logger.info("Turn started", { model: this.agent.state.model.name });
     await this.refreshSystemPrompt();
     await this.agent.prompt(text);
   }
 
   /** 注入引导消息 */
   steer(text: string): void {
+    logger.debug("Steer message enqueued", { text });
     this.agent.steer({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() });
   }
 
   /** 注入后续消息 */
   followUp(text: string): void {
+    logger.debug("FollowUp message enqueued", { text });
     this.agent.followUp({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() });
   }
 
   /** 重置会话 */
   reset(): void {
+    logger.info("Session reset");
     this.agent.reset();
     this.clearTurnState();
   }
@@ -130,6 +135,7 @@ export class AgentSession {
 
   /** 中止当前运行 */
   abort(): void {
+    logger.info("Session aborted");
     this.agent.abort();
   }
 
@@ -145,6 +151,7 @@ export class AgentSession {
       model: this.agent.state.model,
     };
     const prompt = await this.systemPromptBuilder(context);
+    logger.debug("System prompt refreshed", { prompt });
     this.agent.systemPrompt = async () => prompt;
   }
 
@@ -175,6 +182,7 @@ export class AgentSession {
       }
       case "tool_execution_start": {
         this.toolStartTimes.set(event.toolCallId, Date.now());
+        logger.info("Tool started", { toolName: event.toolName });
         const isFirst = !this.hasEmittedTools;
         this.hasEmittedTools = true;
         this.emit({
@@ -193,6 +201,7 @@ export class AgentSession {
           ? String((event.result as any)?.content?.[0]?.text ?? "error")
           : String((event.result as any)?.content?.[0]?.text ?? "");
         const elapsed = Date.now() - startTime;
+        logger.info("Tool ended", { toolName: event.toolName, isError: event.isError, timeMs: elapsed });
         this.emit({
           type: "tool_end",
           toolCallId: event.toolCallId,
@@ -207,6 +216,7 @@ export class AgentSession {
         const elapsed = this.turnStartTime > 0 ? Date.now() - this.turnStartTime : 0;
         if (event.message.role === "assistant") {
           const usage = event.message.usage;
+          logger.info("Turn ended", { tokens: usage.totalTokens, cost: usage.cost.total, timeMs: elapsed, error: event.message.errorMessage });
           this.emit({
             type: "turn_end",
             tokens: usage.totalTokens,
@@ -215,6 +225,7 @@ export class AgentSession {
             errorMessage: event.message.errorMessage,
           });
         } else {
+          logger.info("Turn ended", { tokens: 0, cost: 0, timeMs: elapsed });
           this.emit({ type: "turn_end", tokens: 0, cost: 0, timeMs: elapsed });
         }
         break;
