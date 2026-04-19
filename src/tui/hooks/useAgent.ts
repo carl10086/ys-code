@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
 import type { Model } from "../../core/ai/index.js";
@@ -24,22 +24,26 @@ export interface UseAgentResult {
   appendUserMessage: (text: string) => void;
   /** 添加系统消息到列表 */
   appendSystemMessage: (text: string) => void;
+  /** 重置 session，创建新实例并清空消息 */
+  resetSession: () => void;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
-  const session = useMemo(() => {
-    return new AgentSession({
+  const sessionRef = useRef<AgentSession>(
+    new AgentSession({
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
-    });
-  }, []);
+    })
+  );
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
+  const unsubscribeRef = useRef<() => void>(null);
 
-  useEffect(() => {
-    return session.subscribe((event: AgentSessionEvent) => {
+  const subscribeToSession = useCallback((session: AgentSession) => {
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = session.subscribe((event: AgentSessionEvent) => {
       setMessages((prev) => {
         const next = [...prev];
         switch (event.type) {
@@ -93,10 +97,29 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       });
       setShouldScrollToBottom(true);
     });
-  }, [session]);
+  }, []);
+
+  useEffect(() => {
+    subscribeToSession(sessionRef.current);
+    return () => {
+      unsubscribeRef.current?.();
+    };
+  }, [subscribeToSession]);
+
+  const resetSession = useCallback(() => {
+    unsubscribeRef.current?.();
+    sessionRef.current = new AgentSession({
+      cwd: process.cwd(),
+      model: options.model,
+      apiKey: options.apiKey,
+    });
+    sessionRef.current.regenerateSessionId();
+    subscribeToSession(sessionRef.current);
+    setMessages([]);
+  }, [options.model, options.apiKey, subscribeToSession]);
 
   return {
-    session,
+    session: sessionRef.current,
     messages,
     shouldScrollToBottom,
     markScrolled: () => setShouldScrollToBottom(false),
@@ -108,5 +131,6 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       setMessages((prev) => [...prev, { type: "system", text }]);
       // 不自动滚动 system 消息，避免长文本被推出可视区域
     },
+    resetSession,
   };
 }
