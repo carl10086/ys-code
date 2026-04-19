@@ -62,9 +62,9 @@ session.subscribe((event) => {
 
 async function main() {
   const inputs = [
-    "写一个 200字的作文， 关于春天",
-    "请用 bash 工具执行 `date`，然后告诉我现在几点。",
-    "请告诉我当前目录是什么",
+      "介绍一下你自己"
+    // "写一个 200字的作文， 关于春天",
+    // "请告诉我当前目录是什么",
   ];
 
   for (const text of inputs) {

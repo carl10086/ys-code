@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { useAgent } from "../useAgent.js";
+import { useAgent } from "./useAgent.js";
 
 describe("useAgent", () => {
   it("should be a function", () => {

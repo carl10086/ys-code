@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { getUserContext, prependUserContext, clearUserContextCache } from "../user-context.js";
-import { clearMemoryFilesCache } from "../../../utils/claudemd.js";
-import type { Message } from "../../../core/ai/types.js";
+import { getUserContext, prependUserContext, clearUserContextCache } from "./user-context.js";
+import { clearMemoryFilesCache } from "../../utils/claudemd.js";
+import type { Message } from "../../core/ai/types.js";
 
 describe("user-context", () => {
   let tempDir: string;

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "bun:test";
-import { runAgentLoop, runAgentLoopContinue } from "../agent-loop.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "../types.js";
-import type { AssistantMessage, Message } from "../../core/ai/types.js";
-import { asSystemPrompt } from "../../core/ai/types.js";
+import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
+import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
+import type { AssistantMessage, Message } from "../core/ai/types.js";
+import { asSystemPrompt } from "../core/ai/types.js";
 
 function createMockModel(): any {
   return {
@@ -54,7 +54,7 @@ describe("runAgentLoop", () => {
     let callCount = 0;
     const streamFn = async () => {
       callCount++;
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage("hi");
       stream.end(msg);
@@ -95,7 +95,7 @@ describe("runAgentLoop", () => {
     let callCount = 0;
     const streamFn = async () => {
       callCount++;
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage(callCount === 1 ? "reply-1" : "reply-2");
       stream.end(msg);
@@ -131,7 +131,7 @@ describe("runAgentLoop", () => {
     let callCount = 0;
     const streamFn = async () => {
       callCount++;
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage("hi");
       stream.end(msg);
@@ -159,7 +159,7 @@ describe("runAgentLoop", () => {
     const emit = async (e: AgentEvent) => { events.push(e); };
 
     const streamFn = async () => {
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage("", [], "error");
       stream.end(msg);
@@ -186,7 +186,7 @@ describe("runAgentLoop", () => {
     const emit = async (e: AgentEvent) => { events.push(e); };
 
     const streamFn = async () => {
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage("", [], "aborted");
       stream.end(msg);
@@ -218,7 +218,7 @@ describe("runAgentLoopContinue", () => {
     const emit = async (e: AgentEvent) => { events.push(e); };
 
     const streamFn = async () => {
-      const { createAssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
       const msg = createAssistantMessage("continued");
       stream.end(msg);

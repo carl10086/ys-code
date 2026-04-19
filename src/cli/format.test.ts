@@ -10,7 +10,7 @@ import {
   formatThinkingPrefix,
   formatAnswerPrefix,
   formatToolsPrefix,
-} from "../format.js";
+} from "./format.js";
 
 describe("format", () => {
   it("formatUserMessage", () => {
