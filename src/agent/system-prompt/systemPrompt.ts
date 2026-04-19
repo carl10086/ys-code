@@ -41,7 +41,7 @@ export function createSystemPromptBuilder(
         }
         staticValues.push(value);
       } catch (err) {
-        logger.warn({ section: section.name, err }, '[system-prompt] section compute failed');
+        logger.warn('[system-prompt] section compute failed', { section: section.name, error: String(err) });
         staticValues.push("");
       }
     }
@@ -53,7 +53,7 @@ export function createSystemPromptBuilder(
         const value = await section.compute(context);
         dynamicValues.push(value);
       } catch (err) {
-        logger.warn({ section: section.name, err }, '[system-prompt] section compute failed');
+        logger.warn('[system-prompt] section compute failed', { section: section.name, error: String(err) });
         dynamicValues.push("");
       }
     }

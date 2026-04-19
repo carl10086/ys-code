@@ -12,7 +12,7 @@ async function main() {
       process.exit(0);
     });
   } catch (err) {
-    logger.error({ err }, "Failed to start TUI");
+    logger.error("Failed to start TUI", { error: String(err) });
     process.exit(1);
   }
 }

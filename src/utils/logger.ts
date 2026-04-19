@@ -1,32 +1,52 @@
-import pino from 'pino';
+import fs from 'fs';
 
 /**
- * 创建 pino transport，在 worker thread 中运行
- * 避免阻塞主线程，不影响 TUI 渲染
+ * 日志文件路径
  */
-const transport = pino.transport({
-  target: 'pino-pretty',
-  options: {
-    destination: './ys-code.log',  // 日志文件路径
-    append: true,                   // 追加模式
-    colorize: false,                // 文件不需要颜色
-    translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',  // 时间格式
-    ignore: 'pid,hostname',         // 简化输出字段
+const LOG_FILE = './ys-code.log';
+
+/**
+ * 日志级别优先级
+ */
+const LEVELS: Record<string, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+};
+
+/**
+ * 当前日志级别，由环境变量 YS_LOG_LEVEL 控制，默认 info
+ */
+const currentLevel = LEVELS[process.env.YS_LOG_LEVEL || 'info'] ?? LEVELS.info;
+
+/**
+ * 写入日志到文件
+ * 使用同步写入，确保进程退出前日志不丢失
+ */
+function write(level: string, message: string, meta?: Record<string, unknown>): void {
+  if (LEVELS[level.toLowerCase()] < currentLevel) {
+    return;
   }
-});
+
+  const timestamp = new Date().toISOString();
+  const metaStr = meta ? ' ' + JSON.stringify(meta) : '';
+  const line = `[${timestamp}] [${level}] ${message}${metaStr}\n`;
+
+  try {
+    fs.appendFileSync(LOG_FILE, line);
+  } catch {
+    // 静默失败，不影响 TUI 和业务代码
+  }
+}
 
 /**
- * 单例 logger 实例
- * 级别由 YS_LOG_LEVEL 环境变量控制，默认 info
+ * 日志实例
+ * 提供 debug/info/warn/error 四级日志
  */
-export const logger = pino({
-  level: process.env.YS_LOG_LEVEL || 'info',
-}, transport);
-
-/**
- * 进程退出时优雅关闭 transport
- * 确保缓冲中的日志落盘
- */
-process.on('beforeExit', () => {
-  transport.end?.();
-});
+export const logger = {
+  debug: (msg: string, meta?: Record<string, unknown>) => write('DEBUG', msg, meta),
+  info: (msg: string, meta?: Record<string, unknown>) => write('INFO', msg, meta),
+  warn: (msg: string, meta?: Record<string, unknown>) => write('WARN', msg, meta),
+  error: (msg: string, meta?: Record<string, unknown>) => write('ERROR', msg, meta),
+};
