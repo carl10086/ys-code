@@ -5,21 +5,19 @@ import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
-const replaceEditSchema = Type.Object({
-  oldText: Type.String({ description: "Exact text to replace" }),
-  newText: Type.String({ description: "Replacement text" }),
-});
-
 const editSchema = Type.Object({
-  path: Type.String({ description: "Path to the file to edit (relative or absolute)" }),
-  edits: Type.Array(replaceEditSchema, {
-    description: "One or more targeted replacements. oldText must be unique in the file.",
-  }),
+  file_path: Type.String({ description: "The absolute path to the file to modify" }),
+  old_string: Type.String({ description: "The text to replace" }),
+  new_string: Type.String({ description: "The text to replace it with (must be different from old_string)" }),
+  replace_all: Type.Optional(Type.Boolean({ description: "Replace all occurrences of old_string (default false)" })),
 });
 
 const editOutputSchema = Type.Object({
-  path: Type.String(),
-  edits: Type.Number(),
+  filePath: Type.String(),
+  oldString: Type.String(),
+  newString: Type.String(),
+  originalFile: Type.String(),
+  replaceAll: Type.Boolean(),
 });
 
 type EditInput = Static<typeof editSchema>;
@@ -27,33 +25,130 @@ type EditOutput = Static<typeof editOutputSchema>;
 
 export function createEditTool(cwd: string): AgentTool<typeof editSchema, EditOutput> {
   return defineAgentTool({
-    name: "edit",
+    name: "Edit",
     label: "Edit",
-    description: "Edit a file by replacing exact text segments.",
+    description: `Performs exact string replacements in files.
+
+Usage:
+- You must use your \`Read\` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
+- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + tab. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if \`old_string\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use \`replace_all\` to change every instance of \`old_string\`.
+- Use \`replace_all\` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`,
     parameters: editSchema,
     outputSchema: editOutputSchema,
     isDestructive: true,
-    async execute(toolCallId, params, context) {
-      const absolutePath = resolve(cwd, params.path);
-      let content = await readFile(absolutePath, "utf-8");
 
-      for (const edit of params.edits) {
-        if (!content.includes(edit.oldText)) {
-          throw new Error(`oldText not found in file: ${edit.oldText.slice(0, 50)}...`);
-        }
-        const occurrences = content.split(edit.oldText).length - 1;
-        if (occurrences > 1) {
-          throw new Error(`oldText is not unique in file (found ${occurrences} occurrences)`);
-        }
-        content = content.replace(edit.oldText, edit.newText);
+    validateInput: async (params: EditInput) => {
+      const fullPath = resolve(cwd, params.file_path);
+
+      // 1. old_string === new_string
+      if (params.old_string === params.new_string) {
+        return {
+          ok: false,
+          message: "No changes to make: old_string and new_string are exactly the same.",
+          errorCode: 1,
+        };
       }
 
-      await writeFile(absolutePath, content, "utf-8");
+      // 2. 读取文件
+      let content: string;
+      try {
+        content = await readFile(fullPath, "utf-8");
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          // 空 old_string 表示创建新文件 — 允许
+          if (params.old_string === "") {
+            return { ok: true };
+          }
+          return {
+            ok: false,
+            message: "File does not exist.",
+            errorCode: 4,
+          };
+        }
+        throw e;
+      }
 
-      return { path: absolutePath, edits: params.edits.length };
+      // 文件存在但 old_string 为空 — 拒绝（不能创建已存在的文件）
+      if (params.old_string === "") {
+        return {
+          ok: false,
+          message: "Cannot create new file - file already exists.",
+          errorCode: 3,
+        };
+      }
+
+      // 3. old_string 是否存在于文件中
+      if (!content.includes(params.old_string)) {
+        return {
+          ok: false,
+          message: `String to replace not found in file.\nString: ${params.old_string}`,
+          errorCode: 8,
+        };
+      }
+
+      // 4. 多匹配检测
+      const matches = content.split(params.old_string).length - 1;
+      if (matches > 1 && !params.replace_all) {
+        return {
+          ok: false,
+          message: `Found ${matches} matches of the string to replace, but replace_all is false. To replace all occurrences, set replace_all to true. To replace only one occurrence, please provide more context to uniquely identify the instance.\nString: ${params.old_string}`,
+          errorCode: 9,
+        };
+      }
+
+      return { ok: true };
     },
-    formatResult(output) {
-      return [{ type: "text", text: `Edited ${output.path} with ${output.edits} replacement(s)` }];
+
+    async execute(_toolCallId, params, _context) {
+      const fullPath = resolve(cwd, params.file_path);
+      const { old_string, new_string, replace_all = false } = params;
+
+      let content: string;
+      try {
+        content = await readFile(fullPath, "utf-8");
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          content = "";
+        } else {
+          throw e;
+        }
+      }
+
+      // 空 old_string 表示创建新文件
+      let newContent: string;
+      if (old_string === "") {
+        newContent = new_string;
+      } else {
+        newContent = replace_all
+          ? content.replaceAll(old_string, new_string)
+          : content.replace(old_string, new_string);
+      }
+
+      await writeFile(fullPath, newContent, "utf-8");
+
+      return {
+        filePath: fullPath,
+        oldString: old_string,
+        newString: new_string,
+        originalFile: content,
+        replaceAll: replace_all,
+      };
+    },
+
+    formatResult(output, _toolCallId) {
+      if (output.replaceAll) {
+        return [{
+          type: "text" as const,
+          text: `The file ${output.filePath} has been updated. All occurrences were successfully replaced.`,
+        }];
+      }
+      return [{
+        type: "text" as const,
+        text: `The file ${output.filePath} has been updated successfully.`,
+      }];
     },
   });
 }
