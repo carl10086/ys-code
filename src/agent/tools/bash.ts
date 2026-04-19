@@ -87,25 +87,28 @@ While the Bash tool can do similar things, it's better to use the built-in tools
     isReadOnly: false,
     isConcurrencySafe: true,
     async validateInput(params, _context) {
-      const blockedSleep = detectBlockedSleepPattern(params.command);
-      if (blockedSleep) {
-        return {
-          ok: false,
-          message: `Unnecessary \`${blockedSleep}\` detected. Do not sleep between commands that can run immediately — just run them. If your command is long running and you would like to be notified when it finishes — use \`run_in_background\`. No sleep needed.`,
-          errorCode: 10,
-        };
+      if (!params.run_in_background) {
+        const blockedSleep = detectBlockedSleepPattern(params.command);
+        if (blockedSleep) {
+          return {
+            ok: false,
+            message: `Blocked: ${blockedSleep}. Run blocking commands in the background with run_in_background: true — you'll get a completion notification when done.`,
+            errorCode: 10,
+          };
+        }
       }
       return { ok: true };
     },
     async execute(toolCallId, params, context) {
       if (params.run_in_background) {
         return {
-          stdout: `Command is running in the background. You will be notified when it completes.`,
+          stdout: "Background tasks not yet implemented. Run the command directly without run_in_background.",
           stderr: "",
-          exitCode: 0,
+          exitCode: 1,
           interrupted: false,
-          backgroundTaskId: toolCallId,
-          dangerouslyDisableSandbox: params.dangerouslyDisableSandbox,
+          backgroundTaskId: undefined,
+          assistantAutoBackgrounded: false,
+          dangerouslyDisableSandbox: params.dangerouslyDisableSandbox ?? false,
         };
       }
 
@@ -139,7 +142,7 @@ While the Bash tool can do similar things, it's better to use the built-in tools
             stderr,
             exitCode: code,
             interrupted,
-            dangerouslyDisableSandbox: params.dangerouslyDisableSandbox,
+            dangerouslyDisableSandbox: params.dangerouslyDisableSandbox ?? false,
           });
         });
       });
