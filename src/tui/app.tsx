@@ -2,7 +2,7 @@
 import { Box } from "ink";
 import React from "react";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
-import { executeCommand } from "../commands/index.js";
+import { COMMANDS, executeCommand } from "../commands/index.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
@@ -50,7 +50,7 @@ export function App(): React.ReactElement {
   return (
     <Box flexDirection="column" height="100%">
       <MessageList messages={messages} shouldScrollToBottom={shouldScrollToBottom} onScrolled={markScrolled} />
-      <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} />
+      <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={COMMANDS} />
       <StatusBar status={status} modelName={session.model.name} />
     </Box>
   );
