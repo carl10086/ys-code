@@ -1,7 +1,7 @@
 // src/agent/__tests__/session.test.ts
 import { describe, it, expect } from "bun:test";
-import { AgentSession } from "../session.js";
-import { getModel, asSystemPrompt } from "../../core/ai/index.js";
+import { AgentSession } from "./session.js";
+import { getModel, asSystemPrompt } from "../core/ai/index.js";
 
 describe("AgentSession", () => {
   it("should initialize with correct state", () => {

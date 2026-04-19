@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { getMemoryFiles, clearMemoryFilesCache, processMemoryFile, getClaudeMds } from "../claudemd.js";
+import { getMemoryFiles, clearMemoryFilesCache, processMemoryFile, getClaudeMds } from "./claudemd.js";
 
 describe("getMemoryFiles", () => {
   let tempDir: string;

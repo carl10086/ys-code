@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { defineAgentTool } from "../define-agent-tool.js";
+import { defineAgentTool } from "./define-agent-tool.js";
 import { Type } from "@sinclair/typebox";
 
 describe("defineAgentTool", () => {

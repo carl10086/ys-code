@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { streamAssistantResponse } from "../stream-assistant.js";
-import { createAssistantMessageEventStream } from "../../core/ai/utils/event-stream.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig } from "../types.js";
-import type { AssistantMessage, Message } from "../../core/ai/types.js";
-import { asSystemPrompt } from "../../core/ai/types.js";
+import { streamAssistantResponse } from "./stream-assistant.js";
+import { createAssistantMessageEventStream } from "../core/ai/utils/event-stream.js";
+import type { AgentContext, AgentEvent, AgentLoopConfig } from "./types.js";
+import type { AssistantMessage, Message } from "../core/ai/types.js";
+import { asSystemPrompt } from "../core/ai/types.js";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { clearMemoryFilesCache } from "../../utils/claudemd.js";
-import { clearUserContextCache } from "../context/user-context.js";
+import { clearMemoryFilesCache } from "../utils/claudemd.js";
+import { clearUserContextCache } from "./context/user-context.js";
 
 function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopConfig {
   return {
