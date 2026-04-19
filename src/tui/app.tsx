@@ -1,6 +1,7 @@
 // src/tui/app.tsx
 import { Box } from "ink";
 import React from "react";
+import { logger } from "../utils/logger.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
 import { executeCommand } from "../commands/index.js";
 import { MessageList } from "./components/MessageList.js";
@@ -22,6 +23,7 @@ export function App(): React.ReactElement {
   const status = isStreaming ? (hasPendingTools ? "tool_executing" : "streaming") : "idle";
 
   const handleCommand = async (text: string): Promise<boolean> => {
+    logger.debug("Command received", { command: text.trim() });
     const result = await executeCommand(text, {
       session,
       appendUserMessage,
@@ -33,6 +35,8 @@ export function App(): React.ReactElement {
   const handleSubmit = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    logger.info("User message submitted", { length: trimmed.length });
 
     appendUserMessage(trimmed);
 

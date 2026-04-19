@@ -7,7 +7,9 @@ import { logger } from "../utils/logger.js";
 async function main() {
   try {
     const instance = await render(<App />);
+    logger.info("TUI started");
     process.on("SIGINT", async () => {
+      logger.info("TUI exiting (SIGINT)");
       await instance.waitUntilExit();
       process.exit(0);
     });

@@ -15,6 +15,7 @@ import type {
 import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
 import type { Message } from "../core/ai/index.js";
+import { logger } from "../utils/logger.js";
 
 /** 事件发射器类型 */
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
@@ -77,6 +78,8 @@ export async function streamAssistantResponse(
   const resolvedApiKey =
     (config.getApiKey ? await config.getApiKey(config.model.provider) : undefined) || config.apiKey;
 
+  logger.debug("Stream request started", { model: config.model.name });
+
   const response = await streamFunction(config.model, llmContext, {
     ...config,
     apiKey: resolvedApiKey,
@@ -89,6 +92,7 @@ export async function streamAssistantResponse(
   for await (const event of response) {
     switch (event.type) {
       case "start": {
+        logger.debug("Stream started");
         // 消息开始，创建 partial message
         partialMessage = event.partial;
         context.messages.push(partialMessage);
@@ -100,9 +104,37 @@ export async function streamAssistantResponse(
       case "text_start":   // 文本块开始
       case "text_delta":   // 文本增量
       case "text_end":     // 文本块结束
+        if (partialMessage) {
+          if (event.type === "text_delta") {
+            logger.debug("Text delta", { delta: event.delta });
+          }
+          partialMessage = event.partial;
+          context.messages[context.messages.length - 1] = partialMessage;
+          await emit({
+            type: "message_update",
+            assistantMessageEvent: event,
+            message: { ...partialMessage },
+          });
+        }
+        break;
+
       case "thinking_start":   // 思考开始
       case "thinking_delta":   // 思考增量
       case "thinking_end":     // 思考结束
+        if (partialMessage) {
+          if (event.type === "thinking_delta") {
+            logger.debug("Thinking delta", { delta: event.delta });
+          }
+          partialMessage = event.partial;
+          context.messages[context.messages.length - 1] = partialMessage;
+          await emit({
+            type: "message_update",
+            assistantMessageEvent: event,
+            message: { ...partialMessage },
+          });
+        }
+        break;
+
       case "toolcall_start":   // 工具调用开始
       case "toolcall_delta":   // 工具调用增量
       case "toolcall_end":     // 工具调用结束
@@ -117,11 +149,18 @@ export async function streamAssistantResponse(
         }
         break;
 
-      case "done":   // 流式响应完成
+      case "done": {  // 流式响应完成
+        logger.debug("Stream done", { stopReason: partialMessage?.stopReason });
+        const finalMessageDone = await response.result();
+        await finalizeStreamMessage(context, finalMessageDone, addedPartial, emit);
+        return finalMessageDone;
+      }
+
       case "error": {   // 流式响应错误
-        const finalMessage = await response.result();
-        await finalizeStreamMessage(context, finalMessage, addedPartial, emit);
-        return finalMessage;
+        logger.debug("Stream error");
+        const finalMessageError = await response.result();
+        await finalizeStreamMessage(context, finalMessageError, addedPartial, emit);
+        return finalMessageError;
       }
     }
   }

@@ -12,6 +12,7 @@ import {
   asSystemPrompt,
 } from "../core/ai/index.js";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
+import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -264,26 +265,31 @@ export class Agent {
 
   /** 入队引导消息，在当前 assistant turn 结束后注入 */
   steer(message: AgentMessage): void {
+    logger.debug("Steer enqueued", { message });
     this.steeringQueue.enqueue(message);
   }
 
   /** 入队后续消息，仅在 agent 停止后运行 */
   followUp(message: AgentMessage): void {
+    logger.debug("FollowUp enqueued", { message });
     this.followUpQueue.enqueue(message);
   }
 
   /** 清空引导队列 */
   clearSteeringQueue(): void {
+    logger.debug("Steering queue cleared");
     this.steeringQueue.clear();
   }
 
   /** 清空后续队列 */
   clearFollowUpQueue(): void {
+    logger.debug("FollowUp queue cleared");
     this.followUpQueue.clear();
   }
 
   /** 清空所有队列 */
   clearAllQueues(): void {
+    logger.debug("All queues cleared");
     this.clearSteeringQueue();
     this.clearFollowUpQueue();
   }
@@ -339,6 +345,7 @@ export class Agent {
       );
     }
     const messages = this.normalizePromptInput(input, images);
+    logger.debug("Prompt called", { messageCount: messages.length });
     await this.runPromptMessages(messages);
   }
 
@@ -475,6 +482,7 @@ export class Agent {
     this.activeRun = { promise, resolve: resolvePromise, abortController };
 
     this._state.isStreaming = true;
+    logger.debug("isStreaming: true");
     this._state.streamingMessage = undefined;
     this._state.errorMessage = undefined;
 
@@ -489,6 +497,7 @@ export class Agent {
 
   /** 处理运行失败 */
   private async handleRunFailure(error: unknown, aborted: boolean): Promise<void> {
+    logger.error("Agent run failed", { error: error instanceof Error ? error.message : String(error), aborted });
     const failureMessage = {
       role: "assistant",
       content: [{ type: "text", text: "" }],
@@ -508,6 +517,7 @@ export class Agent {
   /** 完成运行 */
   private finishRun(): void {
     this._state.isStreaming = false;
+    logger.debug("isStreaming: false");
     this._state.streamingMessage = undefined;
     this._state.pendingToolCalls = new Set<string>();
     this.activeRun?.resolve();
@@ -518,19 +528,23 @@ export class Agent {
   private async processEvents(event: AgentEvent): Promise<void> {
     switch (event.type) {
       case "message_start":
+        logger.debug("Message started", { role: event.message.role });
         this._state.streamingMessage = event.message;
         break;
 
       case "message_update":
+        // 不记日志，太频繁
         this._state.streamingMessage = event.message;
         break;
 
       case "message_end":
+        logger.debug("Message ended", { role: event.message.role });
         this._state.streamingMessage = undefined;
         this._state.messages = [...this._state.messages, event.message];
         break;
 
       case "tool_execution_start": {
+        logger.debug("pendingToolCalls: +", { toolCallId: event.toolCallId, toolName: event.toolName });
         const pendingToolCalls = new Set(this._state.pendingToolCalls);
         pendingToolCalls.add(event.toolCallId);
         this._state.pendingToolCalls = pendingToolCalls;
@@ -538,6 +552,7 @@ export class Agent {
       }
 
       case "tool_execution_end": {
+        logger.debug("pendingToolCalls: -", { toolCallId: event.toolCallId });
         const pendingToolCalls = new Set(this._state.pendingToolCalls);
         pendingToolCalls.delete(event.toolCallId);
         this._state.pendingToolCalls = pendingToolCalls;
@@ -546,11 +561,17 @@ export class Agent {
 
       case "turn_end":
         if (event.message.role === "assistant" && event.message.errorMessage) {
+          logger.debug("Turn ended with error", { error: event.message.errorMessage });
           this._state.errorMessage = event.message.errorMessage;
         }
         break;
 
+      case "agent_start":
+        logger.debug("Agent started");
+        break;
+
       case "agent_end":
+        logger.debug("Agent ended");
         this._state.streamingMessage = undefined;
         break;
     }
