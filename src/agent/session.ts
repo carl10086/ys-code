@@ -1,10 +1,12 @@
 // src/agent/session.ts
+import { join } from "node:path";
 import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "../tools/index.js";
+import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 
@@ -44,6 +46,8 @@ export class AgentSession {
   private hasEmittedAnswer = false;
   private hasEmittedTools = false;
   private currentSystemPromptText = "";
+  // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
+  private skillToolInitPromise: Promise<void> | null = null;
 
   constructor(options: AgentSessionOptions) {
     this.cwd = options.cwd;
@@ -67,6 +71,21 @@ export class AgentSession {
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
+
+    // 异步初始化 SkillTool（不阻塞构造），保存 Promise 供 prompt() 等待
+    this.skillToolInitPromise = this.initializeSkillTool();
+  }
+
+  /** 初始化 SkillTool（懒加载方式） */
+  private async initializeSkillTool(): Promise<void> {
+    try {
+      // 传递 .claude/skills 作为 skillsBasePath 以定位 skills 目录
+      const skillTool = createSkillTool(async () => getCommands(join(this.cwd, '.claude/skills')));
+      this.agent.state.tools.push(skillTool);
+      logger.debug("SkillTool registered", { toolName: skillTool.name });
+    } catch (error) {
+      logger.error("Failed to initialize SkillTool", { error });
+    }
   }
 
   /** 订阅 UI 事件 */
@@ -102,6 +121,11 @@ export class AgentSession {
 
   /** 发送用户消息 */
   async prompt(text: string): Promise<void> {
+    // 确保 SkillTool 已注册完成，避免竞态条件
+    if (this.skillToolInitPromise) {
+      await this.skillToolInitPromise;
+      this.skillToolInitPromise = null;
+    }
     logger.info("Turn started", { model: this.agent.state.model.name });
     await this.refreshSystemPrompt();
     await this.agent.prompt(text);
