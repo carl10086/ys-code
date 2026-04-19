@@ -29,6 +29,9 @@ export function App(): React.ReactElement {
       appendUserMessage,
       appendSystemMessage: (msg) => appendUserMessage(`[系统] ${msg}`),
     });
+    if (result.handled && result.textResult) {
+      appendUserMessage(`[系统] ${result.textResult}`);
+    }
     return result.handled;
   };
 
