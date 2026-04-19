@@ -12,7 +12,8 @@ import type {
   AgentLoopConfig,
   StreamFn,
 } from "./types.js";
-import { getUserContext, prependUserContext } from "./context/user-context.js";
+import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
+import { normalizeMessages } from "./attachments/normalize.js";
 import type { Message } from "../core/ai/index.js";
 
 /** 事件发射器类型 */
@@ -57,10 +58,13 @@ export async function streamAssistantResponse(
     messages = await config.transformContext(messages, signal);
   } else if (!config.disableUserContext) {
     const userContext = await getUserContext({ cwd: process.cwd() });
-    messages = prependUserContext(messages as Message[], userContext) as typeof messages;
+    const attachments = getUserContextAttachments(userContext);
+    messages = [...attachments, ...messages];
   }
 
-  const llmMessages = await config.convertToLlm(messages);
+  // 在 convertToLlm 前 normalize，将 attachment 转为 UserMessage
+  const normalizedMessages = normalizeMessages(messages);
+  const llmMessages = await config.convertToLlm(normalizedMessages);
 
   const llmContext: Context = {
     systemPrompt: config.systemPrompt,

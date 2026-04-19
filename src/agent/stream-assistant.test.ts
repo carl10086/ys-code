@@ -229,4 +229,43 @@ describe("streamAssistantResponse userContext integration", () => {
     expect(capturedMessages).toBeDefined();
     expect(capturedMessages!.length).toBe(0);
   });
+
+  // 新增测试：验证 attachment → normalize → convertToLlm 链路
+  it("convertToLlm 收到的消息应为 Message[]（无 attachment）", async () => {
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# Test");
+
+    const context = createMockContext();
+
+    let receivedMessages: Message[] | undefined;
+    const config = createMockConfig({
+      convertToLlm: (messages: any[]) => {
+        receivedMessages = messages as Message[];
+        return messages as Message[];
+      },
+    });
+
+    const streamFn = async () => {
+      const stream = createAssistantMessageEventStream();
+      const final: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.end(final);
+      return stream;
+    };
+
+    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+
+    expect(receivedMessages).toBeDefined();
+    // convertToLlm 收到的是 normalize 后的消息，不应包含 attachment
+    for (const msg of receivedMessages!) {
+      expect(msg.role).not.toBe("attachment");
+    }
+  });
 });
