@@ -1,5 +1,6 @@
 import type { Message, UserMessage } from "../../core/ai/types.js";
 import { getMemoryFiles, filterInjectedMemoryFiles, getClaudeMds } from "../../utils/claudemd.js";
+import type { AttachmentMessage } from "../attachments/types.js";
 
 /** 用户上下文 */
 export interface UserContext {
@@ -55,26 +56,34 @@ async function _getUserContext(options?: {
   return context;
 }
 
-/** 将 userContext 注入 messages 最前面 */
+/** 将 UserContext 转换为 AttachmentMessage 数组 */
+export function getUserContextAttachments(context: UserContext): AttachmentMessage[] {
+  const entries = Object.entries(context)
+    .filter(([, value]) => value && value.trim() !== "")
+    .map(([key, value]) => ({ key, value: value! }));
+
+  if (entries.length === 0) return [];
+
+  return [
+    {
+      role: "attachment",
+      attachment: {
+        type: "relevant_memories",
+        entries,
+        timestamp: Date.now(),
+      },
+      timestamp: Date.now(),
+    },
+  ];
+}
+
+/** 将 userContext 注入 messages 最前面
+ * @deprecated 使用 getUserContextAttachments + normalizeMessages 替代
+ */
 export function prependUserContext(messages: Message[], context: UserContext): Message[] {
-  const entries = Object.entries(context).filter(([, value]) => value && value.trim() !== "");
-  if (entries.length === 0) return messages;
-
-  const content = [
-    "<system-reminder>",
-    "As you answer the user's questions, you can use the following context:",
-    ...entries.map(([key, value]) => `# ${key}\n${value}`),
-    "",
-    "IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.",
-    "</system-reminder>",
-    "",
-  ].join("\n");
-
-  const metaMessage: UserMessage = {
-    role: "user",
-    content,
-    timestamp: Date.now(),
-  };
-
-  return [metaMessage, ...messages];
+  const attachments = getUserContextAttachments(context);
+  // 临时导入避免循环依赖
+  const { normalizeMessages } = require("../attachments/normalize.js");
+  const normalized = normalizeMessages(attachments as any);
+  return [...normalized, ...messages] as Message[];
 }
