@@ -21,6 +21,8 @@ export function MessageList({ messages, shouldScrollToBottom, onScrolled }: Mess
     switch (m.type) {
       case "user":
         return sum + Math.max(1, Math.ceil(m.text.length / 80));
+      case "system":
+        return sum + 3 + Math.max(1, Math.ceil(m.text.length / 76));
       case "assistant_start":
         return sum + 2;
       case "thinking":
