@@ -21,8 +21,34 @@ export interface RelevantMemoriesAttachment extends BaseAttachment {
   }>;
 }
 
-/** 附件联合体 —— 第一阶段只包含 relevant_memories */
-export type Attachment = RelevantMemoriesAttachment;
+/** 文件附件 */
+export interface FileAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "file";
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件内容 */
+  content: string;
+  /** 相对路径，用于显示 */
+  displayPath: string;
+  /** 是否因大小限制被截断 */
+  truncated?: boolean;
+}
+
+/** 目录附件 */
+export interface DirectoryAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "directory";
+  /** 目录绝对路径 */
+  path: string;
+  /** 目录内容，ls 结果 */
+  content: string;
+  /** 相对路径，用于显示 */
+  displayPath: string;
+}
+
+/** 附件联合体 —— 包含 relevant_memories、file、directory */
+export type Attachment = RelevantMemoriesAttachment | FileAttachment | DirectoryAttachment;
 
 /** 附件消息 */
 export interface AttachmentMessage {
