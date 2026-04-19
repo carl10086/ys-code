@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { streamAssistantResponse } from "./stream-assistant.js";
+import { streamAssistantResponse, injectAtMentionAttachments } from "./stream-assistant.js";
 import { createAssistantMessageEventStream } from "../core/ai/utils/event-stream.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig } from "./types.js";
+import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
 import type { AssistantMessage, Message } from "../core/ai/types.js";
 import { asSystemPrompt } from "../core/ai/types.js";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
@@ -267,5 +267,133 @@ describe("streamAssistantResponse userContext integration", () => {
     for (const msg of receivedMessages!) {
       expect(msg.role).not.toBe("attachment");
     }
+  });
+});
+
+describe("injectAtMentionAttachments", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "sa-am-"));
+    writeFileSync(join(tempDir, "test.txt"), "hello world");
+    writeFileSync(join(tempDir, "other.ts"), "const x = 1;");
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("空消息数组应返回空数组", async () => {
+    const result = await injectAtMentionAttachments([], tempDir);
+    expect(result).toEqual([]);
+  });
+
+  it("无 @ 引用的消息应原样返回", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "hello", timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result).toEqual(messages);
+  });
+
+  it("user message 中的 @file 应注入 attachment", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "查看 @test.txt", timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result.length).toBe(2);
+    expect(result[0]).toEqual(messages[0]);
+    expect(result[1]).toMatchObject({
+      role: "attachment",
+      attachment: {
+        type: "file",
+        filePath: join(tempDir, "test.txt"),
+        content: "hello world",
+        displayPath: "test.txt",
+      },
+    });
+  });
+
+  it("多个 @ 引用应注入多个 attachment", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "查看 @test.txt 和 @other.ts", timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result.length).toBe(3);
+    expect(result[0]).toEqual(messages[0]);
+    expect(result[1]).toMatchObject({
+      role: "attachment",
+      attachment: { type: "file", filePath: join(tempDir, "test.txt") },
+    });
+    expect(result[2]).toMatchObject({
+      role: "attachment",
+      attachment: { type: "file", filePath: join(tempDir, "other.ts") },
+    });
+  });
+
+  it("非 user message 应跳过", async () => {
+    const messages: AgentMessage[] = [
+      { role: "assistant", content: [{ type: "text", text: "@test.txt" }], timestamp: 1, api: "anthropic-messages", provider: "minimax", model: "test-model", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "stop" },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result).toEqual(messages);
+  });
+
+  it("user message 的 content 不是 string 时应跳过", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "@test.txt" }], timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result).toEqual(messages);
+  });
+
+  it("不存在的 @ 引用应忽略", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "查看 @not-exist.txt", timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result).toEqual(messages);
+  });
+
+  it("混合消息应只处理 user message", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "查看 @test.txt", timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "ok" }], timestamp: 2, api: "anthropic-messages", provider: "minimax", model: "test-model", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "stop" },
+      { role: "user", content: "再看 @other.ts", timestamp: 3 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result.length).toBe(5);
+    expect(result[0]).toEqual(messages[0]);
+    expect(result[1]).toMatchObject({
+      role: "attachment",
+      attachment: { type: "file", filePath: join(tempDir, "test.txt") },
+    });
+    expect(result[2]).toEqual(messages[1]);
+    expect(result[3]).toEqual(messages[2]);
+    expect(result[4]).toMatchObject({
+      role: "attachment",
+      attachment: { type: "file", filePath: join(tempDir, "other.ts") },
+    });
+  });
+
+  it("目录 @ 引用应注入 directory attachment", async () => {
+    const subDir = join(tempDir, "subdir");
+    const fs = await import("node:fs");
+    fs.mkdirSync(subDir);
+    fs.writeFileSync(join(subDir, "a.txt"), "a");
+
+    const messages: AgentMessage[] = [
+      { role: "user", content: '查看 @"subdir"', timestamp: 1 },
+    ];
+    const result = await injectAtMentionAttachments(messages, tempDir);
+    expect(result.length).toBe(2);
+    expect(result[1]).toMatchObject({
+      role: "attachment",
+      attachment: {
+        type: "directory",
+        path: subDir,
+        displayPath: "subdir",
+      },
+    });
   });
 });
