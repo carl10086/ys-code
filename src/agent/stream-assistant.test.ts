@@ -308,8 +308,13 @@ describe("injectAtMentionAttachments", () => {
       attachment: {
         type: "file",
         filePath: join(tempDir, "test.txt"),
-        content: "hello world",
         displayPath: "test.txt",
+        content: {
+          type: "text",
+          file: {
+            content: "hello world",
+          },
+        },
       },
     });
   });

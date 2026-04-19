@@ -43,6 +43,7 @@ export class AgentSession {
   private hasEmittedThinking = false;
   private hasEmittedAnswer = false;
   private hasEmittedTools = false;
+  private currentSystemPromptText = "";
 
   constructor(options: AgentSessionOptions) {
     this.cwd = options.cwd;
@@ -153,6 +154,12 @@ export class AgentSession {
     const prompt = await this.systemPromptBuilder(context);
     logger.debug("System prompt refreshed", { prompt });
     this.agent.systemPrompt = async () => prompt;
+    this.currentSystemPromptText = prompt.join("\n\n");
+  }
+
+  /** 获取当前 system prompt 文本 */
+  getSystemPrompt(): string {
+    return this.currentSystemPromptText;
   }
 
   private handleAgentEvent(event: AgentEvent): void {

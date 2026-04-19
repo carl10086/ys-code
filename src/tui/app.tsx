@@ -23,7 +23,6 @@ export function App(): React.ReactElement {
   const status = isStreaming ? (hasPendingTools ? "tool_executing" : "streaming") : "idle";
 
   const handleCommand = async (text: string): Promise<boolean> => {
-    logger.debug("Command received", { command: text.trim() });
     const result = await executeCommand(text, {
       session,
       appendUserMessage,

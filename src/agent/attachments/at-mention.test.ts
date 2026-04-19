@@ -74,7 +74,9 @@ describe("readAtMentionedFile", () => {
     expect(result!.type).toBe("file");
     expect(result!.filePath).toBe(path.join(tmpDir, "small.txt"));
     expect(result!.displayPath).toBe("small.txt");
-    expect(result!.content).toContain("line1");
+    // content 现在是 FileReadToolOutput 对象
+    expect((result as any).content.type).toBe("text");
+    expect((result as any).content.file.content).toContain("line1");
     expect(result!.truncated).toBeUndefined();
   });
 
@@ -111,7 +113,9 @@ describe("readAtMentionedFile", () => {
     expect(result).not.toBeNull();
     expect(result!.type).toBe("file");
     expect(result!.truncated).toBe(true);
-    const lineCount = (result!.content.match(/\n/g) || []).length;
+    // content 是 FileReadToolOutput 对象
+    const fileContent = (result as any).content.file.content;
+    const lineCount = (fileContent.match(/\n/g) || []).length;
     expect(lineCount).toBeLessThanOrEqual(1000);
     fs.unlinkSync(bigFile);
   });

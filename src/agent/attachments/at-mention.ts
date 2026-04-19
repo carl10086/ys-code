@@ -104,10 +104,22 @@ export async function readAtMentionedFile(
     }
   }
 
+  const fileTextContent = content;
+  const lineCount = fileTextContent.split("\n").length;
+
   return {
     type: "file",
     filePath: absolutePath,
-    content,
+    content: {
+      type: "text",
+      file: {
+        filePath: absolutePath,
+        content: fileTextContent,
+        numLines: lineCount,
+        startLine: 1,
+        totalLines: lineCount,
+      },
+    },
     displayPath,
     truncated,
     timestamp,

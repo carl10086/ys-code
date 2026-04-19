@@ -137,7 +137,16 @@ describe("normalizeMessages", () => {
     const att: FileAttachment = {
       type: "file",
       filePath: "/abs/path/to/file.ts",
-      content: "const x = 1;\nconst y = 2;",
+      content: {
+        type: "text",
+        file: {
+          filePath: "/abs/path/to/file.ts",
+          content: "const x = 1;\nconst y = 2;",
+          numLines: 2,
+          startLine: 1,
+          totalLines: 2,
+        },
+      },
       displayPath: "src/file.ts",
       truncated: false,
       timestamp: 2000,
@@ -149,6 +158,7 @@ describe("normalizeMessages", () => {
     expect(result[0].content).toContain("Called the FileReadTool tool");
     expect(result[0].content).toContain('"file_path":"/abs/path/to/file.ts"');
     expect(result[0].content).toContain("Result of calling the FileReadTool tool");
+    expect(result[0].content).toContain('"type":"text"');
     expect(result[0].content).toContain('"filePath":"/abs/path/to/file.ts"');
     expect(result[0].content).toContain('"content":"const x = 1;\\nconst y = 2;"');
     expect(result[0].content).toContain('"numLines":2');

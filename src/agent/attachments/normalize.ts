@@ -18,21 +18,13 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
       return [{ role: "user", content, timestamp: attachment.timestamp }];
     }
     case "file": {
-      const lines = attachment.content.split("\n");
-      const numLines = lines.length;
+      // attachment.content 是 FileReadToolOutput 对象
       const toolInput = JSON.stringify({ file_path: attachment.filePath });
-      const toolResult = JSON.stringify({
-        filePath: attachment.filePath,
-        content: attachment.content,
-        numLines,
-        startLine: 1,
-        totalLines: numLines,
-      });
+      const toolResult = `Result of calling the FileReadTool tool:\n${JSON.stringify(attachment.content)}`;
       const content = [
         "<system-reminder>",
         `Called the FileReadTool tool with the following input: ${toolInput}`,
         "",
-        `Result of calling the FileReadTool tool:`,
         toolResult,
         "</system-reminder>",
         "",
