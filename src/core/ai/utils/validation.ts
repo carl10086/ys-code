@@ -2,6 +2,7 @@
 import AjvModule from "ajv";
 import addFormatsModule from "ajv-formats";
 import type { Tool, ToolCall } from "../types.js";
+import { logger } from '../../../utils/logger.js';
 
 // ESM/CJS 兼容处理：某些环境（如 Vite）将 ESM 模块的 default 导出放在 .default 属性上
 const Ajv = (AjvModule as any).default || AjvModule;
@@ -32,7 +33,7 @@ if (canUseCodegen) {
     });
     addFormats(ajv);
   } catch (_e) {
-    console.warn("AJV validation disabled due to CSP restrictions");
+    logger.warn("AJV validation disabled due to CSP restrictions");
   }
 }
 

@@ -2,6 +2,7 @@
 import { render } from "ink";
 import React from "react";
 import { App } from "./app.js";
+import { logger } from "../utils/logger.js";
 
 async function main() {
   try {
@@ -11,7 +12,7 @@ async function main() {
       process.exit(0);
     });
   } catch (err) {
-    console.error("Failed to start TUI:", err);
+    logger.error({ err }, "Failed to start TUI");
     process.exit(1);
   }
 }

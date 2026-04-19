@@ -6,6 +6,7 @@ import type {
 import { SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from "./types.js";
 import type { SystemPrompt } from "../../core/ai/index.js";
 import { asSystemPrompt } from "../../core/ai/index.js";
+import { logger } from "../../utils/logger.js";
 
 /** 缓存条目 */
 interface CacheEntry {
@@ -40,7 +41,7 @@ export function createSystemPromptBuilder(
         }
         staticValues.push(value);
       } catch (err) {
-        console.warn(`[system-prompt] section "${section.name}" compute failed:`, err);
+        logger.warn({ section: section.name, err }, '[system-prompt] section compute failed');
         staticValues.push("");
       }
     }
@@ -52,7 +53,7 @@ export function createSystemPromptBuilder(
         const value = await section.compute(context);
         dynamicValues.push(value);
       } catch (err) {
-        console.warn(`[system-prompt] section "${section.name}" compute failed:`, err);
+        logger.warn({ section: section.name, err }, '[system-prompt] section compute failed');
         dynamicValues.push("");
       }
     }
