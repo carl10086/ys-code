@@ -22,6 +22,8 @@ export interface UseAgentResult {
   markScrolled: () => void;
   /** 添加用户消息到列表 */
   appendUserMessage: (text: string) => void;
+  /** 添加系统消息到列表 */
+  appendSystemMessage: (text: string) => void;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
@@ -100,6 +102,10 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     markScrolled: () => setShouldScrollToBottom(false),
     appendUserMessage: (text: string) => {
       setMessages((prev) => [...prev, { type: "user", text }]);
+      setShouldScrollToBottom(true);
+    },
+    appendSystemMessage: (text: string) => {
+      setMessages((prev) => [...prev, { type: "system", text }]);
       setShouldScrollToBottom(true);
     },
   };

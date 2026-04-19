@@ -13,7 +13,7 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 export function App(): React.ReactElement {
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage } = useAgent({
     model,
     apiKey,
   });
@@ -27,10 +27,10 @@ export function App(): React.ReactElement {
     const result = await executeCommand(text, {
       session,
       appendUserMessage,
-      appendSystemMessage: (msg) => appendUserMessage(`[系统] ${msg}`),
+      appendSystemMessage,
     });
     if (result.handled && result.textResult) {
-      appendUserMessage(`[系统] ${result.textResult}`);
+      appendSystemMessage(result.textResult);
     }
     return result.handled;
   };

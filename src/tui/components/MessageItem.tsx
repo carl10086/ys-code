@@ -18,6 +18,14 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
           </Text>
         </Box>
       );
+    case "system":
+      return (
+        <Box flexDirection="column" marginTop={1} marginBottom={1}>
+          <Text color="yellow" bold>{"─".repeat(40)}</Text>
+          <Text color="yellow" bold>{" ● "}{message.text}</Text>
+          <Text color="yellow" bold>{"─".repeat(40)}</Text>
+        </Box>
+      );
     case "assistant_start":
       return (
         <Box flexDirection="column" marginTop={1}>
