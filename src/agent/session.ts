@@ -48,6 +48,17 @@ export class AgentSession {
   get sessionId(): string {
     return this._sessionId;
   }
+
+  /** 将 Agent 消息转换为 LLM 消息格式（只读） */
+  get convertToLlm(): (messages: import("./types.js").AgentMessage[]) => import("../core/ai/index.js").Message[] {
+    return this.agent.convertToLlm;
+  }
+
+  /** 已发送给 LLM 的 skill 名称集合（只读） */
+  get sentSkillNames(): Set<string> {
+    return this.agent.state.sentSkillNames;
+  }
+
   private turnStartTime = 0;
   private toolStartTimes = new Map<string, number>();
   private hasEmittedThinking = false;
@@ -56,8 +67,6 @@ export class AgentSession {
   private currentSystemPromptText = "";
   // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
   private skillToolInitPromise: Promise<void> | null = null;
-  /** 已发送给 LLM 的 skill 名称集合（用于去重） */
-  private sentSkillNames: Set<string> = new Set();
 
   /** 生成新 session ID */
   regenerateSessionId(): void {
@@ -83,9 +92,6 @@ export class AgentSession {
       },
       getApiKey: () => options.apiKey,
     });
-
-    // 设置 sentSkillNames 用于去重
-    this.agent.state.sentSkillNames = this.sentSkillNames;
 
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
@@ -151,7 +157,10 @@ export class AgentSession {
   }
 
   /** 发送用户消息 */
-  async prompt(text: string): Promise<void> {
+  async prompt(text: string): Promise<void>;
+  /** 发送用户消息（可指定选项） */
+  async prompt(message: AgentMessage): Promise<void>;
+  async prompt(textOrMessage: string | AgentMessage): Promise<void> {
     // 确保 SkillTool 已注册完成，避免竞态条件
     if (this.skillToolInitPromise) {
       await this.skillToolInitPromise;
@@ -159,7 +168,11 @@ export class AgentSession {
     }
     logger.info("Turn started", { model: this.agent.state.model.name });
     await this.refreshSystemPrompt();
-    await this.agent.prompt(text);
+    if (typeof textOrMessage === "string") {
+      await this.agent.prompt(textOrMessage);
+    } else {
+      await this.agent.prompt(textOrMessage);
+    }
   }
 
   /** 注入引导消息 */

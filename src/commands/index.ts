@@ -1,7 +1,8 @@
 // src/commands/index.ts
-import type { Command, CommandContext, CommandResult, LocalJSXCommandOnDone } from "./types.js";
+import type { Command, CommandContext, LocalJSXCommandOnDone } from "./types.js";
 import { getCommandName, isCommandEnabled } from "./types.js";
 import type React from "react";
+import { logger } from "../utils/logger.js";
 
 export type { Command, CommandContext, CommandResult } from "./types.js";
 export { getCommandName, isCommandEnabled } from "./types.js";
@@ -93,6 +94,8 @@ export interface ExecuteCommandResult {
   jsx?: React.ReactNode;
   /** 若为 local 命令，返回文本结果 */
   textResult?: string;
+  /** meta 消息内容（skill 内容，isMeta=true）*/
+  metaMessages?: string[];
   /** 完成回调（local-jsx 命令使用） */
   onDone?: LocalJSXCommandOnDone;
 }
@@ -154,15 +157,17 @@ export async function executeCommand(
     }
   }
 
-  // prompt 类型命令：获取 skill 内容作为文本返回
+  // prompt 类型命令：获取 skill 内容作为 meta 消息返回
   if (command.type === "prompt") {
     try {
+      logger.debug("Fetching skill content", { commandName });
       const contentBlocks = await command.getPromptForCommand(args);
       const textContent = contentBlocks
         .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
         .map(block => block.text)
         .join('\n\n');
-      return { handled: true, textResult: textContent };
+      logger.debug("Skill metaMessages generated", { metaMessagesCount: 1, contentLength: textContent.length });
+      return { handled: true, metaMessages: [textContent] };
     } catch {
       return { handled: false };
     }

@@ -1,9 +1,11 @@
 // src/tui/app.tsx
 import { Box } from "ink";
-import React from "react";
+import React, { useEffect, useState } from "react";
+import type { AgentMessage } from "../agent/types.js";
+import type { Command } from "../commands/index.js";
 import { logger } from "../utils/logger.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
-import { COMMANDS, executeCommand } from "../commands/index.js";
+import { executeCommand, getCommands } from "../commands/index.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
@@ -13,6 +15,12 @@ const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
 export function App(): React.ReactElement {
+  const [commands, setCommands] = useState<Command[]>([]);
+
+  useEffect(() => {
+    getCommands(".claude/skills").then(setCommands);
+  }, []);
+
   const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession } = useAgent({
     model,
     apiKey,
@@ -41,8 +49,46 @@ export function App(): React.ReactElement {
 
     logger.info("User message submitted", { length: trimmed.length });
 
-    appendUserMessage(trimmed);
+    // 检查是否是 slash 命令
+    if (trimmed.startsWith("/")) {
+      const result = await executeCommand(trimmed, {
+        session,
+        appendUserMessage,
+        appendSystemMessage,
+        resetSession,
+      });
 
+      if (result.handled) {
+        // 显示用户输入
+        appendUserMessage(trimmed);
+
+        // 处理 meta 消息
+        if (result.metaMessages && result.metaMessages.length > 0) {
+          for (const metaContent of result.metaMessages) {
+            try {
+              logger.debug("Sending meta message to LLM", { contentLength: metaContent.length });
+              const metaMessage: AgentMessage = {
+                role: "user",
+                content: [{ type: "text", text: metaContent }],
+                timestamp: Date.now(),
+                isMeta: true,
+              };
+              await session.prompt(metaMessage);
+            } catch (err) {
+              logger.error("Failed to send meta message", { error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+        }
+
+        if (result.textResult) {
+          appendSystemMessage(result.textResult);
+        }
+        return;
+      }
+    }
+
+    // 普通用户消息
+    appendUserMessage(trimmed);
     if (isStreaming) {
       session.steer(trimmed);
     } else {
@@ -57,7 +103,7 @@ export function App(): React.ReactElement {
   return (
     <Box flexDirection="column" height="100%">
       <MessageList messages={messages} shouldScrollToBottom={shouldScrollToBottom} onScrolled={markScrolled} />
-      <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={COMMANDS} />
+      <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={commands} />
       <StatusBar status={status} modelName={session.model.name} />
     </Box>
   );
