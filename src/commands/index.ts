@@ -93,6 +93,8 @@ export interface ExecuteCommandResult {
   jsx?: React.ReactNode;
   /** 若为 local 命令，返回文本结果 */
   textResult?: string;
+  /** meta 消息内容（skill 内容，isMeta=true）*/
+  metaMessages?: string[];
   /** 完成回调（local-jsx 命令使用） */
   onDone?: LocalJSXCommandOnDone;
 }
