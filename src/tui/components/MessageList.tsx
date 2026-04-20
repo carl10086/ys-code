@@ -65,9 +65,11 @@ export function MessageList({ messages, shouldScrollToBottom, onScrolled }: Mess
   return (
     <Box flexDirection="column" flexGrow={1}>
       <Box flexDirection="column" marginTop={-scrollOffset}>
-        {messages.map((message, index) => (
-          <MessageItem key={index} message={message} />
-        ))}
+        {messages
+          .filter(m => !(m.type === "user" && m.isMeta))
+          .map((message, index) => (
+            <MessageItem key={index} message={message} />
+          ))}
       </Box>
     </Box>
   );
