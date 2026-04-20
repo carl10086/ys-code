@@ -99,10 +99,14 @@ class PendingMessageQueue {
   constructor(public mode: QueueMode) {}
 
   /** 入队消息
-   * @param message 要添加的消息
+   * @param message 要添加的消息或消息数组
    */
-  enqueue(message: AgentMessage): void {
-    this.messages.push(message);
+  enqueue(message: AgentMessage | AgentMessage[]): void {
+    if (Array.isArray(message)) {
+      this.messages.push(...message);
+    } else {
+      this.messages.push(message);
+    }
   }
 
   /** 检查队列是否有消息
@@ -270,7 +274,7 @@ export class Agent {
   }
 
   /** 入队后续消息，仅在 agent 停止后运行 */
-  followUp(message: AgentMessage): void {
+  followUp(message: AgentMessage | AgentMessage[]): void {
     logger.debug("FollowUp enqueued", { message });
     this.followUpQueue.enqueue(message);
   }
