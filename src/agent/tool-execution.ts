@@ -6,6 +6,7 @@ import type {
   AgentContext,
   AgentEvent,
   AgentLoopConfig,
+  AgentMessage,
   AgentTool,
   AgentToolResult,
   ToolUseContext,
@@ -130,7 +131,7 @@ async function executePreparedToolCall(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<{ output: unknown; isError: boolean }> {
+): Promise<{ output: unknown; isError: boolean; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
   const updateEvents: Promise<void>[] = [];
   const context = buildToolUseContext(currentContext, config, signal);
 
@@ -154,7 +155,11 @@ async function executePreparedToolCall(
       },
     );
     await Promise.all(updateEvents);
-    return { output, isError: false };
+    // 提取 newMessages 和 contextModifier
+    const toolResult = output as AgentToolResult<unknown>;
+    const newMessages = toolResult?.newMessages;
+    const contextModifier = toolResult?.contextModifier;
+    return { output, isError: false, newMessages, contextModifier };
   } catch (error) {
     await Promise.all(updateEvents);
     return {
@@ -213,6 +218,18 @@ async function executeToolCallsSequential(
       results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
       const executed = await executePreparedToolCall(preparation, currentContext, config, signal, emit);
+      // 注入 newMessages 到 messages 列表
+      if (executed.newMessages && executed.newMessages.length > 0) {
+        for (const msg of executed.newMessages) {
+          currentContext.messages.push(msg);
+        }
+        logger.debug("Injected newMessages from tool", { count: executed.newMessages.length });
+      }
+      // 执行 contextModifier 修改消息上下文
+      if (executed.contextModifier) {
+        currentContext.messages = executed.contextModifier(currentContext.messages);
+        logger.debug("Applied contextModifier from tool");
+      }
       logger.debug("Tool execution result (sequential)", { toolName: toolCall.name, output: executed.output, isError: executed.isError });
       results.push(await finalizeExecutedToolCall(preparation, executed, emit));
     }
@@ -259,6 +276,18 @@ async function executeToolCallsParallel(
   for (let i = 0; i < executedResults.length; i++) {
     const executed = executedResults[i];
     const prepared = runningCalls[i].prepared;
+    // 注入 newMessages 到 messages 列表
+    if (executed.newMessages && executed.newMessages.length > 0) {
+      for (const msg of executed.newMessages) {
+        currentContext.messages.push(msg);
+      }
+      logger.debug("Injected newMessages from tool (parallel)", { count: executed.newMessages.length });
+    }
+    // 执行 contextModifier 修改消息上下文
+    if (executed.contextModifier) {
+      currentContext.messages = executed.contextModifier(currentContext.messages);
+      logger.debug("Applied contextModifier from tool (parallel)");
+    }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);
     results.push(finalResult);
