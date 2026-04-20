@@ -21,14 +21,16 @@ export function formatSkillListing(commands: PromptCommand[]): string {
 }
 
 /**
- * 扫描 user message 中的 @... 引用，注入对应的 attachment 消息
+ * 注入 skill listing attachment 到消息数组
  * @param messages 原始 AgentMessage 数组
- * @param cwd 当前工作目录（用于解析相对路径）
+ * @param cwd 当前工作目录
+ * @param sentSkillNames 已发送的 skill 名称集合（用于去重）
  * @returns 注入 attachment 后的新数组
  */
 export async function injectSkillListingAttachments(
   messages: AgentMessage[],
   cwd: string,
+  sentSkillNames: Set<string>,
 ): Promise<AgentMessage[]> {
   // 找到第一条 user message
   const firstUserIndex = messages.findIndex((m) => m.role === "user");
@@ -42,20 +44,29 @@ export async function injectSkillListingAttachments(
     (cmd): cmd is PromptCommand => cmd.type === "prompt",
   );
 
-  // 获取新增 skills（由 session 的 sentSkillNames 过滤）
-  // 注意：此函数只负责格式化，sentSkillNames 的管理由 session 负责
-  if (promptCommands.length === 0) {
+  // 过滤出新增的 skills（去重）
+  const newSkills = promptCommands.filter(
+    (cmd) => !sentSkillNames.has(cmd.name),
+  );
+
+  if (newSkills.length === 0) {
     return messages;
   }
 
   // 格式化
-  const content = formatSkillListing(promptCommands);
+  const content = formatSkillListing(newSkills);
+  const skillNames = newSkills.map((s) => s.name);
   const attachment: SkillListingAttachment = {
     type: "skill_listing",
     content,
-    skillNames: promptCommands.map((s) => s.name),
+    skillNames,
     timestamp: Date.now(),
   };
+
+  // 更新已发送集合
+  for (const name of skillNames) {
+    sentSkillNames.add(name);
+  }
 
   // 插入到第一条 user message 之后
   return [

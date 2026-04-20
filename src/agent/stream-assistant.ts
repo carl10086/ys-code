@@ -109,7 +109,8 @@ export async function streamAssistantResponse(
   }
 
   // 在 userContext 之后、@mention 之前注入 skill listing
-  messages = await injectSkillListingAttachments(messages, process.cwd());
+  const sentSkillNames = context.sentSkillNames ?? new Set<string>();
+  messages = await injectSkillListingAttachments(messages, process.cwd(), sentSkillNames);
 
   // 注入 @... 附件
   messages = await injectAtMentionAttachments(messages, process.cwd());

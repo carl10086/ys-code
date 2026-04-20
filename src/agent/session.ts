@@ -79,6 +79,9 @@ export class AgentSession {
       getApiKey: () => options.apiKey,
     });
 
+    // 设置 sentSkillNames 用于去重
+    this.agent.state.sentSkillNames = this.sentSkillNames;
+
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
