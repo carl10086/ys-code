@@ -436,6 +436,7 @@ export class Agent {
     return {
       messages: this._state.messages.slice(),
       tools: this._state.tools.slice(),
+      sentSkillNames: this._state.sentSkillNames,
     };
   }
 

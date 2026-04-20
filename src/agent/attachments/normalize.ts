@@ -52,6 +52,19 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
       ].join("\n");
       return [{ role: "user", content, timestamp: attachment.timestamp }];
     }
+    case "skill_listing": {
+      const content = [
+        "<system-reminder>",
+        "You can use the following skills:",
+        "",
+        attachment.content,
+        "",
+        "To use a skill, call the SkillTool with the skill name.",
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
     default: {
       // 穷尽检查 —— 新增类型时必须添加 case
       const _exhaustive: never = attachment;

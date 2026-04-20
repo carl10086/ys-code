@@ -73,8 +73,18 @@ export interface DirectoryAttachment extends BaseAttachment {
   displayPath: string;
 }
 
-/** 附件联合体 —— 包含 relevant_memories、file、directory */
-export type Attachment = RelevantMemoriesAttachment | FileAttachment | DirectoryAttachment;
+/** Skill listing attachment - 告诉 LLM 有哪些 skills 可用 */
+export interface SkillListingAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "skill_listing";
+  /** 格式化后的 skills 列表文本 */
+  content: string;
+  /** 本次包含的 skill 名称列表（用于去重） */
+  skillNames: string[];
+}
+
+/** 附件联合体 —— 包含 relevant_memories、file、directory、skill_listing */
+export type Attachment = RelevantMemoriesAttachment | FileAttachment | DirectoryAttachment | SkillListingAttachment;
 
 /** 附件消息 */
 export interface AttachmentMessage {

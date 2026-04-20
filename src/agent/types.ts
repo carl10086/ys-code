@@ -145,6 +145,8 @@ export interface AgentTool<
 export interface AgentContext {
   messages: AgentMessage[];
   tools?: AgentTool<any, any>[];
+  /** 已发送的 skill 名称集合（用于去重） */
+  sentSkillNames?: Set<string>;
 }
 
 /** Agent 公开状态 */
@@ -157,6 +159,8 @@ export interface AgentState {
   readonly streamingMessage?: AgentMessage;
   readonly pendingToolCalls: ReadonlySet<string>;
   readonly errorMessage?: string;
+  /** 已发送的 skill 名称集合（用于去重） */
+  sentSkillNames?: Set<string>;
 }
 
 /** Agent 事件类型 */

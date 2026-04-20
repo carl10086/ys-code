@@ -5,6 +5,7 @@ import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
+import type { PromptCommand } from "../commands/types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "./tools/index.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
@@ -50,6 +51,8 @@ export class AgentSession {
   private currentSystemPromptText = "";
   // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
   private skillToolInitPromise: Promise<void> | null = null;
+  /** 已发送给 LLM 的 skill 名称集合（用于去重） */
+  private sentSkillNames: Set<string> = new Set();
 
   /** 生成新 session ID */
   regenerateSessionId(): void {
@@ -76,6 +79,9 @@ export class AgentSession {
       getApiKey: () => options.apiKey,
     });
 
+    // 设置 sentSkillNames 用于去重
+    this.agent.state.sentSkillNames = this.sentSkillNames;
+
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
@@ -93,6 +99,18 @@ export class AgentSession {
       logger.debug("SkillTool registered", { toolName: skillTool.name });
     } catch (error) {
       logger.error("Failed to initialize SkillTool", { error });
+    }
+  }
+
+  /** 获取尚未发送的 skills */
+  getNewSkills(allSkills: PromptCommand[]): PromptCommand[] {
+    return allSkills.filter((s) => !this.sentSkillNames.has(s.name));
+  }
+
+  /** 标记 skills 已发送 */
+  markSkillsSent(skillNames: string[]): void {
+    for (const name of skillNames) {
+      this.sentSkillNames.add(name);
     }
   }
 
