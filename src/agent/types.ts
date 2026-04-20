@@ -44,6 +44,10 @@ export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessag
 export interface AgentToolResult<T> {
   content: (TextContent | ImageContent)[];
   details: T;
+  /** 注入到消息列表的新消息（UI 隐藏，LLM 可见） */
+  newMessages?: AgentMessage[];
+  /** 上下文修改器 */
+  contextModifier?: (messages: AgentMessage[]) => AgentMessage[];
 }
 
 /** 工具执行上下文 */
