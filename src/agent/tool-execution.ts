@@ -276,11 +276,6 @@ async function executeToolCallsParallel(
       currentContext.pendingMessages.push(...executed.newMessages);
       logger.debug("Tool newMessages queued for next turn (parallel)", { count: executed.newMessages.length });
     }
-    // 执行 contextModifier 修改消息上下文
-    if (executed.contextModifier) {
-      currentContext.messages = executed.contextModifier(currentContext.messages);
-      logger.debug("Applied contextModifier from tool (parallel)");
-    }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);
     results.push(finalResult);
