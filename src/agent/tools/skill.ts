@@ -31,7 +31,11 @@ export function createSkillTool(getCommands: () => Promise<Command[]>): AgentToo
   return defineAgentTool({
     name: "Skill",
     label: "Skill",
-    description: "Execute a skill by name. Skills are specialized prompts that help with specific tasks like brainstorming, code review, or planning.",
+    description: `Execute a skill by name.
+
+The first user message includes a skill listing that describes all available skills and when to use them. Use that listing to choose the right skill for the task.
+
+Call this tool with the exact skill name from the listing.`,
     parameters: SkillInputSchema,
     outputSchema: SkillOutputSchema,
     isReadOnly: true,
