@@ -11,8 +11,13 @@ const SkillInputSchema = Type.Object({
 });
 
 const SkillOutputSchema = Type.Object({
-  success: Type.Boolean(),
-  skillName: Type.String(),
+  content: Type.Array(Type.Any()),
+  details: Type.Object({
+    success: Type.Boolean(),
+    skillName: Type.String(),
+  }),
+  newMessages: Type.Optional(Type.Array(Type.Any())),
+  contextModifier: Type.Optional(Type.Any()),
 });
 
 type SkillInput = Static<typeof SkillInputSchema>;
@@ -32,15 +37,21 @@ export function createSkillTool(getCommands: () => Promise<Command[]>): AgentToo
     isReadOnly: true,
     isConcurrencySafe: true,
 
-    async execute(_toolCallId, params, _context): Promise<SkillOutput & { newMessages?: AgentMessage[] }> {
+    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
       const commands = await getCommands();
       const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
+
+      // contextModifier 占位实现（后续可限制 allowedTools）
+      const modifier = (messages: AgentMessage[]): AgentMessage[] => {
+        return messages;
+      };
 
       if (!command) {
         // 返回错误结果
         return {
-          success: false,
-          skillName: params.skill,
+          content: [],
+          details: { success: false, skillName: params.skill },
+          contextModifier: modifier,
         };
       }
 
@@ -63,14 +74,15 @@ export function createSkillTool(getCommands: () => Promise<Command[]>): AgentToo
 
       // 返回结果（包含 newMessages 由 tool-execution.ts 注入）
       return {
-        success: true,
-        skillName: params.skill,
+        content: [],
+        details: { success: true, skillName: params.skill },
         newMessages: [metaUserMessage as AgentMessage],
+        contextModifier: modifier,
       };
     },
 
     formatResult(output) {
-      return [{ type: "text", text: `Skill ${output.skillName} executed` }];
+      return [{ type: "text", text: `Skill ${output.details.skillName} executed` }];
     },
   });
 }
