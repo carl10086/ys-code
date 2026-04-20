@@ -15,6 +15,7 @@ import type {
 import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
 import { extractAtMentionedFiles, readAtMentionedFile } from "./attachments/at-mention.js";
+import { injectSkillListingAttachments } from "./attachments/skill-listing.js";
 import type { Message } from "../core/ai/index.js";
 import type { AttachmentMessage } from "./attachments/types.js";
 import { logger } from "../utils/logger.js";
@@ -107,7 +108,10 @@ export async function streamAssistantResponse(
     messages = [...attachments, ...messages];
   }
 
-  // 在 userContext 之后、normalize 之前注入 @... 附件
+  // 在 userContext 之后、@mention 之前注入 skill listing
+  messages = await injectSkillListingAttachments(messages, process.cwd());
+
+  // 注入 @... 附件
   messages = await injectAtMentionAttachments(messages, process.cwd());
 
   // 在 convertToLlm 前 normalize，将 attachment 转为 UserMessage
