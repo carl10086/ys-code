@@ -31,6 +31,6 @@ export const call: LocalCommandCall = async (_args, context) => {
     writeFileSync(filePath, JSON.stringify(debugData, null, 2), "utf-8");
     return { type: "text", value: `已导出上下文到 ${filePath}` };
   } catch (error) {
-    return { type: "text", value: `导出失败: ${error}` };
+    return { type: "text", value: `导出失败: ${error instanceof Error ? error.message : String(error)}` };
   }
 };
