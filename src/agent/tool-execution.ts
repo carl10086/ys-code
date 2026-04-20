@@ -218,17 +218,11 @@ async function executeToolCallsSequential(
       results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
       const executed = await executePreparedToolCall(preparation, currentContext, config, signal, emit);
-      // 注入 newMessages 到 messages 列表
+      // 将 newMessages 加入 pendingMessages，触发下一轮循环
       if (executed.newMessages && executed.newMessages.length > 0) {
-        for (const msg of executed.newMessages) {
-          currentContext.messages.push(msg);
-        }
-        logger.debug("Injected newMessages from tool", { count: executed.newMessages.length });
-      }
-      // 执行 contextModifier 修改消息上下文
-      if (executed.contextModifier) {
-        currentContext.messages = executed.contextModifier(currentContext.messages);
-        logger.debug("Applied contextModifier from tool");
+        currentContext.pendingMessages = currentContext.pendingMessages || [];
+        currentContext.pendingMessages.push(...executed.newMessages);
+        logger.debug("Tool newMessages queued for next turn", { count: executed.newMessages.length });
       }
       logger.debug("Tool execution result (sequential)", { toolName: toolCall.name, output: executed.output, isError: executed.isError });
       results.push(await finalizeExecutedToolCall(preparation, executed, emit));
@@ -276,17 +270,11 @@ async function executeToolCallsParallel(
   for (let i = 0; i < executedResults.length; i++) {
     const executed = executedResults[i];
     const prepared = runningCalls[i].prepared;
-    // 注入 newMessages 到 messages 列表
+    // 将 newMessages 加入 pendingMessages，触发下一轮循环
     if (executed.newMessages && executed.newMessages.length > 0) {
-      for (const msg of executed.newMessages) {
-        currentContext.messages.push(msg);
-      }
-      logger.debug("Injected newMessages from tool (parallel)", { count: executed.newMessages.length });
-    }
-    // 执行 contextModifier 修改消息上下文
-    if (executed.contextModifier) {
-      currentContext.messages = executed.contextModifier(currentContext.messages);
-      logger.debug("Applied contextModifier from tool (parallel)");
+      currentContext.pendingMessages = currentContext.pendingMessages || [];
+      currentContext.pendingMessages.push(...executed.newMessages);
+      logger.debug("Tool newMessages queued for next turn (parallel)", { count: executed.newMessages.length });
     }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);

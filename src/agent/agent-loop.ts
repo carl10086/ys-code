@@ -120,6 +120,15 @@ async function runLoop(
       pendingMessages = (await config.getSteeringMessages?.()) || [];
     }
 
+    // 检查 context.pendingMessages（工具返回的 newMessages）
+    const contextPending = currentContext.pendingMessages || [];
+    if (contextPending.length > 0) {
+      currentContext.pendingMessages = [];
+      pendingMessages = contextPending;
+      hasPreEmittedTurnStart = false;
+      continue;
+    }
+
     const followUpMessages = (await config.getFollowUpMessages?.()) || [];
     if (followUpMessages.length > 0) {
       pendingMessages = followUpMessages;

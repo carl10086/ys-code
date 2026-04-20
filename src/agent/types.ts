@@ -147,6 +147,8 @@ export interface AgentContext {
   tools?: AgentTool<any, any>[];
   /** 已发送的 skill 名称集合（用于去重） */
   sentSkillNames?: Set<string>;
+  /** 工具返回的新消息，供循环使用（UI 隐藏，LLM 可见） */
+  pendingMessages?: AgentMessage[];
 }
 
 /** Agent 公开状态 */
