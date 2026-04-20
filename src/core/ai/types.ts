@@ -130,6 +130,8 @@ export interface UserMessage {
 	content: string | (TextContent | ImageContent)[];
 	/** 时间戳（毫秒） */
 	timestamp: number;
+	/** 是否为 meta 消息（UI 隐藏，LLM 可见） */
+	isMeta?: boolean;
 }
 
 /** 角色常量 */
