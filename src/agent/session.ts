@@ -42,7 +42,12 @@ export class AgentSession {
   private readonly listeners = new Set<(event: AgentSessionEvent) => void>();
   private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
   /** 会话 ID，用于标识一次会话 */
-  private sessionId = crypto.randomUUID();
+  private _sessionId = crypto.randomUUID();
+
+  /** 会话 ID（只读） */
+  get sessionId(): string {
+    return this._sessionId;
+  }
   private turnStartTime = 0;
   private toolStartTimes = new Map<string, number>();
   private hasEmittedThinking = false;
@@ -57,7 +62,7 @@ export class AgentSession {
   /** 生成新 session ID */
   regenerateSessionId(): void {
     logger.info("Session ID regenerated");
-    this.sessionId = crypto.randomUUID();
+    this._sessionId = crypto.randomUUID();
   }
 
   constructor(options: AgentSessionOptions) {

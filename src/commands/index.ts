@@ -12,12 +12,14 @@ import tools from "./tools/index.js";
 import help from "./help/index.js";
 import system from "./system/index.js";
 import skills from "./skills/index.js";
+import debug from "./debug/index.js";
 import { loadSkillsFromSkillsDir } from "../skills/loadSkillsDir.js";
 
 /** 所有内置命令列表（不含动态加载的 skills） */
 export const BUILTIN_COMMANDS: Command[] = [
   exit,
   clear,
+  debug,
   tools,
   help,
   system,
