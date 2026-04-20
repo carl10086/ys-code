@@ -62,7 +62,7 @@ session.subscribe((event) => {
 
 async function main() {
   const inputs = [
-      "介绍一下你自己"
+      "使用 brainstorming skill 分析 agent loop"
     // "写一个 200字的作文， 关于春天",
     // "请告诉我当前目录是什么",
   ];

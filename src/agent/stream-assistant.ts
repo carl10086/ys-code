@@ -24,6 +24,33 @@ import { logger } from "../utils/logger.js";
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 
 /**
+ * 将 AgentMessage[] 转换为最终发送给 LLM 的 Message[]
+ * 包含：userContext attachments、skill listing、@mention attachments、normalize
+ */
+async function transformMessages(
+  context: AgentContext,
+  config: AgentLoopConfig,
+  signal?: AbortSignal,
+): Promise<Message[]> {
+  let messages = context.messages;
+
+  if (config.transformContext) {
+    messages = await config.transformContext(messages, signal);
+  } else if (!config.disableUserContext) {
+    const userContext = await getUserContext({ cwd: process.cwd() });
+    const attachments = getUserContextAttachments(userContext);
+    messages = [...attachments, ...messages];
+  }
+
+  const sentSkillNames = context.sentSkillNames ?? new Set<string>();
+  messages = await injectSkillListingAttachments(messages, process.cwd(), sentSkillNames);
+  messages = await injectAtMentionAttachments(messages, process.cwd());
+
+  const normalizedMessages = normalizeMessages(messages);
+  return config.convertToLlm(normalizedMessages);
+}
+
+/**
  * 统一处理流结束后的消息替换、追加和事件发射
  */
 async function finalizeStreamMessage(
@@ -99,25 +126,7 @@ export async function streamAssistantResponse(
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<AssistantMessage> {
-  let messages = context.messages;
-  if (config.transformContext) {
-    messages = await config.transformContext(messages, signal);
-  } else if (!config.disableUserContext) {
-    const userContext = await getUserContext({ cwd: process.cwd() });
-    const attachments = getUserContextAttachments(userContext);
-    messages = [...attachments, ...messages];
-  }
-
-  // 在 userContext 之后、@mention 之前注入 skill listing
-  const sentSkillNames = context.sentSkillNames ?? new Set<string>();
-  messages = await injectSkillListingAttachments(messages, process.cwd(), sentSkillNames);
-
-  // 注入 @... 附件
-  messages = await injectAtMentionAttachments(messages, process.cwd());
-
-  // 在 convertToLlm 前 normalize，将 attachment 转为 UserMessage
-  const normalizedMessages = normalizeMessages(messages);
-  const llmMessages = await config.convertToLlm(normalizedMessages);
+  const llmMessages = await transformMessages(context, config, signal);
 
   const llmContext: Context = {
     systemPrompt: config.systemPrompt,

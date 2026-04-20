@@ -2,7 +2,7 @@
 
 /** UI 消息类型 */
 export type UIMessage =
-  | { type: "user"; text: string }
+  | { type: "user"; text: string; isMeta?: boolean }
   | { type: "system"; text: string }
   | { type: "assistant_start" }
   | { type: "thinking"; text: string }

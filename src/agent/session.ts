@@ -176,9 +176,17 @@ export class AgentSession {
   }
 
   /** 注入引导消息 */
-  steer(text: string): void {
-    logger.debug("Steer message enqueued", { text });
-    this.agent.steer({ role: "user", content: [{ type: "text", text }], timestamp: Date.now() });
+  steer(text: string): void;
+  /** 注入引导消息（AgentMessage 格式） */
+  steer(message: AgentMessage): void;
+  steer(textOrMessage: string | AgentMessage): void {
+    if (typeof textOrMessage === "string") {
+      logger.debug("Steer message enqueued", { text: textOrMessage });
+      this.agent.steer({ role: "user", content: [{ type: "text", text: textOrMessage }], timestamp: Date.now() });
+    } else {
+      logger.debug("Steer message enqueued", { messageRole: textOrMessage.role });
+      this.agent.steer(textOrMessage);
+    }
   }
 
   /** 注入后续消息 */

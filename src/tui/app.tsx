@@ -62,21 +62,17 @@ export function App(): React.ReactElement {
         // 显示用户输入
         appendUserMessage(trimmed);
 
-        // 处理 meta 消息
+        // 处理 meta 消息 - 使用 steer 加入队列，不触发立即响应
         if (result.metaMessages && result.metaMessages.length > 0) {
           for (const metaContent of result.metaMessages) {
-            try {
-              logger.debug("Sending meta message to LLM", { contentLength: metaContent.length });
-              const metaMessage: AgentMessage = {
-                role: "user",
-                content: [{ type: "text", text: metaContent }],
-                timestamp: Date.now(),
-                isMeta: true,
-              };
-              await session.prompt(metaMessage);
-            } catch (err) {
-              logger.error("Failed to send meta message", { error: err instanceof Error ? err.message : String(err) });
-            }
+            logger.debug("Steering meta message to LLM", { contentLength: metaContent.length });
+            const metaMessage: AgentMessage = {
+              role: "user",
+              content: [{ type: "text", text: metaContent }],
+              timestamp: Date.now(),
+              isMeta: true,
+            };
+            session.steer(metaMessage);
           }
         }
 
