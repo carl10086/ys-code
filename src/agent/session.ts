@@ -5,7 +5,7 @@ import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "../tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "./tools/index.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
