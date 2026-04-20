@@ -2,6 +2,7 @@
 import { describe, it, expect } from "bun:test";
 import { AgentSession } from "./session.js";
 import { getModel, asSystemPrompt } from "../core/ai/index.js";
+import type { AgentMessage } from "./types.js";
 
 describe("AgentSession", () => {
   it("should initialize with correct state", () => {
@@ -292,5 +293,33 @@ describe("AgentSession", () => {
 
     const lastTurnEnd = events.filter((e) => e.type === "turn_end").pop();
     expect(lastTurnEnd!.timeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("should accept AgentMessage array in prompt()", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({
+      cwd: "/tmp",
+      model,
+      apiKey: "test",
+      systemPrompt: async () => asSystemPrompt([""]),
+    });
+
+    const messages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "hello" }], timestamp: Date.now() },
+      { role: "user", content: [{ type: "text", text: "meta content" }], timestamp: Date.now(), isMeta: true },
+    ];
+
+    // Mock agent.prompt to track calls
+    const agent = (session as any).agent;
+    const originalPrompt = agent.prompt;
+    let calledWith: any = undefined;
+    agent.prompt = async (msgs: any) => { calledWith = msgs; };
+
+    await session.prompt(messages);
+
+    expect(calledWith).toEqual(messages);
+    expect(calledWith[1].isMeta).toBe(true);
+
+    agent.prompt = originalPrompt;
   });
 });
