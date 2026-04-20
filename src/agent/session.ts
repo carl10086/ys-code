@@ -156,11 +156,13 @@ export class AgentSession {
     return this.agent.state.pendingToolCalls;
   }
 
+  /** 发送用户消息（消息数组，用于 meta message 注入） */
+  async prompt(messages: AgentMessage[]): Promise<void>;
   /** 发送用户消息 */
   async prompt(text: string): Promise<void>;
-  /** 发送用户消息（可指定选项） */
+  /** 发送用户消息（AgentMessage 格式） */
   async prompt(message: AgentMessage): Promise<void>;
-  async prompt(textOrMessage: string | AgentMessage): Promise<void> {
+  async prompt(textOrMessageOrArray: string | AgentMessage | AgentMessage[]): Promise<void> {
     // 确保 SkillTool 已注册完成，避免竞态条件
     if (this.skillToolInitPromise) {
       await this.skillToolInitPromise;
@@ -168,10 +170,13 @@ export class AgentSession {
     }
     logger.info("Turn started", { model: this.agent.state.model.name });
     await this.refreshSystemPrompt();
-    if (typeof textOrMessage === "string") {
-      await this.agent.prompt(textOrMessage);
+
+    if (Array.isArray(textOrMessageOrArray)) {
+      await this.agent.prompt(textOrMessageOrArray);
+    } else if (typeof textOrMessageOrArray === "string") {
+      await this.agent.prompt(textOrMessageOrArray);
     } else {
-      await this.agent.prompt(textOrMessage);
+      await this.agent.prompt(textOrMessageOrArray);
     }
   }
 

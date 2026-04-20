@@ -62,18 +62,23 @@ export function App(): React.ReactElement {
         // 显示用户输入
         appendUserMessage(trimmed);
 
-        // 处理 meta 消息 - 使用 steer 加入队列，不触发立即响应
+        // 处理 meta 消息 - 使用 prompt 数组在同一 turn 发送
         if (result.metaMessages && result.metaMessages.length > 0) {
-          for (const metaContent of result.metaMessages) {
-            logger.debug("Steering meta message to LLM", { contentLength: metaContent.length });
-            const metaMessage: AgentMessage = {
-              role: "user",
-              content: [{ type: "text", text: metaContent }],
-              timestamp: Date.now(),
-              isMeta: true,
-            };
-            session.steer(metaMessage);
-          }
+          // 构建消息数组：用户输入 + meta messages
+          const messages: AgentMessage[] = [
+            { role: "user", content: [{ type: "text", text: trimmed }], timestamp: Date.now() },
+            ...result.metaMessages.map(
+              (metaContent): AgentMessage => ({
+                role: "user" as const,
+                content: [{ type: "text" as const, text: metaContent }],
+                timestamp: Date.now(),
+                isMeta: true,
+              }),
+            ),
+          ];
+          session.prompt(messages);
+        } else {
+          session.prompt(trimmed);
         }
 
         if (result.textResult) {
