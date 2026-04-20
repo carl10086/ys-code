@@ -1,6 +1,7 @@
 // src/tui/app.tsx
 import { Box } from "ink";
 import React, { useEffect, useState } from "react";
+import type { AgentMessage } from "../agent/types.js";
 import type { Command } from "../commands/index.js";
 import { logger } from "../utils/logger.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
@@ -66,7 +67,13 @@ export function App(): React.ReactElement {
           for (const metaContent of result.metaMessages) {
             try {
               logger.debug("Sending meta message to LLM", { contentLength: metaContent.length });
-              await session.prompt(metaContent);
+              const metaMessage: AgentMessage = {
+                role: "user",
+                content: [{ type: "text", text: metaContent }],
+                timestamp: Date.now(),
+                isMeta: true,
+              };
+              await session.prompt(metaMessage);
             } catch (err) {
               logger.error("Failed to send meta message", { error: err instanceof Error ? err.message : String(err) });
             }
