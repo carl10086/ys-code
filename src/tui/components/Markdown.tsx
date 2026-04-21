@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Box, Text } from "ink";
-import { marked, type Token } from "marked";
+import { marked, type Tokens } from "marked";
 import { formatToken, type ThemeName } from "../utils/markdown.js";
 import { MarkdownTable } from "./MarkdownTable.js";
 
@@ -37,7 +37,7 @@ export function Markdown({ children, dimColor }: MarkdownProps): React.ReactElem
         textBuffer = "";
       }
       elements.push(
-        <MarkdownTable key={elements.length} token={token as any} theme={theme} />
+        <MarkdownTable key={elements.length} token={token as Tokens.Table} theme={theme} />
       );
     } else {
       textBuffer += formatToken(token, theme);
