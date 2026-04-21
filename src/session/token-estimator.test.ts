@@ -20,7 +20,7 @@ describe("TokenEstimator", () => {
   it("应累加多条消息", () => {
     const messages: AgentMessage[] = [
       { role: "user", content: [{ type: "text", text: "Hello" }], timestamp: 1 },
-      { role: "assistant", content: [{ type: "text", text: "Hi there" }], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: "stop", timestamp: 2 },
+      { role: "assistant", content: [{ type: "text", text: "Hi there" }], api: "anthropic-messages", provider: "anthropic", model: "claude-test", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: "stop", timestamp: 2 },
     ];
     const tokens = estimator.estimate(messages);
     expect(tokens).toBeGreaterThanOrEqual(2);
