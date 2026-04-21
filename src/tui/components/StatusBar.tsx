@@ -61,20 +61,20 @@ export function StatusBar({ status, modelName, cwd, gitBranch, totalTokens, cont
       {/* 第一行：状态 + 模型 */}
       <Box height={1} flexDirection="row" justifyContent="space-between">
         <Text color={statusColor}>{statusText}</Text>
-        <Text color="gray">{modelName}</Text>
+        <Text color="cyan">{modelName}</Text>
       </Box>
       {/* 第二行：cwd + git + context */}
       <Box height={1} flexDirection="row" justifyContent="space-between">
         <Box>
           {cwd && (
-            <Text color="gray">[{formatCwd(cwd)}]</Text>
+            <Text dimColor>[{formatCwd(cwd)}]</Text>
           )}
           {gitBranch && (
-            <Text color="gray"> [{gitBranch}]</Text>
+            <Text color="yellow"> [{gitBranch}]</Text>
           )}
         </Box>
         {percentage !== null && (
-          <Text color="gray">
+          <Text dimColor>
             [Context: {formatTokens(totalTokens!)}/{formatTokens(contextWindow!)} {renderProgressBar(percentage)} {percentage}%]
           </Text>
         )}
