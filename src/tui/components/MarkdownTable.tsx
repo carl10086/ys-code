@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { Tokens } from "marked";
+import stripAnsi from "strip-ansi";
 import { formatToken, visibleWidth, padAligned, type ThemeName } from "../utils/markdown.js";
 
 /** MarkdownTable 组件属性 */
@@ -18,7 +19,7 @@ export interface MarkdownTableProps {
 function getCellText(cell: Tokens.TableCell, theme: ThemeName): string {
   const raw = cell.tokens.map((t) => formatToken(t, theme)).join("");
   // 去除 ANSI 控制字符，得到纯文本
-  return raw.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b\]8;;.*?\x1b\\/g, "");
+  return stripAnsi(raw);
 }
 
 /**
@@ -72,7 +73,6 @@ function buildRow(
 function buildSeparator(
   widths: number[],
   left: string,
-  mid: string,
   sep: string,
   right: string
 ): string {
@@ -93,8 +93,15 @@ export function MarkdownTable({ token, theme }: MarkdownTableProps): React.React
   const aligns = token.align;
 
   const colWidths = computeColumnWidths(header, rows, theme);
-  const totalWidth = colWidths.reduce((sum, w) => sum + w + 3, 1); // 每列 " 内容 " + │，首尾各1
-  const maxWidth = (process.stdout.columns || 80) - 4;
+
+  /** 安全边距：终端宽度减去此值作为表格最大宽度 */
+  const SAFETY_MARGIN = 4;
+
+  // totalWidth calculation:
+  // 每列宽度 = 内容宽度 + 2（左右padding）+ 1（右边框）
+  // 最后一列不需要右边框，所以用初始值 1 来修正
+  const totalWidth = colWidths.reduce((sum, w) => sum + w + 3, 1);
+  const maxWidth = (process.stdout.columns || 80) - SAFETY_MARGIN;
 
   // 溢出处理：总宽度超过终端宽度时，渲染原始 markdown 文本
   if (totalWidth > maxWidth) {
@@ -109,9 +116,9 @@ export function MarkdownTable({ token, theme }: MarkdownTableProps): React.React
   const headerTexts = header.map((cell) => getCellText(cell, theme));
   const rowTexts = rows.map((row) => row.map((cell) => getCellText(cell, theme)));
 
-  const topSep = buildSeparator(colWidths, "┌", "─", "┬", "┐");
-  const midSep = buildSeparator(colWidths, "├", "─", "┼", "┤");
-  const botSep = buildSeparator(colWidths, "└", "─", "┴", "┘");
+  const topSep = buildSeparator(colWidths, "┌", "┬", "┐");
+  const midSep = buildSeparator(colWidths, "├", "┼", "┤");
+  const botSep = buildSeparator(colWidths, "└", "┴", "┘");
 
   const lines: string[] = [];
   lines.push(topSep);
