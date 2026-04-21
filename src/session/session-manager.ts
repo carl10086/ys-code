@@ -1,5 +1,6 @@
 import { SessionStorage } from "./session-storage.js";
 import { SessionLoader } from "./session-loader.js";
+import { CompactTrigger } from "./compact.js";
 import type { AgentMessage } from "../agent/types.js";
 import type { Entry, UserEntry, AssistantEntry, ToolResultEntry } from "./entry-types.js";
 
@@ -9,12 +10,15 @@ export interface SessionManagerConfig {
   baseDir: string;
   /** 当前工作目录 */
   cwd: string;
+  /** Compact 阈值（可选，默认不启用） */
+  compactThreshold?: number;
 }
 
 /** 会话管理器 —— 统一入口 */
 export class SessionManager {
   private readonly storage: SessionStorage;
   private readonly loader: SessionLoader;
+  private readonly compactTrigger?: CompactTrigger;
   private _sessionId: string;
   private _filePath: string;
   private _lastUuid: string | null = null;
@@ -32,6 +36,9 @@ export class SessionManager {
   constructor(config: SessionManagerConfig) {
     this.storage = new SessionStorage(config.baseDir);
     this.loader = new SessionLoader();
+    if (config.compactThreshold) {
+      this.compactTrigger = new CompactTrigger({ threshold: config.compactThreshold });
+    }
     this._sessionId = crypto.randomUUID();
     this._filePath = this.storage.createSession(this._sessionId, config.cwd);
     this._lastUuid = this.findLastUuid(this.storage.readAllEntries(this._filePath));
@@ -48,6 +55,18 @@ export class SessionManager {
   restoreMessages(): AgentMessage[] {
     const entries = this.storage.readAllEntries(this._filePath);
     return this.loader.restoreMessages(entries);
+  }
+
+  /** 如果需要则触发 compact */
+  compactIfNeeded(): void {
+    if (!this.compactTrigger) return;
+
+    const messages = this.restoreMessages();
+    if (this.compactTrigger.shouldCompact(messages)) {
+      const boundary = this.compactTrigger.createCompactBoundary(messages, this._lastUuid);
+      this.storage.appendEntry(this._filePath, boundary);
+      this._lastUuid = boundary.uuid;
+    }
   }
 
   /** 恢复最近会话（静态工厂） */
