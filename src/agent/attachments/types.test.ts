@@ -44,14 +44,14 @@ describe("attachment types", () => {
     const att: FileAttachment = {
       type: "file",
       filePath: "/tmp/test.txt",
-      content: "hello",
+      content: { type: "text", file: { filePath: "/tmp/test.txt", content: "hello", numLines: 1, startLine: 1, totalLines: 1 } },
       displayPath: "test.txt",
       truncated: false,
       timestamp: 1,
     };
     expect(att.type).toBe("file");
     expect(att.filePath).toBe("/tmp/test.txt");
-    expect(att.content).toBe("hello");
+    expect(att.content.type).toBe("text");
     expect(att.displayPath).toBe("test.txt");
     expect(att.truncated).toBe(false);
   });
@@ -60,7 +60,7 @@ describe("attachment types", () => {
     const att: FileAttachment = {
       type: "file",
       filePath: "/tmp/test.txt",
-      content: "hello",
+      content: { type: "text", file: { filePath: "/tmp/test.txt", content: "hello", numLines: 1, startLine: 1, totalLines: 1 } },
       displayPath: "test.txt",
       timestamp: 1,
     };
@@ -85,7 +85,7 @@ describe("attachment types", () => {
     const fileAtt: Attachment = {
       type: "file",
       filePath: "/tmp/test.txt",
-      content: "hello",
+      content: { type: "text", file: { filePath: "/tmp/test.txt", content: "hello", numLines: 1, startLine: 1, totalLines: 1 } },
       displayPath: "test.txt",
       timestamp: 1,
     };

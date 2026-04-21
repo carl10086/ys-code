@@ -50,13 +50,13 @@ export class AgentSession {
   }
 
   /** 将 Agent 消息转换为 LLM 消息格式（只读） */
-  get convertToLlm(): (messages: import("./types.js").AgentMessage[]) => import("../core/ai/index.js").Message[] {
+  get convertToLlm(): (messages: import("./types.js").AgentMessage[]) => import("../core/ai/index.js").Message[] | Promise<import("../core/ai/index.js").Message[]> {
     return this.agent.convertToLlm;
   }
 
   /** 已发送给 LLM 的 skill 名称集合（只读） */
   get sentSkillNames(): Set<string> {
-    return this.agent.state.sentSkillNames;
+    return this.agent.state.sentSkillNames ?? new Set();
   }
 
   private turnStartTime = 0;

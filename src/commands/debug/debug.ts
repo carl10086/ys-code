@@ -41,8 +41,8 @@ export const call: LocalCommandCall = async (_args, context) => {
   // 复用转换逻辑获取真实 LLM 消息
   const llmMessages = await transformMessagesForDebug(
     {
-      messages: session.messages,
-      tools: session.tools,
+      messages: [...session.messages],
+      tools: [...session.tools],
       sentSkillNames: session.sentSkillNames,
     },
     {

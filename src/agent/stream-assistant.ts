@@ -11,6 +11,7 @@ import type {
   AgentEvent,
   AgentLoopConfig,
   StreamFn,
+  AgentMessage,
 } from "./types.js";
 import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";

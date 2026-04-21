@@ -72,28 +72,31 @@ describe("readAtMentionedFile", () => {
     const result = await readAtMentionedFile(path.join(tmpDir, "small.txt"), tmpDir);
     expect(result).not.toBeNull();
     expect(result!.type).toBe("file");
-    expect(result!.filePath).toBe(path.join(tmpDir, "small.txt"));
-    expect(result!.displayPath).toBe("small.txt");
+    const fileResult = result as import("./types.js").FileAttachment;
+    expect(fileResult.filePath).toBe(path.join(tmpDir, "small.txt"));
+    expect(fileResult.displayPath).toBe("small.txt");
     // content 现在是 FileReadToolOutput 对象
-    expect((result as any).content.type).toBe("text");
-    expect((result as any).content.file.content).toContain("line1");
-    expect(result!.truncated).toBeUndefined();
+    expect(fileResult.content.type).toBe("text");
+    expect(fileResult.content.file!.content).toContain("line1");
+    expect(fileResult.truncated).toBeUndefined();
   });
 
   it("应读取目录并返回 DirectoryAttachment", async () => {
     const result = await readAtMentionedFile(tmpDir, tmpDir);
     expect(result).not.toBeNull();
     expect(result!.type).toBe("directory");
-    expect(result!.path).toBe(tmpDir);
-    expect(result!.displayPath).toBe(".");
-    expect(result!.content).toContain("small.txt");
+    const dirResult = result as import("./types.js").DirectoryAttachment;
+    expect(dirResult.path).toBe(tmpDir);
+    expect(dirResult.displayPath).toBe(".");
+    expect(dirResult.content).toContain("small.txt");
   });
 
   it("相对路径应基于 cwd 解析为绝对路径", async () => {
     const result = await readAtMentionedFile("./small.txt", tmpDir);
     expect(result).not.toBeNull();
     expect(result!.type).toBe("file");
-    expect(result!.filePath).toBe(path.join(tmpDir, "small.txt"));
+    const relResult = result as import("./types.js").FileAttachment;
+    expect(relResult.filePath).toBe(path.join(tmpDir, "small.txt"));
   });
 
   it("不存在的文件应返回 null", async () => {
@@ -112,9 +115,10 @@ describe("readAtMentionedFile", () => {
     const result = await readAtMentionedFile(bigFile, tmpDir);
     expect(result).not.toBeNull();
     expect(result!.type).toBe("file");
-    expect(result!.truncated).toBe(true);
+    const bigResult = result as import("./types.js").FileAttachment;
+    expect(bigResult.truncated).toBe(true);
     // content 是 FileReadToolOutput 对象
-    const fileContent = (result as any).content.file.content;
+    const fileContent = bigResult.content.file!.content;
     const lineCount = (fileContent.match(/\n/g) || []).length;
     expect(lineCount).toBeLessThanOrEqual(1000);
     fs.unlinkSync(bigFile);
