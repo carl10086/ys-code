@@ -8,6 +8,8 @@ export interface UserContext {
   claudeMd?: string;
   /** 当前日期 */
   currentDate?: string;
+  /** Git 分支名称 */
+  gitBranch?: string;
 }
 
 const userContextCache = new Map<string, Promise<UserContext>>();
@@ -52,6 +54,9 @@ async function _getUserContext(options?: {
       context.claudeMd = claudeMd;
     }
   }
+
+  const { gitBranchProvider } = await import("../../utils/git-branch-provider.js");
+  context.gitBranch = gitBranchProvider.getBranch() ?? undefined;
 
   return context;
 }

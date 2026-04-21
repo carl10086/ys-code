@@ -10,6 +10,7 @@ import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { useAgent } from "./hooks/useAgent.js";
+import { gitBranchProvider } from "../utils/git-branch-provider.js";
 
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
@@ -21,7 +22,16 @@ export function App(): React.ReactElement {
     getCommands(".claude/skills").then(setCommands);
   }, []);
 
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession } = useAgent({
+  const [gitBranch, setGitBranch] = useState<string | null>(gitBranchProvider.getBranch());
+
+  useEffect(() => {
+    const unsubscribe = gitBranchProvider.onBranchChange(() => {
+      setGitBranch(gitBranchProvider.getBranch());
+    });
+    return unsubscribe;
+  }, []);
+
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, totalTokens } = useAgent({
     model,
     apiKey,
   });
@@ -105,7 +115,14 @@ export function App(): React.ReactElement {
     <Box flexDirection="column" height="100%">
       <MessageList messages={messages} shouldScrollToBottom={shouldScrollToBottom} onScrolled={markScrolled} />
       <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={commands} />
-      <StatusBar status={status} modelName={session.model.name} />
+      <StatusBar
+        status={status}
+        modelName={session.model.name}
+        cwd={process.cwd()}
+        gitBranch={gitBranch}
+        totalTokens={totalTokens}
+        contextWindow={session.model.contextWindow}
+      />
     </Box>
   );
 }
