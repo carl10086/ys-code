@@ -21,7 +21,7 @@ export function App(): React.ReactElement {
     getCommands(".claude/skills").then(setCommands);
   }, []);
 
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, totalTokens, cost } = useAgent({
     model,
     apiKey,
   });
@@ -105,7 +105,13 @@ export function App(): React.ReactElement {
     <Box flexDirection="column" height="100%">
       <MessageList messages={messages} shouldScrollToBottom={shouldScrollToBottom} onScrolled={markScrolled} />
       <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={commands} />
-      <StatusBar status={status} modelName={session.model.name} />
+      <StatusBar
+        status={status}
+        modelName={session.model.name}
+        totalTokens={totalTokens}
+        contextWindow={session.model.contextWindow}
+        cost={cost}
+      />
     </Box>
   );
 }
