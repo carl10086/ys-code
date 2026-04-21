@@ -2,6 +2,7 @@
 import { Box, Text } from "ink";
 import React from "react";
 import type { UIMessage } from "../types.js";
+import { Markdown } from "./Markdown.js";
 
 export interface MessageItemProps {
   /** 要渲染的 UI 消息 */
@@ -36,7 +37,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
         <Box flexDirection="column">
           <Text dimColor>Thinking:</Text>
           <Box paddingLeft={2}>
-            <Text dimColor>{message.text}</Text>
+            <Markdown dimColor>{message.text}</Markdown>
           </Box>
         </Box>
       );
@@ -44,7 +45,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       return (
         <Box flexDirection="column">
           <Text bold>Answer:</Text>
-          <Text>{message.text}</Text>
+          <Markdown>{message.text}</Markdown>
         </Box>
       );
     case "tool_start":
