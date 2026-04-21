@@ -36,8 +36,8 @@ describe("SessionLoader", () => {
     const messages = loader.restoreMessages(entries);
     expect(messages.length).toBe(3);
     expect(messages[0].role).toBe("user");
-    expect(messages[1].role).toBe("system");
-    expect((messages[1] as any).content).toBe("Summary text");
+    expect((messages[1] as any).role).toBe("system");
+    expect((messages[1] as any).content).toEqual([{ type: "text", text: "Summary text" }]);
     expect(messages[2].role).toBe("user");
     expect((messages[2] as any).content).toBe("After compact");
   });

@@ -14,9 +14,9 @@ export class SessionLoader {
       if (entry.type === "compact_boundary") {
         messages.push({
           role: "system",
-          content: entry.summary,
+          content: [{ type: "text", text: entry.summary }],
           timestamp: entry.timestamp,
-        } as AgentMessage);
+        } as unknown as AgentMessage);
         continue;
       }
 
@@ -53,7 +53,7 @@ export class SessionLoader {
           content: entry.content,
           timestamp: entry.timestamp,
           isMeta: entry.isMeta,
-        } as AgentMessage;
+        } as unknown as AgentMessage;
 
       case "assistant":
         return {
@@ -64,7 +64,7 @@ export class SessionLoader {
           stopReason: entry.stopReason,
           errorMessage: entry.errorMessage,
           timestamp: entry.timestamp,
-        } as AgentMessage;
+        } as unknown as AgentMessage;
 
       case "toolResult":
         return {
@@ -75,7 +75,7 @@ export class SessionLoader {
           isError: entry.isError,
           details: entry.details,
           timestamp: entry.timestamp,
-        } as AgentMessage;
+        } as unknown as AgentMessage;
     }
   }
 }
