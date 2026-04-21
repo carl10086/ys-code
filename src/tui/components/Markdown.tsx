@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Box, Text } from "ink";
 import { marked, type Tokens } from "marked";
-import { formatToken, type ThemeName } from "../utils/markdown.js";
+import { formatToken } from "../utils/markdown.js";
 import { MarkdownTable } from "./MarkdownTable.js";
 
 /** Markdown 组件属性 */
@@ -16,7 +16,7 @@ export interface MarkdownProps {
  * 混合渲染 Markdown 内容：文本用 Text 组件，表格用 MarkdownTable 组件
  */
 export function Markdown({ children, dimColor }: MarkdownProps): React.ReactElement {
-  const theme: ThemeName = "dark";
+  const theme = "dark";
 
   const tokens = useMemo(() => {
     return marked.lexer(children);
