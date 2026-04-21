@@ -1,6 +1,10 @@
 import { describe, it, expect } from "bun:test";
+import chalk from "chalk";
 import { formatToken, applyMarkdown } from "./markdown.js";
 import type { Token } from "marked";
+
+// 强制 chalk 输出 ANSI 颜色，确保测试在非 TTY 环境也能通过
+chalk.level = 3;
 
 describe("formatToken", () => {
   it("renders heading with bold", () => {
