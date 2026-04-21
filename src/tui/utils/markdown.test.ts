@@ -40,6 +40,26 @@ describe("formatToken", () => {
   });
 });
 
+describe("applyMarkdown lists", () => {
+  it("renders unordered list", () => {
+    const result = applyMarkdown("- item 1\n- item 2", "dark");
+    expect(result).toContain("• item 1");
+    expect(result).toContain("• item 2");
+  });
+
+  it("renders ordered list", () => {
+    const result = applyMarkdown("1. first\n2. second", "dark");
+    expect(result).toContain("1. first");
+    expect(result).toContain("2. second");
+  });
+
+  it("renders nested list", () => {
+    const result = applyMarkdown("- outer\n  - inner", "dark");
+    expect(result).toContain("• outer");
+    expect(result).toContain("  • inner");
+  });
+});
+
 describe("applyMarkdown", () => {
   it("renders basic markdown string", () => {
     const result = applyMarkdown("## Hello\n\nThis is a **test**.", "dark");

@@ -46,7 +46,7 @@ export function formatToken(
   token: Token,
   theme: ThemeName,
   listDepth: number = 0,
-  orderedListNumber: number = 0,
+  orderedListNumber: number | null = null,
   parent?: Token
 ): string {
   switch (token.type) {
@@ -108,14 +108,14 @@ export function formatToken(
       let result = "";
       let num = 1;
       for (const item of items) {
-        result += formatToken(item, theme, listDepth + 1, isOrdered ? num++ : 0, token);
+        result += formatToken(item, theme, listDepth + 1, isOrdered ? num++ : null, token);
       }
       return result;
     }
 
     case "list_item": {
       const indent = "  ".repeat(listDepth);
-      const marker = (parent as any)?.ordered ? `${orderedListNumber}. ` : "• ";
+      const marker = orderedListNumber !== null ? `${orderedListNumber}. ` : "• ";
       const text = token.tokens
         ? token.tokens.map((t) => formatToken(t, theme, listDepth)).join("")
         : token.text;
@@ -136,6 +136,7 @@ export function formatToken(
     }
 
     case "table": {
+      // 表格由 MarkdownTable 组件单独渲染
       return "";
     }
 
