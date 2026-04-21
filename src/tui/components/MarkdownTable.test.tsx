@@ -1,5 +1,4 @@
 import { describe, it, expect } from "bun:test";
-import React from "react";
 import { render } from "ink-testing-library";
 import { MarkdownTable } from "./MarkdownTable.js";
 import { marked, type Tokens } from "marked";
