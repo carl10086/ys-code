@@ -1,13 +1,26 @@
 // src/agent/__tests__/session.test.ts
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import * as path from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { AgentSession } from "./session.js";
 import { getModel, asSystemPrompt } from "../core/ai/index.js";
 import type { AgentMessage } from "./types.js";
 
 describe("AgentSession", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "agent-session-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("should initialize with correct state", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     expect(session.isStreaming).toBe(false);
     expect(session.messages).toEqual([]);
     expect(session.model).toBe(model);
@@ -16,7 +29,7 @@ describe("AgentSession", () => {
 
   it("should emit turn_start when agent emits turn_start", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -33,7 +46,7 @@ describe("AgentSession", () => {
 
   it("should convert thinking_delta with isFirst flag", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -65,7 +78,7 @@ describe("AgentSession", () => {
 
   it("should convert text_delta with isFirst flag", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -87,7 +100,7 @@ describe("AgentSession", () => {
 
   it("should convert tool_execution_start and tool_execution_end", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -129,7 +142,7 @@ describe("AgentSession", () => {
 
   it("should convert tool_execution_end error to tool_end with error summary", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -162,7 +175,7 @@ describe("AgentSession", () => {
 
   it("should emit turn_end with usage for assistant message", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -192,7 +205,7 @@ describe("AgentSession", () => {
 
   it("should emit turn_end with zeros for non-assistant message", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -217,7 +230,7 @@ describe("AgentSession", () => {
 
   it("should ignore agent_start and agent_end events", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -233,7 +246,7 @@ describe("AgentSession", () => {
 
   it("should reset agent state when reset() is called", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const agent = (session as any).agent;
     agent._state.messages.push({ role: "user", content: [{ type: "text", text: "test" }], timestamp: Date.now() });
     expect(session.messages).toHaveLength(1);
@@ -243,7 +256,7 @@ describe("AgentSession", () => {
 
   it("should clear per-turn state when reset() is called mid-turn", () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
-    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]) });
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
     const events: any[] = [];
     session.subscribe((e) => events.push(e));
 
@@ -302,6 +315,7 @@ describe("AgentSession", () => {
       model,
       apiKey: "test",
       systemPrompt: async () => asSystemPrompt([""]),
+      sessionBaseDir: tmpDir,
     });
 
     const messages: AgentMessage[] = [

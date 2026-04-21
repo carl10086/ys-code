@@ -1,5 +1,7 @@
 // src/agent/session.ts
 import { join } from "node:path";
+import * as path from "node:path";
+import * as os from "node:os";
 import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
@@ -10,6 +12,7 @@ import { createReadTool, createWriteTool, createEditTool, createBashTool, create
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
+import { SessionManager } from "../session/index.js";
 
 /** AgentSession 向 UI 层发出的事件 */
 export type AgentSessionEvent =
@@ -34,6 +37,8 @@ export interface AgentSessionOptions {
   systemPrompt?: (context: SystemPromptContext) => Promise<SystemPrompt>;
   /** 自定义工具列表（不传则使用默认的 read/write/edit/bash） */
   tools?: AgentTool<any, any>[];
+  /** 会话存储目录（可选，默认 ~/.ys-code/sessions） */
+  sessionBaseDir?: string;
 }
 
 export class AgentSession {
@@ -41,6 +46,7 @@ export class AgentSession {
   private readonly cwd: string;
   private readonly listeners = new Set<(event: AgentSessionEvent) => void>();
   private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
+  private readonly sessionManager: SessionManager;
   /** 会话 ID，用于标识一次会话 */
   private _sessionId = crypto.randomUUID();
 
@@ -94,6 +100,29 @@ export class AgentSession {
     });
 
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
+
+    // 初始化 SessionManager，尝试恢复最近会话
+    const sessionBaseDir = options.sessionBaseDir ?? path.join(os.homedir(), ".ys-code", "sessions");
+    const restoredManager = SessionManager.restoreLatest({
+      baseDir: sessionBaseDir,
+      cwd: this.cwd,
+    });
+
+    if (restoredManager) {
+      this.sessionManager = restoredManager;
+      const restoredMessages = this.sessionManager.restoreMessages();
+      if (restoredMessages.length > 0) {
+        for (const msg of restoredMessages) {
+          this.agent.state.messages.push(msg);
+        }
+        logger.info("Session restored", { messageCount: restoredMessages.length, sessionId: this.sessionManager.sessionId });
+      }
+    } else {
+      this.sessionManager = new SessionManager({
+        baseDir: sessionBaseDir,
+        cwd: this.cwd,
+      });
+    }
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
 
@@ -257,6 +286,10 @@ export class AgentSession {
       case "agent_start":
       case "agent_end":
         return;
+      case "message_end": {
+        this.sessionManager.appendMessage(event.message);
+        break;
+      }
       case "turn_start": {
         this.clearTurnState();
         this.turnStartTime = Date.now();
