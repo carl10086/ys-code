@@ -37,12 +37,17 @@ describe("MarkdownTable", () => {
     const token = getTableToken(md);
     const { lastFrame } = render(<MarkdownTable token={token} theme="dark" />);
     const frame = lastFrame()!;
+    // Verify text presence
     expect(frame).toContain("Left");
     expect(frame).toContain("Center");
     expect(frame).toContain("Right");
-    expect(frame).toContain("a");
-    expect(frame).toContain("b");
-    expect(frame).toContain("c");
+    // Verify alignment by checking padding
+    // Left: "a    " (padded right to width 5)
+    // Center: "   b   " (padded both sides to width 7)
+    // Right: "     c" (padded left to width 6)
+    expect(frame).toContain("│ a    │"); // left-aligned with right padding
+    expect(frame).toContain("│   b    │"); // centered (7-char col, 'b' centered gives 3 left, 3 right)
+    expect(frame).toContain("│     c │"); // right-aligned with left padding
   });
 
   it("falls back to raw markdown when table is too wide", () => {
@@ -58,6 +63,13 @@ describe("MarkdownTable", () => {
     expect(frame).toContain("y".repeat(80));
     // should NOT contain box-drawing characters (confirm it's raw, not rendered table)
     expect(frame).not.toContain("┌");
+    expect(frame).not.toContain("┐");
+    expect(frame).not.toContain("└");
+    expect(frame).not.toContain("┘");
+    expect(frame).not.toContain("├");
+    expect(frame).not.toContain("┤");
+    expect(frame).not.toContain("┼");
+    expect(frame).not.toContain("─");
     expect(frame).not.toContain("│");
   });
 });
