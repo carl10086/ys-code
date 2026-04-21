@@ -4,21 +4,21 @@
 
 当前 StatusBar 仅显示 status 和 modelName。需要增强为显示：
 1. **cwd** - 当前工作目录（缩写格式）
-2. **git 信息** - 分支名称和状态
-3. **context 使用率** - token 总量和百分比（移除 cost）
+2. **git 信息** - 分支名称
+3. **context 使用率** - token 总量和百分比
 
 参考 `pi-mono` 的 `FooterDataProvider` 实现，实现基于文件系统监听的 git 信息刷新。
 
 ## 目标
 
-StatusBar 显示格式：
+StatusBar 显示格式（两行布局）：
 ```
-[Status] [Model] [~/project] [main] [Context: 45K/200K ████░░░░░░ 22%]
+[Status] [Model]
+[cwd] [gitBranch] [Context: 45K/200K ████░░░░░░ 22%]
 ```
 
-- `~/project` - cwd 缩写格式
-- `main` - git 分支名称（无额外标记）
-- `Context: 45K/200K ████░░░░░░ 22%` - context 使用情况
+- 第一行：状态 + 模型名称
+- 第二行：cwd（缩写） + git 分支 + context 使用情况
 
 ## 实现方案
 
@@ -102,13 +102,10 @@ export interface StatusBarProps {
 }
 ```
 
-**移除：**
-- `cost?: number` - 不再显示
-- `gitDirty?: boolean` - 不再显示
-
-**显示格式：**
+**显示格式（两行布局）：**
 ```
-[Status] [Model] [~/project] [main] [Context: 45K/200K ████░░░░░░ 22%]
+第一行：[Status] [Model]
+第二行：[cwd] [gitBranch] [Context: 45K/200K ████░░░░░░ 22%]
 ```
 
 ### 4. App 组件联动
@@ -133,8 +130,9 @@ export interface StatusBarProps {
 
 ## 验收标准
 
-1. StatusBar 正确显示 cwd（缩写格式）
-2. StatusBar 正确显示 git 分支名称
-3. 执行 `git checkout` 后，git 分支信息自动刷新（通过 fs.watch 监听）
-4. Context 使用率和进度条正确显示
-5. Cost 不再显示
+1. StatusBar 两行布局：上行 status + model，下行 cwd + git + context
+2. StatusBar 正确显示 cwd（缩写格式）
+3. StatusBar 正确显示 git 分支名称
+4. 执行 `git checkout` 后，git 分支信息自动刷新（通过 fs.watch 监听）
+5. Context 使用率和进度条正确显示
+6. Token 总数正确显示
