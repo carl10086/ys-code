@@ -46,8 +46,7 @@ export function formatToken(
   token: Token,
   theme: ThemeName,
   listDepth: number = 0,
-  orderedListNumber: number | null = null,
-  parent?: Token
+  orderedListNumber: number | null = null
 ): string {
   switch (token.type) {
     case "heading": {
@@ -108,7 +107,7 @@ export function formatToken(
       let result = "";
       let num = 1;
       for (const item of items) {
-        result += formatToken(item, theme, listDepth + 1, isOrdered ? num++ : null, token);
+        result += formatToken(item, theme, listDepth + 1, isOrdered ? num++ : null);
       }
       return result;
     }
