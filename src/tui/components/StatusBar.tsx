@@ -7,12 +7,14 @@ export interface StatusBarProps {
   status: "idle" | "streaming" | "tool_executing";
   /** 模型名称 */
   modelName: string;
+  /** 当前工作目录（缩写格式） */
+  cwd?: string;
+  /** Git 分支名称 */
+  gitBranch?: string | null;
   /** 累计 token 总数 */
   totalTokens?: number;
   /** 模型 context window 大小 */
   contextWindow?: number;
-  /** 累计费用（美元） */
-  cost?: number;
 }
 
 /** 格式化 token 数量（超过 1000 显示为 K） */
@@ -23,9 +25,13 @@ function formatTokens(tokens: number): string {
   return String(tokens);
 }
 
-/** 格式化美元金额 */
-function formatCost(cost: number): string {
-  return cost < 0.01 ? '$0.00' : `$${cost.toFixed(2)}`;
+/** 格式化 cwd（缩写格式）：/Users/carl/project → ~/project */
+function formatCwd(cwd: string): string {
+  const home = process.env.HOME ?? "";
+  if (home && cwd.startsWith(home)) {
+    return "~" + cwd.slice(home.length);
+  }
+  return cwd;
 }
 
 /** 生成分数进度条 */
@@ -35,7 +41,7 @@ function renderProgressBar(percentage: number, width: number = 10): string {
   return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
-export function StatusBar({ status, modelName, totalTokens, contextWindow, cost }: StatusBarProps): React.ReactElement {
+export function StatusBar({ status, modelName, cwd, gitBranch, totalTokens, contextWindow }: StatusBarProps): React.ReactElement {
   const statusText =
     status === "streaming"
       ? "Streaming..."
@@ -55,13 +61,16 @@ export function StatusBar({ status, modelName, totalTokens, contextWindow, cost 
       <Text color={statusColor}>{statusText}</Text>
       <Box>
         <Text color="gray">{modelName}</Text>
+        {cwd && (
+          <Text color="gray"> [{formatCwd(cwd)}]</Text>
+        )}
+        {gitBranch && (
+          <Text color="gray"> [{gitBranch}]</Text>
+        )}
         {percentage !== null && (
           <Text color="gray">
             {" "}[Context: {formatTokens(totalTokens!)}/{formatTokens(contextWindow!)} {renderProgressBar(percentage)} {percentage}%]
           </Text>
-        )}
-        {cost !== undefined && cost > 0 && (
-          <Text color="gray"> [Cost: {formatCost(cost)}]</Text>
         )}
       </Box>
     </Box>

@@ -21,7 +21,7 @@ export function App(): React.ReactElement {
     getCommands(".claude/skills").then(setCommands);
   }, []);
 
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, totalTokens, cost } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, totalTokens } = useAgent({
     model,
     apiKey,
   });
@@ -108,9 +108,9 @@ export function App(): React.ReactElement {
       <StatusBar
         status={status}
         modelName={session.model.name}
+        cwd={process.cwd()}
         totalTokens={totalTokens}
         contextWindow={session.model.contextWindow}
-        cost={cost}
       />
     </Box>
   );
