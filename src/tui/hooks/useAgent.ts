@@ -26,6 +26,10 @@ export interface UseAgentResult {
   appendSystemMessage: (text: string) => void;
   /** 重置 session，创建新实例并清空消息 */
   resetSession: () => void;
+  /** 累计 token 总数 */
+  totalTokens: number;
+  /** 累计费用（美元） */
+  cost: number;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
@@ -41,6 +45,8 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
+  const [totalTokens, setTotalTokens] = useState(0);
+  const [cost, setCost] = useState(0);
   const unsubscribeRef = useRef<() => void>(null);
 
   const subscribeToSession = useCallback((session: AgentSession) => {
@@ -92,6 +98,8 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
               cost: event.cost,
               timeMs: event.timeMs,
             });
+            setTotalTokens((prev) => prev + event.tokens);
+            setCost((prev) => prev + event.cost);
             break;
           }
         }
@@ -120,6 +128,8 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     // 更新 sessionState 触发重渲染，确保 App 中的 session 引用是最新的
     setSessionState(sessionRef.current);
     setMessages([]);
+    setTotalTokens(0);
+    setCost(0);
   }, [options.model, options.apiKey, subscribeToSession]);
 
   return {
@@ -136,5 +146,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       // 不自动滚动 system 消息，避免长文本被推出可视区域
     },
     resetSession,
+    totalTokens,
+    cost,
   };
 }
