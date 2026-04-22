@@ -66,16 +66,20 @@ export class SessionLoader {
           timestamp: entry.timestamp,
         } as unknown as AgentMessage;
 
-      case "toolResult":
-        return {
+      case "toolResult": {
+        const msg: Record<string, unknown> = {
           role: "toolResult",
           toolCallId: entry.toolCallId,
           toolName: entry.toolName,
           content: entry.content,
           isError: entry.isError,
-          details: entry.details,
           timestamp: entry.timestamp,
-        } as unknown as AgentMessage;
+        };
+        if (entry.details !== undefined) {
+          msg.details = entry.details;
+        }
+        return msg as unknown as AgentMessage;
+      }
     }
   }
 }

@@ -17,8 +17,8 @@ export class TokenEstimator {
   private estimateMessage(msg: AgentMessage): number {
     let tokens = 4; // 基础开销：每条消息约 4 token
 
-    if (msg.role === "user" || msg.role === "assistant" || msg.role === "toolResult") {
-      tokens += this.estimateContent(msg.content);
+    if (msg.role === "user" || msg.role === "assistant" || msg.role === "toolResult" || (msg as any).role === "system") {
+      tokens += this.estimateContent((msg as any).content);
     }
 
     return tokens;
