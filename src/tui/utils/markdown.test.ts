@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import chalk from "chalk";
-import { formatToken, applyMarkdown } from "./markdown.js";
+import { formatToken, applyMarkdown, visibleWidth } from "./markdown.js";
 import type { Token } from "marked";
 
 // 强制 chalk 输出 ANSI 颜色，确保测试在非 TTY 环境也能通过
@@ -70,5 +70,27 @@ describe("applyMarkdown", () => {
     expect(result).toContain("Hello");
     expect(result).toContain("test");
     expect(result).toContain("\x1b[1m"); // bold for heading and strong
+  });
+});
+
+describe("visibleWidth", () => {
+  it("counts ASCII as width 1", () => {
+    expect(visibleWidth("hello")).toBe(5);
+  });
+
+  it("counts CJK characters as width 2", () => {
+    expect(visibleWidth("中文")).toBe(4);
+  });
+
+  it("counts full-width punctuation as width 2", () => {
+    expect(visibleWidth("，。：")).toBe(6);
+  });
+
+  it("handles mixed ASCII and CJK", () => {
+    expect(visibleWidth("hello中文")).toBe(9);
+  });
+
+  it("strips ANSI before counting", () => {
+    expect(visibleWidth("\x1b[1mhello\x1b[22m")).toBe(5);
   });
 });
