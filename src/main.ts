@@ -27,14 +27,13 @@ async function main() {
     }
   }
 
-  await startTUI();
-
   process.on("SIGINT", () => {
     logger.info("Shutting down...");
     webServer?.stop();
     stopWebServer();
-    process.exit(0);
   });
+
+  await startTUI();
 }
 
 main().catch((err) => {

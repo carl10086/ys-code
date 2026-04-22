@@ -9,7 +9,7 @@ describe("Web Framework E2E", () => {
       // health check
       const healthRes = await fetch(`${server.url}/health`);
       expect(healthRes.status).toBe(200);
-      const health = await healthRes.json();
+      const health = (await healthRes.json()) as { status: string; pid: number };
       expect(health.status).toBe("ok");
       expect(health.pid).toBe(process.pid);
 
