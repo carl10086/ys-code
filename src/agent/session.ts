@@ -39,6 +39,8 @@ export interface AgentSessionOptions {
   tools?: AgentTool<any, any>[];
   /** 会话存储目录（可选，默认 ~/.ys-code/sessions） */
   sessionBaseDir?: string;
+  /** Compact 触发阈值（可选，默认不启用） */
+  compactThreshold?: number;
 }
 
 export class AgentSession {
@@ -106,6 +108,7 @@ export class AgentSession {
     const restoredManager = SessionManager.restoreLatest({
       baseDir: sessionBaseDir,
       cwd: this.cwd,
+      compactThreshold: options.compactThreshold,
     });
 
     if (restoredManager) {
@@ -121,6 +124,7 @@ export class AgentSession {
       this.sessionManager = new SessionManager({
         baseDir: sessionBaseDir,
         cwd: this.cwd,
+        compactThreshold: options.compactThreshold,
       });
     }
 
@@ -288,6 +292,7 @@ export class AgentSession {
         return;
       case "message_end": {
         this.sessionManager.appendMessage(event.message);
+        this.sessionManager.compactIfNeeded();
         break;
       }
       case "turn_start": {

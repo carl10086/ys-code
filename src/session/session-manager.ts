@@ -33,15 +33,22 @@ export class SessionManager {
     return this._filePath;
   }
 
-  constructor(config: SessionManagerConfig) {
+  constructor(config: SessionManagerConfig, restoreFromFile?: { sessionId: string; filePath: string; entries: Entry[] }) {
     this.storage = new SessionStorage(config.baseDir);
     this.loader = new SessionLoader();
     if (config.compactThreshold) {
       this.compactTrigger = new CompactTrigger({ threshold: config.compactThreshold });
     }
-    this._sessionId = crypto.randomUUID();
-    this._filePath = this.storage.createSession(this._sessionId, config.cwd);
-    this._lastUuid = this.findLastUuid(this.storage.readAllEntries(this._filePath));
+
+    if (restoreFromFile) {
+      this._sessionId = restoreFromFile.sessionId;
+      this._filePath = restoreFromFile.filePath;
+      this._lastUuid = this.findLastUuid(restoreFromFile.entries);
+    } else {
+      this._sessionId = crypto.randomUUID();
+      this._filePath = this.storage.createSession(this._sessionId, config.cwd);
+      this._lastUuid = this.findLastUuid(this.storage.readAllEntries(this._filePath));
+    }
   }
 
   /** 追加消息并持久化 */
@@ -79,13 +86,11 @@ export class SessionManager {
     const header = entries.find((e): e is Extract<Entry, { type: "header" }> => e.type === "header");
     if (!header) return null;
 
-    const manager = Object.create(SessionManager.prototype) as SessionManager;
-    (manager as any).storage = storage;
-    (manager as any).loader = new SessionLoader();
-    (manager as any)._sessionId = header.sessionId;
-    (manager as any)._filePath = latestFile;
-    (manager as any)._lastUuid = manager.findLastUuid(entries);
-    return manager;
+    return new SessionManager(config, {
+      sessionId: header.sessionId,
+      filePath: latestFile,
+      entries,
+    });
   }
 
   /** 将 AgentMessage 转换为 Entry */
@@ -113,7 +118,7 @@ export class SessionManager {
           timestamp,
           content: message.content,
           model: message.model ?? "unknown",
-          usage: message.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          usage: message.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
           stopReason: message.stopReason ?? "stop",
           errorMessage: message.errorMessage,
         } as AssistantEntry;
