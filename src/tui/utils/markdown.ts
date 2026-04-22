@@ -6,10 +6,24 @@ import stripAnsi from "strip-ansi";
 export type ThemeName = "light" | "dark";
 
 /**
- * 计算字符串在终端中的可见宽度（去除 ANSI 控制字符）
+ * 计算字符串在终端中的可见宽度（去除 ANSI 控制字符，CJK/全角字符计为 2）
  */
 export function visibleWidth(str: string): number {
-  return stripAnsi(str).length;
+  let width = 0;
+  for (const char of stripAnsi(str)) {
+    const code = char.codePointAt(0) || 0;
+    // CJK 统一表意文字 + 全角符号 + CJK 标点占 2 列
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) ||   // CJK 统一表意文字
+      (code >= 0x3000 && code <= 0x303f) ||   // CJK 标点符号
+      (code >= 0xff00 && code <= 0xffef)     // 全角 ASCII 变体
+    ) {
+      width += 2;
+    } else {
+      width += 1;
+    }
+  }
+  return width;
 }
 
 /**

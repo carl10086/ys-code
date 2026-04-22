@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { marked, type Tokens } from "marked";
 import { formatToken } from "../utils/markdown.js";
 import { MarkdownTable } from "./MarkdownTable.js";
+import { Ansi } from "./Ansi.js";
 
 /** Markdown 组件属性 */
 export interface MarkdownProps {
@@ -13,7 +14,7 @@ export interface MarkdownProps {
 }
 
 /**
- * 混合渲染 Markdown 内容：文本用 Text 组件，表格用 MarkdownTable 组件
+ * 混合渲染 Markdown 内容：文本用 Ansi 组件解析 ANSI 序列，表格用 MarkdownTable 组件
  */
 export function Markdown({ children, dimColor }: MarkdownProps): React.ReactElement {
   const theme = "dark";
@@ -30,9 +31,9 @@ export function Markdown({ children, dimColor }: MarkdownProps): React.ReactElem
       // 先刷新累积的非表格文本
       if (textBuffer) {
         elements.push(
-          <Text key={elements.length} dimColor={dimColor}>
+          <Ansi key={elements.length} dimColor={dimColor}>
             {textBuffer}
-          </Text>
+          </Ansi>
         );
         textBuffer = "";
       }
@@ -47,9 +48,9 @@ export function Markdown({ children, dimColor }: MarkdownProps): React.ReactElem
   // 刷新剩余的非表格文本
   if (textBuffer) {
     elements.push(
-      <Text key={elements.length} dimColor={dimColor}>
+      <Ansi key={elements.length} dimColor={dimColor}>
         {textBuffer}
-      </Text>
+      </Ansi>
     );
   }
 
