@@ -1,7 +1,8 @@
 import { describe, it, expect } from "bun:test";
 import { normalizeMessages, normalizeAttachment } from "./normalize.js";
 import type { AttachmentMessage, RelevantMemoriesAttachment, FileAttachment, DirectoryAttachment } from "./types.js";
-import type { UserMessage, Message } from "../../core/ai/types.js";
+import type { UserMessage } from "../../core/ai/types.js";
+import type { AgentMessage } from "../types.js";
 import { prependUserContext } from "../context/user-context.js";
 import type { UserContext } from "../context/user-context.js";
 
@@ -35,15 +36,15 @@ describe("normalizeAttachment", () => {
 
 describe("normalizeMessages", () => {
   it("普通 Message 应原样通过", () => {
-    const messages: Message[] = [
+    const messages: AgentMessage[] = [
       { role: "user", content: "hi", timestamp: 1 },
     ];
     const result = normalizeMessages(messages);
-    expect(result).toEqual(messages);
+    expect(result).toEqual(messages as any);
   });
 
   it("独立存在的 attachment 应展开为 UserMessage", () => {
-    const messages: Message[] = [
+    const messages: AgentMessage[] = [
       {
         role: "attachment",
         attachment: {
@@ -61,7 +62,7 @@ describe("normalizeMessages", () => {
   });
 
   it("attachment 前有 UserMessage 时应合并", () => {
-    const messages: Message[] = [
+    const messages: AgentMessage[] = [
       { role: "user", content: "hi", timestamp: 1 },
       {
         role: "attachment",
@@ -81,7 +82,7 @@ describe("normalizeMessages", () => {
   });
 
   it("多个 attachment 连续时应按序处理", () => {
-    const messages: Message[] = [
+    const messages: AgentMessage[] = [
       {
         role: "attachment",
         attachment: {

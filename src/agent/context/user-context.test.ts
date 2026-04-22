@@ -4,12 +4,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import {
   getUserContext,
-  prependUserContext,
   clearUserContextCache,
   getUserContextAttachments,
 } from "./user-context.js";
 import { clearMemoryFilesCache } from "../../utils/claudemd.js";
-import type { Message } from "../../core/ai/types.js";
+import type { RelevantMemoriesAttachment } from "../attachments/types.js";
 import { normalizeMessages } from "../attachments/normalize.js";
 
 describe("user-context", () => {
@@ -27,16 +26,6 @@ describe("user-context", () => {
   afterEach(() => {
     process.cwd = originalCwd;
     rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  it("prependUserContext 应在 messages 前插入 meta 消息", () => {
-    const messages: Message[] = [{ role: "user", content: "hi", timestamp: 1 }];
-    const result = prependUserContext(messages, { currentDate: "2026/04/17" });
-    expect(result.length).toBe(2);
-    expect(result[0].role).toBe("user");
-    expect(typeof (result[0] as any).content).toBe("string");
-    expect((result[0] as any).content).toContain("<system-reminder>");
-    expect((result[0] as any).content).toContain("2026/04/17");
   });
 
   it("getUserContext 应读取 CLAUDE.md", async () => {
@@ -59,26 +48,25 @@ describe("user-context", () => {
       expect(result.length).toBe(1);
       expect(result[0].role).toBe("attachment");
       expect(result[0].attachment.type).toBe("relevant_memories");
-      expect(result[0].attachment.entries).toEqual([
+      const att = result[0].attachment as RelevantMemoriesAttachment;
+      expect(att.entries).toEqual([
         { key: "currentDate", value: "2026/04/19" },
       ]);
     });
 
-    it("getUserContextAttachments + normalizeMessages 应与 prependUserContext 输出一致", () => {
+    it("getUserContextAttachments + normalizeMessages 应与旧方式输出一致", () => {
       const context = {
         claudeMd: "# Rules",
         currentDate: "2026/04/19",
       };
 
-      // 旧方式
-      const oldResult = prependUserContext([], context);
-
       // 新方式
       const attachments = getUserContextAttachments(context);
-      const newResult = normalizeMessages(attachments as any);
+      const newResult = normalizeMessages(attachments);
 
-      expect(newResult.length).toBe(oldResult.length);
-      expect((newResult[0] as any).content).toBe((oldResult[0] as any).content);
+      expect(newResult.length).toBe(1);
+      expect((newResult[0] as any).content).toContain("# Rules");
+      expect((newResult[0] as any).content).toContain("2026/04/19");
     });
   });
 });
