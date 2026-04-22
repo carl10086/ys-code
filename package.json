@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/main.ts",
+    "dev:web": "bun run src/main.ts --web",
     "tui": "bun run src/tui/index.tsx",
     "example:claude-stream-text": "bun run examples/claude-stream-text.ts",
     "test": "bun test",

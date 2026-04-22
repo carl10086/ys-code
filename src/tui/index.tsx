@@ -4,7 +4,7 @@ import React from "react";
 import { App } from "./app.js";
 import { logger } from "../utils/logger.js";
 
-async function main() {
+export async function startTUI(): Promise<void> {
   try {
     const instance = await render(<App />);
     logger.info("TUI started");
@@ -19,4 +19,6 @@ async function main() {
   }
 }
 
-main();
+if (import.meta.main) {
+  startTUI();
+}
