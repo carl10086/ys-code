@@ -1107,7 +1107,7 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
                 html += '<div>' + escapeHtml(item.text) + '</div>';
               } else if (item.type === 'thinking') {
                 html += '<div class="thinking-block">';
-                html += '<div class="thinking-header" onclick="this.classList.toggle(\'expanded\');this.nextElementSibling.classList.toggle(\'expanded\');this.querySelector(\'.thinking-toggle\').classList.toggle(\'expanded\');">';
+                html += \`<div class="thinking-header" onclick="this.classList.toggle('expanded');this.nextElementSibling.classList.toggle('expanded');this.querySelector('.thinking-toggle').classList.toggle('expanded');">\`;
                 html += '<span>思考过程</span><span class="thinking-toggle">▼</span>';
                 html += '</div>';
                 html += '<div class="thinking-body">' + escapeHtml(item.thinking) + '</div>';
