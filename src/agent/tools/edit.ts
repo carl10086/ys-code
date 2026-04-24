@@ -1,6 +1,7 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile, writeFile, stat } from "fs/promises";
+import { checkFileSize } from "./file-guard.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -164,6 +165,8 @@ Usage:
           errorCode: 1,
         };
       }
+
+      await checkFileSize(fullPath);
 
       // 2. 读取文件
       let content: string;
