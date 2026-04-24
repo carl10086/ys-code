@@ -1,9 +1,10 @@
 // src/agent/tools/write.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile, stat } from "fs/promises";
 import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
+import { checkFileSize } from "./file-guard.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -36,10 +37,65 @@ Usage:
     outputSchema: writeOutputSchema,
     isDestructive: true,
 
-    async execute(_toolCallId, params, _context) {
+    async validateInput(params, context) {
       const fullPath = resolve(cwd, params.file_path);
 
-      // 读取旧内容（如果存在）
+      let exists: boolean;
+      try {
+        await stat(fullPath);
+        exists = true;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+          exists = false;
+        } else {
+          throw e;
+        }
+      }
+
+      if (!exists) {
+        return { ok: true };
+      }
+
+      const readCheck = context.fileStateCache.canEdit(fullPath);
+      if (!readCheck.ok) {
+        return {
+          ok: false,
+          message: readCheck.reason,
+          errorCode: readCheck.errorCode,
+        };
+      }
+
+      const stats = await stat(fullPath);
+      const currentMtime = Math.floor(stats.mtimeMs);
+      if (currentMtime > readCheck.record.timestamp) {
+        const isFullRead =
+          readCheck.record.offset === undefined &&
+          readCheck.record.limit === undefined;
+        if (!isFullRead) {
+          return {
+            ok: false,
+            message: 'File has been modified since read. Read it again before writing.',
+            errorCode: 7,
+          };
+        }
+        const content = await readFile(fullPath, 'utf-8').catch(() => null);
+        if (content !== readCheck.record.content) {
+          return {
+            ok: false,
+            message: 'File has been modified since read. Read it again before writing.',
+            errorCode: 7,
+          };
+        }
+      }
+
+      return { ok: true };
+    },
+
+    async execute(_toolCallId, params, context) {
+      const fullPath = resolve(cwd, params.file_path);
+
+      await checkFileSize(fullPath);
+
       let originalFile: string | null = null;
       try {
         originalFile = await readFile(fullPath, "utf-8");
@@ -49,9 +105,24 @@ Usage:
         }
       }
 
-      // 创建父目录并写入
+      const record = context.fileStateCache.get(fullPath);
+      const fileStats = await stat(fullPath).catch(() => null);
+      if (fileStats && record) {
+        const currentMtime = Math.floor(fileStats.mtimeMs);
+        if (currentMtime > record.timestamp) {
+          const isFullRead = record.offset === undefined && record.limit === undefined;
+          const contentUnchanged = isFullRead && originalFile === record.content;
+          if (!contentUnchanged) {
+            throw new Error('File unexpectedly modified since last read');
+          }
+        }
+      }
+
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFile(fullPath, params.content, "utf-8");
+
+      const newStats = await stat(fullPath);
+      context.fileStateCache.recordEdit(fullPath, params.content, Math.floor(newStats.mtimeMs));
 
       return {
         type: originalFile === null ? "create" : "update",
