@@ -1,10 +1,13 @@
 // src/agent/tools/write.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { mkdir, readFile, writeFile, stat } from "fs/promises";
+import type { Stats } from "fs";
 import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 import { checkFileSize } from "./file-guard.js";
+
+const DIRTY_WRITE_MESSAGE = 'File has been modified since read. Read it again before writing.';
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -41,8 +44,9 @@ Usage:
       const fullPath = resolve(cwd, params.file_path);
 
       let exists: boolean;
+      let fileStats: Stats | null = null;
       try {
-        await stat(fullPath);
+        fileStats = await stat(fullPath);
         exists = true;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") {
@@ -56,6 +60,9 @@ Usage:
         return { ok: true };
       }
 
+      // 文件大小检查
+      await checkFileSize(fullPath);
+
       const readCheck = context.fileStateCache.canEdit(fullPath);
       if (!readCheck.ok) {
         return {
@@ -65,8 +72,7 @@ Usage:
         };
       }
 
-      const stats = await stat(fullPath);
-      const currentMtime = Math.floor(stats.mtimeMs);
+      const currentMtime = Math.floor(fileStats!.mtimeMs);
       if (currentMtime > readCheck.record.timestamp) {
         const isFullRead =
           readCheck.record.offset === undefined &&
@@ -74,7 +80,7 @@ Usage:
         if (!isFullRead) {
           return {
             ok: false,
-            message: 'File has been modified since read. Read it again before writing.',
+            message: DIRTY_WRITE_MESSAGE,
             errorCode: 7,
           };
         }
@@ -82,7 +88,7 @@ Usage:
         if (content !== readCheck.record.content) {
           return {
             ok: false,
-            message: 'File has been modified since read. Read it again before writing.',
+            message: DIRTY_WRITE_MESSAGE,
             errorCode: 7,
           };
         }
@@ -93,8 +99,6 @@ Usage:
 
     async execute(_toolCallId, params, context) {
       const fullPath = resolve(cwd, params.file_path);
-
-      await checkFileSize(fullPath);
 
       let originalFile: string | null = null;
       try {
