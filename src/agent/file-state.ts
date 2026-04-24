@@ -68,7 +68,7 @@ export class FileStateCache {
       };
     }
 
-    if (record.isPartialView) {
+    if (record.isPartialView || record.offset !== undefined || record.limit !== undefined) {
       return {
         ok: false,
         reason: `File has only been partially read. Read the full file before writing to it.`,
