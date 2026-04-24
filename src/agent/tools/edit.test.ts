@@ -69,3 +69,75 @@ describe('EditTool read-before-write', () => {
     await fs.unlink('/tmp/foo.ts').catch(() => {});
   });
 });
+
+describe('EditTool quote normalization', () => {
+  it('should match curly quotes in file with straight quotes in old_string', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    const fileContent = 'He said "hello" to me';
+    await fs.writeFile('/tmp/curly.ts', fileContent, 'utf-8');
+    const stats = await fs.stat('/tmp/curly.ts');
+    cache.recordRead('/tmp/curly.ts', fileContent, Math.floor(stats.mtimeMs));
+
+    const tool = createEditTool('/tmp');
+    const result = await tool.validateInput!({
+      file_path: '/tmp/curly.ts',
+      old_string: '"hello"',
+      new_string: '"world"',
+    }, mockContext(cache));
+    expect(result.ok).toBe(true);
+
+    await fs.unlink('/tmp/curly.ts').catch(() => {});
+  });
+
+  it('should preserve curly quote style in new_string', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    const fileContent = 'He said "hello" to me';
+    await fs.writeFile('/tmp/curly2.ts', fileContent, 'utf-8');
+    const stats = await fs.stat('/tmp/curly2.ts');
+    cache.recordRead('/tmp/curly2.ts', fileContent, Math.floor(stats.mtimeMs));
+
+    const tool = createEditTool('/tmp');
+    const execResult = await tool.execute!('test-id', {
+      file_path: '/tmp/curly2.ts',
+      old_string: '"hello"',
+      new_string: '"world"',
+    }, mockContext(cache));
+
+    expect(execResult.oldString).toBe('"hello"');
+    const newContent = await fs.readFile('/tmp/curly2.ts', 'utf-8');
+    expect(newContent).toBe('He said "world" to me');
+
+    await fs.unlink('/tmp/curly2.ts').catch(() => {});
+  });
+
+  it('should fall back to straight quotes when file has no curly quotes', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    const fileContent = 'He said "hello" to me';
+    await fs.writeFile('/tmp/straight.ts', fileContent, 'utf-8');
+    const stats = await fs.stat('/tmp/straight.ts');
+    cache.recordRead('/tmp/straight.ts', fileContent, Math.floor(stats.mtimeMs));
+
+    const tool = createEditTool('/tmp');
+    const result = await tool.validateInput!({
+      file_path: '/tmp/straight.ts',
+      old_string: '"hello"',
+      new_string: '"world"',
+    }, mockContext(cache));
+    expect(result.ok).toBe(true);
+
+    const execResult = await tool.execute!('test-id', {
+      file_path: '/tmp/straight.ts',
+      old_string: '"hello"',
+      new_string: '"world"',
+    }, mockContext(cache));
+
+    expect(execResult.oldString).toBe('"hello"');
+    const newContent = await fs.readFile('/tmp/straight.ts', 'utf-8');
+    expect(newContent).toBe('He said "world" to me');
+
+    await fs.unlink('/tmp/straight.ts').catch(() => {});
+  });
+});

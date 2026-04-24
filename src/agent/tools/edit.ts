@@ -5,6 +5,83 @@ import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
+const LEFT_SINGLE_CURLY_QUOTE = '‘'
+const RIGHT_SINGLE_CURLY_QUOTE = '’'
+const LEFT_DOUBLE_CURLY_QUOTE = '“'
+const RIGHT_DOUBLE_CURLY_QUOTE = '”'
+
+function normalizeQuotes(str: string): string {
+  return str
+    .replaceAll(LEFT_SINGLE_CURLY_QUOTE, "'")
+    .replaceAll(RIGHT_SINGLE_CURLY_QUOTE, "'")
+    .replaceAll(LEFT_DOUBLE_CURLY_QUOTE, '"')
+    .replaceAll(RIGHT_DOUBLE_CURLY_QUOTE, '"')
+}
+
+function findActualString(fileContent: string, searchString: string): string | null {
+  if (fileContent.includes(searchString)) {
+    return searchString
+  }
+  const normalizedSearch = normalizeQuotes(searchString)
+  const normalizedFile = normalizeQuotes(fileContent)
+  const searchIndex = normalizedFile.indexOf(normalizedSearch)
+  if (searchIndex !== -1) {
+    return fileContent.substring(searchIndex, searchIndex + searchString.length)
+  }
+  return null
+}
+
+function isOpeningContext(chars: string[], index: number): boolean {
+  if (index === 0) return true
+  const prev = chars[index - 1]
+  return /\s|[([{—–]/.test(prev)
+}
+
+function applyCurlyDoubleQuotes(str: string): string {
+  const chars = [...str]
+  const result: string[] = []
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === '"') {
+      result.push(isOpeningContext(chars, i) ? LEFT_DOUBLE_CURLY_QUOTE : RIGHT_DOUBLE_CURLY_QUOTE)
+    } else {
+      result.push(chars[i]!)
+    }
+  }
+  return result.join('')
+}
+
+function applyCurlySingleQuotes(str: string): string {
+  const chars = [...str]
+  const result: string[] = []
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === "'") {
+      const prev = i > 0 ? chars[i - 1] : undefined
+      const next = i < chars.length - 1 ? chars[i + 1] : undefined
+      const prevIsLetter = prev !== undefined && /\p{L}/u.test(prev)
+      const nextIsLetter = next !== undefined && /\p{L}/u.test(next)
+      if (prevIsLetter && nextIsLetter) {
+        result.push(RIGHT_SINGLE_CURLY_QUOTE)
+      } else {
+        result.push(isOpeningContext(chars, i) ? LEFT_SINGLE_CURLY_QUOTE : RIGHT_SINGLE_CURLY_QUOTE)
+      }
+    } else {
+      result.push(chars[i]!)
+    }
+  }
+  return result.join('')
+}
+
+function preserveQuoteStyle(oldString: string, actualOldString: string, newString: string): string {
+  if (oldString === actualOldString) return newString
+  const hasDoubleQuotes = actualOldString.includes(LEFT_DOUBLE_CURLY_QUOTE) || actualOldString.includes(RIGHT_DOUBLE_CURLY_QUOTE)
+  const hasSingleQuotes = actualOldString.includes(LEFT_SINGLE_CURLY_QUOTE) || actualOldString.includes(RIGHT_SINGLE_CURLY_QUOTE)
+  if (!hasDoubleQuotes && !hasSingleQuotes) return newString
+  let result = newString
+  if (hasDoubleQuotes) result = applyCurlyDoubleQuotes(result)
+  if (hasSingleQuotes) result = applyCurlySingleQuotes(result)
+  return result
+}
+
 const editSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to modify" }),
   old_string: Type.String({ description: "The text to replace" }),
@@ -116,8 +193,9 @@ Usage:
         };
       }
 
-      // 3. old_string 是否存在于文件中
-      if (!content.includes(params.old_string)) {
+      // 3. old_string 是否存在于文件中（支持引号规范化匹配）
+      const actualOldString = findActualString(content, params.old_string)
+      if (!actualOldString) {
         return {
           ok: false,
           message: `String to replace not found in file.\nString: ${params.old_string}`,
@@ -126,7 +204,7 @@ Usage:
       }
 
       // 4. 多匹配检测
-      const matches = content.split(params.old_string).length - 1;
+      const matches = content.split(actualOldString).length - 1;
       if (matches > 1 && !params.replace_all) {
         return {
           ok: false,
@@ -172,9 +250,11 @@ Usage:
       if (old_string === "") {
         newContent = new_string;
       } else {
+        const actualOldString = findActualString(content, old_string) || old_string
+        const actualNewString = preserveQuoteStyle(old_string, actualOldString, new_string)
         newContent = replace_all
-          ? content.replaceAll(old_string, new_string)
-          : content.replace(old_string, new_string);
+          ? content.replaceAll(actualOldString, actualNewString)
+          : content.replace(actualOldString, actualNewString);
       }
 
       await writeFile(fullPath, newContent, "utf-8");
@@ -185,7 +265,7 @@ Usage:
 
       return {
         filePath: fullPath,
-        oldString: old_string,
+        oldString: findActualString(content, old_string) || old_string,
         newString: new_string,
         originalFile: content,
         replaceAll: replace_all,
