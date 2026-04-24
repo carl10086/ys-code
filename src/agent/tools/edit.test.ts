@@ -141,3 +141,85 @@ describe('EditTool quote normalization', () => {
     await fs.unlink('/tmp/straight.ts').catch(() => {});
   });
 });
+
+describe('EditTool dirty-write detection', () => {
+  it('mtime 变化应触发 validateInput 拒绝（errorCode 7）', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    await fs.writeFile('/tmp/edit-dirty.txt', 'original content', 'utf-8');
+    const stats = await fs.stat('/tmp/edit-dirty.txt');
+    cache.recordRead('/tmp/edit-dirty.txt', 'original content', Math.floor(stats.mtimeMs));
+
+    // 模拟外部修改并推进 mtime
+    await fs.writeFile('/tmp/edit-dirty.txt', 'modified content', 'utf-8');
+    const future = new Date(Date.now() + 10000);
+    await fs.utimes('/tmp/edit-dirty.txt', future, future);
+
+    const tool = createEditTool('/tmp');
+    const result = await tool.validateInput!({
+      file_path: '/tmp/edit-dirty.txt',
+      old_string: 'original',
+      new_string: 'updated',
+    }, mockContext(cache));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errorCode).toBe(7);
+    }
+
+    await fs.unlink('/tmp/edit-dirty.txt').catch(() => {});
+  });
+
+  it('mtime 变化但内容未变（全量读取）应通过', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    await fs.writeFile('/tmp/edit-same.txt', 'same content', 'utf-8');
+    const stats = await fs.stat('/tmp/edit-same.txt');
+    cache.recordRead('/tmp/edit-same.txt', 'same content', Math.floor(stats.mtimeMs));
+
+    // 只推进 mtime，不修改内容
+    const future = new Date(Date.now() + 10000);
+    await fs.utimes('/tmp/edit-same.txt', future, future);
+
+    const tool = createEditTool('/tmp');
+    const result = await tool.validateInput!({
+      file_path: '/tmp/edit-same.txt',
+      old_string: 'same',
+      new_string: 'changed',
+    }, mockContext(cache));
+
+    expect(result.ok).toBe(true);
+    await fs.unlink('/tmp/edit-same.txt').catch(() => {});
+  });
+
+  it('execute 中二次脏写检测应抛出异常', async () => {
+    const cache = new FileStateCache();
+    const fs = await import('fs/promises');
+    await fs.writeFile('/tmp/exec-dirty.txt', 'original', 'utf-8');
+    const stats = await fs.stat('/tmp/exec-dirty.txt');
+    cache.recordRead('/tmp/exec-dirty.txt', 'original', Math.floor(stats.mtimeMs));
+
+    // 通过 validateInput（此时 mtime 未变）
+    const tool = createEditTool('/tmp');
+    const validateResult = await tool.validateInput!({
+      file_path: '/tmp/exec-dirty.txt',
+      old_string: 'original',
+      new_string: 'updated',
+    }, mockContext(cache));
+    expect(validateResult.ok).toBe(true);
+
+    // 在 validateInput 和 execute 之间模拟外部修改
+    await fs.writeFile('/tmp/exec-dirty.txt', 'tampered', 'utf-8');
+    const future = new Date(Date.now() + 10000);
+    await fs.utimes('/tmp/exec-dirty.txt', future, future);
+
+    // execute 应抛出异常
+    await expect(tool.execute!('test-id', {
+      file_path: '/tmp/exec-dirty.txt',
+      old_string: 'original',
+      new_string: 'updated',
+    }, mockContext(cache))).rejects.toThrow('File unexpectedly modified');
+
+    await fs.unlink('/tmp/exec-dirty.txt').catch(() => {});
+  });
+});
