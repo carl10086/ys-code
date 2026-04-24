@@ -1,6 +1,7 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { readFile, writeFile, stat } from "fs/promises";
+import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -141,7 +142,7 @@ Usage:
           if (!isFullRead) {
             return {
               ok: false,
-              message: 'File has been modified since read. Read it again before writing.',
+              message: DIRTY_WRITE_MESSAGE,
               errorCode: 7,
             };
           }
@@ -149,7 +150,7 @@ Usage:
           if (content !== readCheck.record.content) {
             return {
               ok: false,
-              message: 'File has been modified since read. Read it again before writing.',
+              message: DIRTY_WRITE_MESSAGE,
               errorCode: 7,
             };
           }
@@ -164,6 +165,8 @@ Usage:
           errorCode: 1,
         };
       }
+
+      await checkFileSize(fullPath);
 
       // 2. 读取文件
       let content: string;
@@ -240,7 +243,7 @@ Usage:
           const isFullRead = record.offset === undefined && record.limit === undefined;
           const contentUnchanged = isFullRead && content === record.content;
           if (!contentUnchanged) {
-            throw new Error('File unexpectedly modified since last read');
+            throw new Error(DIRTY_WRITE_MESSAGE);
           }
         }
       }
