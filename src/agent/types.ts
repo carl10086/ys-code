@@ -11,6 +11,7 @@ import type {
   ToolResultMessage,
 } from "../core/ai/index.js";
 import type { Static, TSchema } from "@sinclair/typebox";
+import type { FileStateCache } from "./file-state.js";
 
 /** 流函数类型 */
 export type StreamFn = (
@@ -62,6 +63,8 @@ export interface ToolUseContext {
   sessionId?: string;
   /** 当前模型 */
   model?: Model<any>;
+  /** 文件状态缓存 */
+  fileStateCache: FileStateCache;
 }
 
 /** 工具定义 */
@@ -191,4 +194,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
   /** 禁用自动 userContext prepend */
   disableUserContext?: boolean;
+  /** 文件状态缓存 */
+  fileStateCache: FileStateCache;
 }
