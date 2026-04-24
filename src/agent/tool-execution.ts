@@ -30,6 +30,7 @@ function buildToolUseContext(
     tools: currentContext.tools ?? [],
     sessionId: (config as any).sessionId,
     model: config.model,
+    fileStateCache: config.fileStateCache,
   };
 }
 

@@ -13,6 +13,7 @@ import {
 } from "../core/ai/index.js";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import { logger } from "../utils/logger.js";
+import { FileStateCache } from "./file-state.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -188,6 +189,7 @@ export class Agent {
   private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
   private readonly steeringQueue: PendingMessageQueue;
   private readonly followUpQueue: PendingMessageQueue;
+  private readonly fileStateCache: FileStateCache;
 
   /** 将 Agent 消息转换为 LLM 消息格式 */
   public convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
@@ -228,6 +230,7 @@ export class Agent {
     this.transport = options.transport ?? "sse";
     this.maxRetryDelayMs = options.maxRetryDelayMs;
     this.toolExecution = options.toolExecution ?? "parallel";
+    this.fileStateCache = new FileStateCache();
   }
 
   /**
@@ -470,6 +473,7 @@ export class Agent {
         return this.steeringQueue.drain();
       },
       getFollowUpMessages: async () => this.followUpQueue.drain(),
+      fileStateCache: this.fileStateCache,
     };
   }
 

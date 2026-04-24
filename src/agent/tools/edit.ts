@@ -1,9 +1,86 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, stat } from "fs/promises";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
+
+const LEFT_SINGLE_CURLY_QUOTE = '‘'
+const RIGHT_SINGLE_CURLY_QUOTE = '’'
+const LEFT_DOUBLE_CURLY_QUOTE = '“'
+const RIGHT_DOUBLE_CURLY_QUOTE = '”'
+
+function normalizeQuotes(str: string): string {
+  return str
+    .replaceAll(LEFT_SINGLE_CURLY_QUOTE, "'")
+    .replaceAll(RIGHT_SINGLE_CURLY_QUOTE, "'")
+    .replaceAll(LEFT_DOUBLE_CURLY_QUOTE, '"')
+    .replaceAll(RIGHT_DOUBLE_CURLY_QUOTE, '"')
+}
+
+function findActualString(fileContent: string, searchString: string): string | null {
+  if (fileContent.includes(searchString)) {
+    return searchString
+  }
+  const normalizedSearch = normalizeQuotes(searchString)
+  const normalizedFile = normalizeQuotes(fileContent)
+  const searchIndex = normalizedFile.indexOf(normalizedSearch)
+  if (searchIndex !== -1) {
+    return fileContent.substring(searchIndex, searchIndex + searchString.length)
+  }
+  return null
+}
+
+function isOpeningContext(chars: string[], index: number): boolean {
+  if (index === 0) return true
+  const prev = chars[index - 1]
+  return /\s|[([{—–]/.test(prev)
+}
+
+function applyCurlyDoubleQuotes(str: string): string {
+  const chars = [...str]
+  const result: string[] = []
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === '"') {
+      result.push(isOpeningContext(chars, i) ? LEFT_DOUBLE_CURLY_QUOTE : RIGHT_DOUBLE_CURLY_QUOTE)
+    } else {
+      result.push(chars[i]!)
+    }
+  }
+  return result.join('')
+}
+
+function applyCurlySingleQuotes(str: string): string {
+  const chars = [...str]
+  const result: string[] = []
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === "'") {
+      const prev = i > 0 ? chars[i - 1] : undefined
+      const next = i < chars.length - 1 ? chars[i + 1] : undefined
+      const prevIsLetter = prev !== undefined && /\p{L}/u.test(prev)
+      const nextIsLetter = next !== undefined && /\p{L}/u.test(next)
+      if (prevIsLetter && nextIsLetter) {
+        result.push(RIGHT_SINGLE_CURLY_QUOTE)
+      } else {
+        result.push(isOpeningContext(chars, i) ? LEFT_SINGLE_CURLY_QUOTE : RIGHT_SINGLE_CURLY_QUOTE)
+      }
+    } else {
+      result.push(chars[i]!)
+    }
+  }
+  return result.join('')
+}
+
+function preserveQuoteStyle(oldString: string, actualOldString: string, newString: string): string {
+  if (oldString === actualOldString) return newString
+  const hasDoubleQuotes = actualOldString.includes(LEFT_DOUBLE_CURLY_QUOTE) || actualOldString.includes(RIGHT_DOUBLE_CURLY_QUOTE)
+  const hasSingleQuotes = actualOldString.includes(LEFT_SINGLE_CURLY_QUOTE) || actualOldString.includes(RIGHT_SINGLE_CURLY_QUOTE)
+  if (!hasDoubleQuotes && !hasSingleQuotes) return newString
+  let result = newString
+  if (hasDoubleQuotes) result = applyCurlyDoubleQuotes(result)
+  if (hasSingleQuotes) result = applyCurlySingleQuotes(result)
+  return result
+}
 
 const editSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to modify" }),
@@ -40,8 +117,44 @@ Usage:
     outputSchema: editOutputSchema,
     isDestructive: true,
 
-    validateInput: async (params: EditInput) => {
+    validateInput: async (params: EditInput, context) => {
       const fullPath = resolve(cwd, params.file_path);
+
+      // 【新增】先读后写检查
+      const readCheck = context.fileStateCache.canEdit(fullPath);
+      if (!readCheck.ok) {
+        return {
+          ok: false,
+          message: readCheck.reason,
+          errorCode: readCheck.errorCode,
+        };
+      }
+
+      // 【新增】脏写检测第一层
+      const stats = await stat(fullPath).catch(() => null);
+      if (stats && readCheck.record) {
+        const currentMtime = Math.floor(stats.mtimeMs);
+        if (currentMtime > readCheck.record.timestamp) {
+          const isFullRead =
+            readCheck.record.offset === undefined &&
+            readCheck.record.limit === undefined;
+          if (!isFullRead) {
+            return {
+              ok: false,
+              message: 'File has been modified since read. Read it again before writing.',
+              errorCode: 7,
+            };
+          }
+          const content = await readFile(fullPath, 'utf-8').catch(() => null);
+          if (content !== readCheck.record.content) {
+            return {
+              ok: false,
+              message: 'File has been modified since read. Read it again before writing.',
+              errorCode: 7,
+            };
+          }
+        }
+      }
 
       // 1. old_string === new_string
       if (params.old_string === params.new_string) {
@@ -80,8 +193,9 @@ Usage:
         };
       }
 
-      // 3. old_string 是否存在于文件中
-      if (!content.includes(params.old_string)) {
+      // 3. old_string 是否存在于文件中（支持引号规范化匹配）
+      const actualOldString = findActualString(content, params.old_string)
+      if (!actualOldString) {
         return {
           ok: false,
           message: `String to replace not found in file.\nString: ${params.old_string}`,
@@ -90,7 +204,7 @@ Usage:
       }
 
       // 4. 多匹配检测
-      const matches = content.split(params.old_string).length - 1;
+      const matches = content.split(actualOldString).length - 1;
       if (matches > 1 && !params.replace_all) {
         return {
           ok: false,
@@ -102,7 +216,7 @@ Usage:
       return { ok: true };
     },
 
-    async execute(_toolCallId, params, _context) {
+    async execute(_toolCallId, params, context) {
       const fullPath = resolve(cwd, params.file_path);
       const { old_string, new_string, replace_all = false } = params;
 
@@ -117,21 +231,43 @@ Usage:
         }
       }
 
+      // 【新增】二次脏写检测
+      const record = context.fileStateCache.get(fullPath);
+      const stats = await stat(fullPath).catch(() => null);
+      if (stats && record) {
+        const currentMtime = Math.floor(stats.mtimeMs);
+        if (currentMtime > record.timestamp) {
+          const isFullRead = record.offset === undefined && record.limit === undefined;
+          const contentUnchanged = isFullRead && content === record.content;
+          if (!contentUnchanged) {
+            throw new Error('File unexpectedly modified since last read');
+          }
+        }
+      }
+
       // 空 old_string 表示创建新文件
       let newContent: string;
+      let actualOldString: string;
       if (old_string === "") {
         newContent = new_string;
+        actualOldString = old_string;
       } else {
+        actualOldString = findActualString(content, old_string) || old_string;
+        const actualNewString = preserveQuoteStyle(old_string, actualOldString, new_string);
         newContent = replace_all
-          ? content.replaceAll(old_string, new_string)
-          : content.replace(old_string, new_string);
+          ? content.replaceAll(actualOldString, actualNewString)
+          : content.replace(actualOldString, actualNewString);
       }
 
       await writeFile(fullPath, newContent, "utf-8");
 
+      // 【新增】更新缓存
+      const newStats = await stat(fullPath);
+      context.fileStateCache.recordEdit(fullPath, newContent, Math.floor(newStats.mtimeMs));
+
       return {
         filePath: fullPath,
-        oldString: old_string,
+        oldString: actualOldString,
         newString: new_string,
         originalFile: content,
         replaceAll: replace_all,
