@@ -5,9 +5,7 @@ import type { Stats } from "fs";
 import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
-import { checkFileSize } from "./file-guard.js";
-
-const DIRTY_WRITE_MESSAGE = 'File has been modified since read. Read it again before writing.';
+import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -60,8 +58,10 @@ Usage:
         return { ok: true };
       }
 
-      // 文件大小检查
-      await checkFileSize(fullPath);
+      // 文件大小检查（复用已获取的 stats）
+      if (fileStats) {
+        await checkFileSize(fullPath, MAX_FILE_SIZE_BYTES, fileStats.size);
+      }
 
       const readCheck = context.fileStateCache.canEdit(fullPath);
       if (!readCheck.ok) {
