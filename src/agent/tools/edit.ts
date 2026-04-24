@@ -1,6 +1,6 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, stat } from "fs/promises";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -40,8 +40,44 @@ Usage:
     outputSchema: editOutputSchema,
     isDestructive: true,
 
-    validateInput: async (params: EditInput) => {
+    validateInput: async (params: EditInput, context) => {
       const fullPath = resolve(cwd, params.file_path);
+
+      // 【新增】先读后写检查
+      const readCheck = context.fileStateCache.canEdit(fullPath);
+      if (!readCheck.ok) {
+        return {
+          ok: false,
+          message: readCheck.reason,
+          errorCode: readCheck.errorCode,
+        };
+      }
+
+      // 【新增】脏写检测第一层
+      const stats = await stat(fullPath).catch(() => null);
+      if (stats && readCheck.record) {
+        const currentMtime = Math.floor(stats.mtimeMs);
+        if (currentMtime > readCheck.record.timestamp) {
+          const isFullRead =
+            readCheck.record.offset === undefined &&
+            readCheck.record.limit === undefined;
+          if (!isFullRead) {
+            return {
+              ok: false,
+              message: 'File has been modified since read. Read it again before writing.',
+              errorCode: 7,
+            };
+          }
+          const content = await readFile(fullPath, 'utf-8').catch(() => null);
+          if (content !== readCheck.record.content) {
+            return {
+              ok: false,
+              message: 'File has been modified since read. Read it again before writing.',
+              errorCode: 7,
+            };
+          }
+        }
+      }
 
       // 1. old_string === new_string
       if (params.old_string === params.new_string) {
@@ -102,7 +138,7 @@ Usage:
       return { ok: true };
     },
 
-    async execute(_toolCallId, params, _context) {
+    async execute(_toolCallId, params, context) {
       const fullPath = resolve(cwd, params.file_path);
       const { old_string, new_string, replace_all = false } = params;
 
@@ -117,6 +153,20 @@ Usage:
         }
       }
 
+      // 【新增】二次脏写检测
+      const record = context.fileStateCache.get(fullPath);
+      const stats = await stat(fullPath).catch(() => null);
+      if (stats && record) {
+        const currentMtime = Math.floor(stats.mtimeMs);
+        if (currentMtime > record.timestamp) {
+          const isFullRead = record.offset === undefined && record.limit === undefined;
+          const contentUnchanged = isFullRead && content === record.content;
+          if (!contentUnchanged) {
+            throw new Error('File unexpectedly modified since last read');
+          }
+        }
+      }
+
       // 空 old_string 表示创建新文件
       let newContent: string;
       if (old_string === "") {
@@ -128,6 +178,10 @@ Usage:
       }
 
       await writeFile(fullPath, newContent, "utf-8");
+
+      // 【新增】更新缓存
+      const newStats = await stat(fullPath);
+      context.fileStateCache.recordEdit(fullPath, newContent, Math.floor(newStats.mtimeMs));
 
       return {
         filePath: fullPath,
