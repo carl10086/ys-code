@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { createEditTool } from './edit.js';
 import { FileStateCache } from '../file-state.js';
 import type { ToolUseContext } from '../types.js';

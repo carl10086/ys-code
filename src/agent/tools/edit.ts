@@ -247,11 +247,13 @@ Usage:
 
       // 空 old_string 表示创建新文件
       let newContent: string;
+      let actualOldString: string;
       if (old_string === "") {
         newContent = new_string;
+        actualOldString = old_string;
       } else {
-        const actualOldString = findActualString(content, old_string) || old_string
-        const actualNewString = preserveQuoteStyle(old_string, actualOldString, new_string)
+        actualOldString = findActualString(content, old_string) || old_string;
+        const actualNewString = preserveQuoteStyle(old_string, actualOldString, new_string);
         newContent = replace_all
           ? content.replaceAll(actualOldString, actualNewString)
           : content.replace(actualOldString, actualNewString);
@@ -265,7 +267,7 @@ Usage:
 
       return {
         filePath: fullPath,
-        oldString: findActualString(content, old_string) || old_string,
+        oldString: actualOldString,
         newString: new_string,
         originalFile: content,
         replaceAll: replace_all,

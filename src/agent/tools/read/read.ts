@@ -2,7 +2,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import { readFile, stat } from 'fs/promises';
 import { extname } from 'path';
 import { defineAgentTool } from '../../define-agent-tool.js';
-import type { AgentTool } from '../../types.js';
+import type { AgentTool, ToolUseContext } from '../../types.js';
 import type { ReadOutput } from './types.js';
 import { DEFAULT_LIMITS, roughTokenCount, MaxFileReadTokenExceededError } from './limits.js';
 import { expandPath, validateReadInput } from './validation.js';
@@ -186,9 +186,10 @@ Usage:
 
       // Record read state in FileStateCache for read-before-write validation
       const stats = await stat(fullPath);
+      const content = 'content' in result.file ? result.file.content ?? '' : '';
       context.fileStateCache.recordRead(
         fullPath,
-        result.file.content ?? '',
+        content,
         Math.floor(stats.mtimeMs),
         params.offset,
         params.limit,
