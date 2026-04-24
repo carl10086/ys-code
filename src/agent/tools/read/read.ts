@@ -1,5 +1,5 @@
 import { Type, type Static } from '@sinclair/typebox';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { extname } from 'path';
 import { defineAgentTool } from '../../define-agent-tool.js';
 import type { AgentTool } from '../../types.js';
@@ -169,12 +169,12 @@ Usage:
       return result;
     },
 
-    execute: async (_toolCallId: string, params: ReadInput): Promise<ReadOutput> => {
+    execute: async (_toolCallId: string, params: ReadInput, context: ToolUseContext): Promise<ReadOutput> => {
       const fullPath = expandPath(params.file_path, cwd);
       const ext = extname(fullPath).toLowerCase().slice(1);
       const offset = params.offset ?? 1;
 
-      return readFileByType(
+      const result = await readFileByType(
         fullPath,
         ext,
         offset,
@@ -183,6 +183,18 @@ Usage:
         DEFAULT_LIMITS.maxSizeBytes,
         DEFAULT_LIMITS.maxTokens,
       );
+
+      // Record read state in FileStateCache for read-before-write validation
+      const stats = await stat(fullPath);
+      context.fileStateCache.recordRead(
+        fullPath,
+        result.file.content ?? '',
+        Math.floor(stats.mtimeMs),
+        params.offset,
+        params.limit,
+      );
+
+      return result;
     },
 
     formatResult: (output: ReadOutput, _toolCallId: string) => {
