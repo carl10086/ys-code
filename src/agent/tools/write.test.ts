@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { writeFile, readFile, unlink, stat, utimes } from 'fs/promises';
+import { DIRTY_WRITE_MESSAGE } from './file-guard.js';
 import { createWriteTool } from './write.js';
 import { FileStateCache } from '../file-state.js';
 import type { ToolUseContext } from '../types.js';
@@ -168,7 +169,7 @@ describe('WriteTool', () => {
     await expect(tool.execute!('test-id', {
       file_path: '/tmp/exec-dirty-write.txt',
       content: 'updated',
-    }, mockContext(cache))).rejects.toThrow('File unexpectedly modified');
+    }, mockContext(cache))).rejects.toThrow(DIRTY_WRITE_MESSAGE);
 
     await unlink('/tmp/exec-dirty-write.txt').catch(() => {});
   });

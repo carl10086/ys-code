@@ -117,7 +117,7 @@ Usage:
           const isFullRead = record.offset === undefined && record.limit === undefined;
           const contentUnchanged = isFullRead && originalFile === record.content;
           if (!contentUnchanged) {
-            throw new Error('File unexpectedly modified since last read');
+            throw new Error(DIRTY_WRITE_MESSAGE);
           }
         }
       }
