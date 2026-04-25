@@ -71,7 +71,7 @@ describe("SessionManager attachment support", () => {
 
     expect(attachmentEntry).toBeDefined();
     expect(attachmentEntry?.attachmentType).toBe("skill_listing");
-    expect(attachmentEntry?.content).toBe(JSON.stringify(message.attachment));
+    expect(attachmentEntry?.content).toBe(JSON.stringify((message as any).attachment));
   });
 
   it("should convert file attachment to AttachmentEntry", () => {
@@ -82,6 +82,7 @@ describe("SessionManager attachment support", () => {
         type: "file",
         filePath: "/test/file.ts",
         content: { type: "text", text: "export const x = 1;" },
+        displayPath: "test/file.ts",
         timestamp: 1234567890,
       },
       timestamp: 1234567890,
