@@ -298,7 +298,7 @@ describe('EditTool dirty-write detection', () => {
 
     try {
       // execute 应抛出异常
-      await expect(tool.execute!('test-id', {
+      expect(tool.execute!('test-id', {
         file_path: '/tmp/exec-dirty.txt',
         old_string: 'original',
         new_string: 'updated',
