@@ -7,6 +7,7 @@ import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
 import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
+import { generatePatch, formatPatchToText } from "./diff-formatter.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -18,6 +19,7 @@ const writeOutputSchema = Type.Object({
   filePath: Type.String(),
   content: Type.String(),
   originalFile: Type.Union([Type.String(), Type.Null()]),
+  structuredPatch: Type.Any(),
 });
 
 type WriteOutput = Static<typeof writeOutputSchema>;
@@ -128,6 +130,11 @@ Usage:
         }
       }
 
+      let patch: import("diff").StructuredPatchHunk[] = [];
+      if (originalFile !== null) {
+        patch = generatePatch(fullPath, originalFile, params.content);
+      }
+
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFileWithEncoding(fullPath, params.content, fileEncoding);
 
@@ -139,6 +146,7 @@ Usage:
         filePath: fullPath,
         content: params.content,
         originalFile,
+        structuredPatch: patch,
       };
     },
 
@@ -149,10 +157,12 @@ Usage:
           text: `File created successfully at: ${output.filePath}`,
         }];
       }
-      return [{
-        type: "text" as const,
-        text: `The file ${output.filePath} has been updated successfully.`,
-      }];
+
+      const diffText = formatPatchToText(output.filePath, output.structuredPatch ?? []);
+      const text = diffText
+        ? `The file ${output.filePath} has been updated successfully.\n\n${diffText}`
+        : `The file ${output.filePath} has been updated successfully.`;
+      return [{ type: "text" as const, text }];
     },
   });
 }

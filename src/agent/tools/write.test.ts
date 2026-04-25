@@ -176,6 +176,66 @@ describe('WriteTool', () => {
   });
 });
 
+describe('WriteTool diff generation', () => {
+  it('覆盖文件时应返回 structuredPatch', async () => {
+    const cache = new FileStateCache();
+    await writeFile('/tmp/write-diff.txt', 'old line\nsecond line', 'utf-8');
+    const stats = await stat('/tmp/write-diff.txt');
+    cache.recordRead('/tmp/write-diff.txt', 'old line\nsecond line', Math.floor(stats.mtimeMs));
+
+    const tool = createWriteTool('/tmp');
+    const result = await tool.execute!('test-id', {
+      file_path: '/tmp/write-diff.txt',
+      content: 'new line\nsecond line',
+    }, mockContext(cache));
+
+    expect(result.type).toBe('update');
+    expect(result.structuredPatch).toBeDefined();
+    expect(Array.isArray(result.structuredPatch)).toBe(true);
+    expect(result.structuredPatch.length).toBeGreaterThan(0);
+
+    await unlink('/tmp/write-diff.txt').catch(() => {});
+  });
+
+  it('formatResult 覆盖文件时应包含 diff 文本', async () => {
+    const cache = new FileStateCache();
+    await writeFile('/tmp/write-diff-fmt.txt', 'old line\nsecond line', 'utf-8');
+    const stats = await stat('/tmp/write-diff-fmt.txt');
+    cache.recordRead('/tmp/write-diff-fmt.txt', 'old line\nsecond line', Math.floor(stats.mtimeMs));
+
+    const tool = createWriteTool('/tmp');
+    const result = await tool.execute!('test-id', {
+      file_path: '/tmp/write-diff-fmt.txt',
+      content: 'new line\nsecond line',
+    }, mockContext(cache));
+
+    const formatted = tool.formatResult!(result, 'call-id');
+    expect(Array.isArray(formatted)).toBe(true);
+    if (Array.isArray(formatted) && formatted.length > 0 && formatted[0].type === 'text') {
+      expect(formatted[0].text).toContain('--- a/');
+      expect(formatted[0].text).toContain('+++ b/');
+    }
+
+    await unlink('/tmp/write-diff-fmt.txt').catch(() => {});
+  });
+
+  it('创建新文件时不应有 structuredPatch', async () => {
+    const cache = new FileStateCache();
+    const tool = createWriteTool('/tmp');
+    const result = await tool.execute!('test-id', {
+      file_path: '/tmp/write-new-diff.txt',
+      content: 'new content',
+    }, mockContext(cache));
+
+    expect(result.type).toBe('create');
+    expect(result.structuredPatch).toBeDefined();
+    expect(Array.isArray(result.structuredPatch)).toBe(true);
+    expect(result.structuredPatch.length).toBe(0);
+
+    await unlink('/tmp/write-new-diff.txt').catch(() => {});
+  });
+});
+
 describe("编码/行尾保持", () => {
   it("覆盖文件时保持 CRLF 行尾", async () => {
     const cache = new FileStateCache();
