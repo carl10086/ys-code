@@ -6,7 +6,7 @@ import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
-import { readFileWithEncoding, writeFileWithEncoding } from "./file-encoding.js";
+import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -101,7 +101,7 @@ Usage:
       const fullPath = resolve(cwd, params.file_path);
 
       let originalFile: string | null = null;
-      let fileEncoding: { encoding: "utf8" | "utf16le"; lineEndings: "\n" | "\r\n" } = {
+      let fileEncoding: FileEncoding = {
         encoding: "utf8",
         lineEndings: "\n",
       };

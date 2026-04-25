@@ -3,7 +3,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { readFile, stat, readdir } from "fs/promises";
 import { dirname, basename } from "path";
 import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
-import { readFileWithEncoding, writeFileWithEncoding } from "./file-encoding.js";
+import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -298,7 +298,7 @@ Usage:
       const { old_string, new_string, replace_all = false } = params;
 
       let content: string;
-      let fileEncoding: { encoding: "utf8" | "utf16le"; lineEndings: "\n" | "\r\n" } = {
+      let fileEncoding: FileEncoding = {
         encoding: "utf8",
         lineEndings: "\n",
       };
