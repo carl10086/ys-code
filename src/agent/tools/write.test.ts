@@ -190,9 +190,10 @@ describe('WriteTool diff generation', () => {
     }, mockContext(cache));
 
     expect(result.type).toBe('update');
-    expect(result.structuredPatch).toBeDefined();
     expect(Array.isArray(result.structuredPatch)).toBe(true);
-    expect(result.structuredPatch.length).toBeGreaterThan(0);
+    if (Array.isArray(result.structuredPatch)) {
+      expect(result.structuredPatch.length).toBeGreaterThan(0);
+    }
 
     await unlink('/tmp/write-diff.txt').catch(() => {});
   });
@@ -228,9 +229,17 @@ describe('WriteTool diff generation', () => {
     }, mockContext(cache));
 
     expect(result.type).toBe('create');
-    expect(result.structuredPatch).toBeDefined();
     expect(Array.isArray(result.structuredPatch)).toBe(true);
-    expect(result.structuredPatch.length).toBe(0);
+    if (Array.isArray(result.structuredPatch)) {
+      expect(result.structuredPatch.length).toBe(0);
+    }
+
+    // 验证 formatResult 输出为 "File created..."
+    const formatted = tool.formatResult!(result, 'call-id');
+    expect(Array.isArray(formatted)).toBe(true);
+    if (Array.isArray(formatted) && formatted.length > 0 && formatted[0].type === 'text') {
+      expect(formatted[0].text).toBe('File created successfully at: /tmp/write-new-diff.txt');
+    }
 
     await unlink('/tmp/write-new-diff.txt').catch(() => {});
   });

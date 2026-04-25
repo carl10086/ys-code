@@ -8,6 +8,7 @@ import type { AgentTool } from "../types.js";
 import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
 import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
 import { generatePatch, formatPatchToText } from "./diff-formatter.js";
+import type { StructuredPatchHunk } from "diff";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -130,7 +131,7 @@ Usage:
         }
       }
 
-      let patch: import("diff").StructuredPatchHunk[] = [];
+      let patch: StructuredPatchHunk[] = [];
       if (originalFile !== null) {
         patch = generatePatch(fullPath, originalFile, params.content);
       }
