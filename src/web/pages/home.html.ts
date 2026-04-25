@@ -51,6 +51,12 @@ export const HOME_HTML = `<!DOCTYPE html>
           <p>检查服务运行状态</p>
         </article>
       </a>
+      <a href="/debug" class="nav-card">
+        <article>
+          <h3>🐛 Debug Inspector</h3>
+          <p>调试当前会话状态</p>
+        </article>
+      </a>
     </div>
   </main>
   <footer class="status-bar">
