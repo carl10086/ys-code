@@ -220,7 +220,6 @@ describe("Settings 保护", () => {
     }
   });
 });
-
 describe('EditTool dirty-write detection', () => {
   it('mtime 变化应触发 validateInput 拒绝（errorCode 7）', async () => {
     const cache = new FileStateCache();

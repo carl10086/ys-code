@@ -168,6 +168,15 @@ Usage:
 
       await checkFileSize(fullPath);
 
+      // 【新增】Notebook 保护
+      if (fullPath.endsWith(".ipynb")) {
+        return {
+          ok: false,
+          message: "Jupyter notebooks must be edited with a specialized tool. Use NotebookEditTool instead.",
+          errorCode: 5,
+        };
+      }
+
       // 2. 读取文件
       let content: string;
       try {
