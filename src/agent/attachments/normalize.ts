@@ -73,13 +73,17 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
   }
 }
 
-/** 将 AgentMessage[] 中的 attachment 展开并合并到相邻 user message */
+/**
+ * 将 AgentMessage[] 中的 attachment 展开并合并到相邻 user message
+ * 纯函数：不修改输入数组中的任何对象
+ */
 export function normalizeMessages(messages: AgentMessage[]): Message[] {
   const result: Message[] = [];
 
   for (const msg of messages) {
     if (msg.role !== "attachment") {
-      result.push(msg);
+      // 非 attachment 直接推入，但创建浅拷贝避免修改原对象
+      result.push({ ...msg });
       continue;
     }
 
@@ -95,7 +99,11 @@ export function normalizeMessages(messages: AgentMessage[]): Message[] {
     ) {
       const first = expanded[0];
       if (typeof first.content === "string") {
-        last.content = last.content + "\n" + first.content;
+        // 创建新的 user message 而不是修改原数组中的对象
+        result[result.length - 1] = {
+          ...last,
+          content: last.content + "\n" + first.content,
+        };
         result.push(...expanded.slice(1));
         continue;
       }
