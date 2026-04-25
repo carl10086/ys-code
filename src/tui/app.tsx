@@ -11,6 +11,7 @@ import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { gitBranchProvider } from "../utils/git-branch-provider.js";
+import { setDebugAgentSession } from "../web/debug/debug-context.js";
 
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
@@ -35,6 +36,14 @@ export function App(): React.ReactElement {
     model,
     apiKey,
   });
+
+  // 注册当前 AgentSession 到 Debug 桥接
+  useEffect(() => {
+    setDebugAgentSession(session);
+    return () => {
+      setDebugAgentSession(undefined);
+    };
+  }, [session]);
 
   const isStreaming = session.isStreaming;
   const hasPendingTools = session.pendingToolCalls.size > 0;

@@ -3,6 +3,8 @@ import type { RouteHandler } from "./types.js";
 import { HOME_HTML } from "./pages/home.html.js";
 import { handleSessionAPI, getSessionDir } from "./session-api.js";
 import { SESSIONS_HTML } from "./pages/sessions.html.js";
+import { handleDebugAPI } from "./debug/debug-api.js";
+import { DEBUG_HTML } from "./debug/debug.html.js";
 
 /** 路由表 */
 const routes = new Map<string, RouteHandler>();
@@ -54,6 +56,18 @@ export function buildRouter(): (req: Request) => Response | Promise<Response> {
     });
   }
 
+  if (!routes.has("/api/debug")) {
+    registerRoute("/api/debug", handleDebugAPI);
+  }
+
+  if (!routes.has("/debug")) {
+    registerRoute("/debug", () => {
+      return new Response(DEBUG_HTML, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    });
+  }
+
   return (request: Request): Response | Promise<Response> => {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -64,7 +78,7 @@ export function buildRouter(): (req: Request) => Response | Promise<Response> {
       return exactHandler(request);
     }
 
-    // 其次前缀匹配（用于 /api/sessions/:filename）
+    // 其次前缀匹配（用于 /api/sessions/:filename 和 /api/debug/context）
     for (const [routePath, handler] of routes) {
       if (pathname.startsWith(routePath + "/")) {
         return handler(request);
