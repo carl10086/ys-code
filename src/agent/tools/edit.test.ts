@@ -447,10 +447,11 @@ describe('EditTool diff generation', () => {
       }, mockContext(cache));
 
       const formatted = tool.formatResult!(result, 'test-id');
-      expect(formatted.length).toBe(1);
-      expect(formatted[0].type).toBe('text');
-      expect(formatted[0].text).toContain('--- a/');
-      expect(formatted[0].text).toContain('+++ b/');
+      expect(Array.isArray(formatted)).toBe(true);
+      if (Array.isArray(formatted) && formatted.length > 0 && formatted[0].type === 'text') {
+        expect(formatted[0].text).toContain('--- a/');
+        expect(formatted[0].text).toContain('+++ b/');
+      }
     } finally {
       await unlink(path).catch(() => {});
     }

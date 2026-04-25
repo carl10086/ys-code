@@ -135,7 +135,7 @@ const editOutputSchema = Type.Object({
   newString: Type.String(),
   originalFile: Type.String(),
   replaceAll: Type.Boolean(),
-  structuredPatch: Type.Optional(Type.Any()),
+  structuredPatch: Type.Any(),
 });
 
 type EditInput = Static<typeof editSchema>;
