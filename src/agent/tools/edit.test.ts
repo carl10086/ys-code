@@ -270,6 +270,54 @@ describe("相似文件建议", () => {
   });
 });
 
+describe("编码/行尾保持", () => {
+  it("编辑后保持 CRLF 行尾", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/crlf.txt';
+    await writeFile(path, "hello\r\nworld", "utf-8");
+    cache.recordRead(path, "hello\r\nworld", Date.now());
+
+    try {
+      await tool.execute!("test", {
+        file_path: path,
+        old_string: "hello",
+        new_string: "hi",
+      }, mockContext(cache));
+
+      const raw = await readFile(path, "utf-8");
+      expect(raw).toBe("hi\r\nworld");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it("编辑后保持 UTF-16 编码", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/utf16.txt';
+    const buffer = Buffer.from([0xff, 0xfe, ...Buffer.from("hello\nworld", "utf16le")]);
+    await writeFile(path, buffer);
+    cache.recordRead(path, "hello\nworld", Date.now());
+
+    try {
+      await tool.execute!("test", {
+        file_path: path,
+        old_string: "hello",
+        new_string: "hi",
+      }, mockContext(cache));
+
+      const raw = await readFile(path);
+      expect(raw[0]).toBe(0xff);
+      expect(raw[1]).toBe(0xfe);
+      const content = raw.toString("utf16le").replace(/^﻿/, "");
+      expect(content).toBe("hi\nworld");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+});
+
 describe('EditTool dirty-write detection', () => {
   it('mtime 变化应触发 validateInput 拒绝（errorCode 7）', async () => {
     const cache = new FileStateCache();

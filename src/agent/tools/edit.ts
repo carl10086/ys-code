@@ -3,6 +3,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { readFile, writeFile, stat, readdir } from "fs/promises";
 import { dirname, basename } from "path";
 import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
+import { readFileWithEncoding, writeFileWithEncoding } from "./file-encoding.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -214,10 +215,11 @@ Usage:
         };
       }
 
-      // 2. 读取文件
+      // 2. 读取文件（编码感知）
       let content: string;
       try {
-        content = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        content = result.content;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") {
           // 空 old_string 表示创建新文件 — 允许
@@ -296,8 +298,14 @@ Usage:
       const { old_string, new_string, replace_all = false } = params;
 
       let content: string;
+      let fileEncoding: { encoding: "utf8" | "utf16le"; lineEndings: "\n" | "\r\n" } = {
+        encoding: "utf8",
+        lineEndings: "\n",
+      };
       try {
-        content = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        content = result.content;
+        fileEncoding = result.encoding;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") {
           content = "";
@@ -334,7 +342,7 @@ Usage:
           : content.replace(actualOldString, actualNewString);
       }
 
-      await writeFile(fullPath, newContent, "utf-8");
+      await writeFileWithEncoding(fullPath, newContent, fileEncoding);
 
       // 【新增】更新缓存
       const newStats = await stat(fullPath);
