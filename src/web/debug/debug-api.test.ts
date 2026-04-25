@@ -39,7 +39,7 @@ describe("Debug API", () => {
     const req = new Request("http://localhost/api/debug/context");
     const res = await handleDebugAPI(req);
     expect(res.status).toBe(404);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe("No active session");
   });
 
@@ -66,7 +66,7 @@ describe("Debug API", () => {
     const res = await handleDebugAPI(req);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.sessionId).toBe("sess-123");
     expect(body.model.name).toBe("gpt-4");
     expect(body.isStreaming).toBe(true);
