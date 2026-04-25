@@ -1,6 +1,6 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { readFile, writeFile, stat, readdir } from "fs/promises";
+import { readFile, stat, readdir } from "fs/promises";
 import { dirname, basename } from "path";
 import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
 import { readFileWithEncoding, writeFileWithEncoding } from "./file-encoding.js";
