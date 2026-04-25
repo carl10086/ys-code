@@ -1,6 +1,6 @@
 // src/agent/tools/write.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { mkdir, readFile, writeFile, stat } from "fs/promises";
+import { mkdir, readFile, stat } from "fs/promises";
 import type { Stats } from "fs";
 import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
@@ -20,7 +20,6 @@ const writeOutputSchema = Type.Object({
   originalFile: Type.Union([Type.String(), Type.Null()]),
 });
 
-type WriteInput = Static<typeof writeSchema>;
 type WriteOutput = Static<typeof writeOutputSchema>;
 
 export function createWriteTool(cwd: string): AgentTool<typeof writeSchema, WriteOutput> {

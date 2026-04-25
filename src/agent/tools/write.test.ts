@@ -167,7 +167,7 @@ describe('WriteTool', () => {
     await utimes('/tmp/exec-dirty-write.txt', future, future);
 
     // execute 应抛出异常
-    await expect(tool.execute!('test-id', {
+    expect(tool.execute!('test-id', {
       file_path: '/tmp/exec-dirty-write.txt',
       content: 'updated',
     }, mockContext(cache))).rejects.toThrow(DIRTY_WRITE_MESSAGE);
