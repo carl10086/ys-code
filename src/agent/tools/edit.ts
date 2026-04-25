@@ -225,6 +225,28 @@ Usage:
         };
       }
 
+      // 【新增】Settings 保护：JSON 文件编辑后必须仍是合法 JSON
+      if (fullPath.endsWith(".json")) {
+        let preview: string;
+        if (params.old_string === "") {
+          preview = params.new_string;
+        } else {
+          const actualNewString = preserveQuoteStyle(params.old_string, actualOldString, params.new_string);
+          preview = params.replace_all
+            ? content.replaceAll(actualOldString, actualNewString)
+            : content.replace(actualOldString, actualNewString);
+        }
+        try {
+          JSON.parse(preview);
+        } catch {
+          return {
+            ok: false,
+            message: "Edit would result in invalid JSON. Please check your new_string.",
+            errorCode: 11,
+          };
+        }
+      }
+
       return { ok: true };
     },
 
