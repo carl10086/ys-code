@@ -6,6 +6,7 @@ import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
+import { readFileWithEncoding, writeFileWithEncoding } from "./file-encoding.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -101,8 +102,14 @@ Usage:
       const fullPath = resolve(cwd, params.file_path);
 
       let originalFile: string | null = null;
+      let fileEncoding: { encoding: "utf8" | "utf16le"; lineEndings: "\n" | "\r\n" } = {
+        encoding: "utf8",
+        lineEndings: "\n",
+      };
       try {
-        originalFile = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        originalFile = result.content;
+        fileEncoding = result.encoding;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
           throw e;
@@ -123,7 +130,7 @@ Usage:
       }
 
       await mkdir(dirname(fullPath), { recursive: true });
-      await writeFile(fullPath, params.content, "utf-8");
+      await writeFileWithEncoding(fullPath, params.content, fileEncoding);
 
       const newStats = await stat(fullPath);
       context.fileStateCache.recordEdit(fullPath, params.content, Math.floor(newStats.mtimeMs));

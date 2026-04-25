@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { writeFile, readFile, unlink, stat, utimes } from 'fs/promises';
+import { join } from 'path';
 import { DIRTY_WRITE_MESSAGE } from './file-guard.js';
 import { createWriteTool } from './write.js';
 import { FileStateCache } from '../file-state.js';
@@ -172,5 +173,69 @@ describe('WriteTool', () => {
     }, mockContext(cache))).rejects.toThrow(DIRTY_WRITE_MESSAGE);
 
     await unlink('/tmp/exec-dirty-write.txt').catch(() => {});
+  });
+});
+
+describe("编码/行尾保持", () => {
+  it("覆盖文件时保持 CRLF 行尾", async () => {
+    const cache = new FileStateCache();
+    const tool = createWriteTool('/tmp');
+    const path = join('/tmp', "write-crlf.txt");
+    await writeFile(path, "original\r\ncontent", "utf-8");
+    cache.recordRead(path, "original\r\ncontent", Date.now());
+
+    try {
+      await tool.execute!("test", {
+        file_path: path,
+        content: "new\ncontent",
+      }, mockContext(cache));
+
+      const raw = await readFile(path, "utf-8");
+      expect(raw).toBe("new\r\ncontent");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it("覆盖文件时保持 UTF-16 编码", async () => {
+    const cache = new FileStateCache();
+    const tool = createWriteTool('/tmp');
+    const path = join('/tmp', "write-utf16.txt");
+    const buffer = Buffer.from([0xff, 0xfe, ...Buffer.from("original", "utf16le")]);
+    await writeFile(path, buffer);
+    cache.recordRead(path, "original", Date.now());
+
+    try {
+      await tool.execute!("test", {
+        file_path: path,
+        content: "new",
+      }, mockContext(cache));
+
+      const raw = await readFile(path);
+      expect(raw[0]).toBe(0xff);
+      expect(raw[1]).toBe(0xfe);
+      const content = raw.toString("utf16le").replace(/^﻿/, "");
+      expect(content).toBe("new");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it("创建新文件使用默认编码", async () => {
+    const cache = new FileStateCache();
+    const tool = createWriteTool('/tmp');
+    const path = join('/tmp', "new-file.txt");
+
+    try {
+      await tool.execute!("test", {
+        file_path: path,
+        content: "hello\nworld",
+      }, mockContext(cache));
+
+      const raw = await readFile(path, "utf-8");
+      expect(raw).toBe("hello\nworld");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
   });
 });
