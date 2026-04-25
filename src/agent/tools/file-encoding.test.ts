@@ -48,6 +48,43 @@ describe("readFileWithEncoding", () => {
       await unlink(path).catch(() => {});
     }
   });
+
+  it("空文件默认 utf8 + \\n", async () => {
+    const path = tempPath("empty.txt");
+    await writeFile(path, "");
+    try {
+      const result = await readFileWithEncoding(path);
+      expect(result.content).toBe("");
+      expect(result.encoding.encoding).toBe("utf8");
+      expect(result.encoding.lineEndings).toBe("\n");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it("混合行尾（\\r\\n 占多数）", async () => {
+    const path = tempPath("mixed-crlf.txt");
+    // 3 个 CRLF, 1 个 LF
+    await writeFile(path, "a\r\nb\r\nc\r\nd\ne", "utf-8");
+    try {
+      const result = await readFileWithEncoding(path);
+      expect(result.encoding.lineEndings).toBe("\r\n");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it("混合行尾（\\n 占多数）", async () => {
+    const path = tempPath("mixed-lf.txt");
+    // 1 个 CRLF, 3 个 LF
+    await writeFile(path, "a\r\nb\nc\nd\ne", "utf-8");
+    try {
+      const result = await readFileWithEncoding(path);
+      expect(result.encoding.lineEndings).toBe("\n");
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
 });
 
 describe("writeFileWithEncoding", () => {
