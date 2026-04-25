@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { SessionManager } from "./session-manager.js";
 import type { AgentMessage } from "../agent/types.js";
+import type { AttachmentEntry } from "./entry-types.js";
 
 describe("SessionManager", () => {
   let tmpDir: string;
@@ -46,5 +47,54 @@ describe("SessionManager", () => {
     expect(latestMessages.length).toBe(2);
     expect(latestMessages[0].role).toBe("user");
     expect(latestMessages[1].role).toBe("assistant");
+  });
+});
+
+describe("SessionManager attachment support", () => {
+  it("should convert attachment message to AttachmentEntry", () => {
+    const manager = new SessionManager({ baseDir: tmpdir(), cwd: process.cwd() });
+    const message: AgentMessage = {
+      role: "attachment",
+      attachment: {
+        type: "skill_listing",
+        content: "Available skills: read, write",
+        skillNames: ["read", "write"],
+        timestamp: 1234567890,
+      },
+      timestamp: 1234567890,
+    } as AgentMessage;
+
+    manager.appendMessage(message);
+
+    const entries = (manager as any).storage.readAllEntries(manager.filePath);
+    const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
+
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry?.attachmentType).toBe("skill_listing");
+    expect(attachmentEntry?.content).toBe(JSON.stringify(message.attachment));
+  });
+
+  it("should convert file attachment to AttachmentEntry", () => {
+    const manager = new SessionManager({ baseDir: tmpdir(), cwd: process.cwd() });
+    const message: AgentMessage = {
+      role: "attachment",
+      attachment: {
+        type: "file",
+        filePath: "/test/file.ts",
+        content: { type: "text", text: "export const x = 1;" },
+        timestamp: 1234567890,
+      },
+      timestamp: 1234567890,
+    } as AgentMessage;
+
+    manager.appendMessage(message);
+
+    const entries = (manager as any).storage.readAllEntries(manager.filePath);
+    const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
+
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry?.attachmentType).toBe("file");
+    const parsed = JSON.parse(attachmentEntry!.content);
+    expect(parsed.filePath).toBe("/test/file.ts");
   });
 });
