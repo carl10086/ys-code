@@ -56,8 +56,8 @@ export function buildRouter(): (req: Request) => Response | Promise<Response> {
     });
   }
 
-  if (!routes.has("/api/debug")) {
-    registerRoute("/api/debug", handleDebugAPI);
+  if (!routes.has("/api/debug/context")) {
+    registerRoute("/api/debug/context", handleDebugAPI);
   }
 
   if (!routes.has("/debug")) {
@@ -78,7 +78,7 @@ export function buildRouter(): (req: Request) => Response | Promise<Response> {
       return exactHandler(request);
     }
 
-    // 其次前缀匹配（用于 /api/sessions/:filename 和 /api/debug/context）
+    // 其次前缀匹配（用于 /api/sessions/:filename）
     for (const [routePath, handler] of routes) {
       if (pathname.startsWith(routePath + "/")) {
         return handler(request);
