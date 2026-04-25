@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { SessionManager } from "./session-manager.js";
 import type { AgentMessage } from "../agent/types.js";
+import "../agent/attachments/types.js";
 import type { AttachmentEntry } from "./entry-types.js";
 
 describe("SessionManager", () => {
@@ -51,8 +52,19 @@ describe("SessionManager", () => {
 });
 
 describe("SessionManager attachment support", () => {
+  let tmpDir: string;
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "sm-attach-test-"));
+    manager = new SessionManager({ baseDir: tmpDir, cwd: process.cwd() });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("should convert attachment message to AttachmentEntry", () => {
-    const manager = new SessionManager({ baseDir: tmpdir(), cwd: process.cwd() });
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -72,10 +84,15 @@ describe("SessionManager attachment support", () => {
     expect(attachmentEntry).toBeDefined();
     expect(attachmentEntry?.attachmentType).toBe("skill_listing");
     expect(attachmentEntry?.content).toBe(JSON.stringify((message as any).attachment));
+
+    // round-trip verification
+    const restored = manager.restoreMessages();
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
   });
 
   it("should convert file attachment to AttachmentEntry", () => {
-    const manager = new SessionManager({ baseDir: tmpdir(), cwd: process.cwd() });
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -97,5 +114,11 @@ describe("SessionManager attachment support", () => {
     expect(attachmentEntry?.attachmentType).toBe("file");
     const parsed = JSON.parse(attachmentEntry!.content);
     expect(parsed.filePath).toBe("/test/file.ts");
+
+    // round-trip verification
+    const restored = manager.restoreMessages();
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
   });
 });
