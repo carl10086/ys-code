@@ -406,3 +406,84 @@ describe('EditTool dirty-write detection', () => {
     }
   });
 });
+
+describe('EditTool diff generation', () => {
+  it('execute should return structuredPatch', async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/edit-diff.txt';
+    const content = 'hello world\nfoo bar\n';
+    await writeFile(path, content, 'utf-8');
+    cache.recordRead(path, content, Date.now());
+
+    try {
+      const result = await tool.execute!('test-id', {
+        file_path: path,
+        old_string: 'hello',
+        new_string: 'hi',
+      }, mockContext(cache));
+
+      expect(Array.isArray(result.structuredPatch)).toBe(true);
+      if (Array.isArray(result.structuredPatch)) {
+        expect(result.structuredPatch.length).toBeGreaterThan(0);
+      }
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it('formatResult should include diff text', async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/edit-diff-fmt.txt';
+    const content = 'hello world\nfoo bar\n';
+    await writeFile(path, content, 'utf-8');
+    cache.recordRead(path, content, Date.now());
+
+    try {
+      const result = await tool.execute!('test-id', {
+        file_path: path,
+        old_string: 'hello',
+        new_string: 'hi',
+      }, mockContext(cache));
+
+      const formatted = tool.formatResult!(result, 'test-id');
+      expect(Array.isArray(formatted)).toBe(true);
+      if (Array.isArray(formatted) && formatted.length > 0 && formatted[0].type === 'text') {
+        expect(formatted[0].text).toContain('--- a/');
+        expect(formatted[0].text).toContain('+++ b/');
+      }
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it('replace_all=true 时 diff 应包含所有变更点', async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/edit-diff-replace-all.txt';
+    const content = 'foo bar\nfoo baz\n';
+    await writeFile(path, content, 'utf-8');
+    cache.recordRead(path, content, Date.now());
+
+    try {
+      const result = await tool.execute!('test-id', {
+        file_path: path,
+        old_string: 'foo',
+        new_string: 'hello',
+        replace_all: true,
+      }, mockContext(cache));
+
+      expect(Array.isArray(result.structuredPatch)).toBe(true);
+      if (Array.isArray(result.structuredPatch)) {
+        expect(result.structuredPatch.length).toBeGreaterThan(0);
+        // 验证 diff 中有两处 + 开头的行（两处替换）
+        const allLines = result.structuredPatch.flatMap((h: any) => h.lines).join('\n');
+        const plusCount = allLines.split('\n').filter((l: string) => l.startsWith('+')).length;
+        expect(plusCount).toBeGreaterThanOrEqual(2);
+      }
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+});

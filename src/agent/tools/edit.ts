@@ -7,6 +7,7 @@ import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
+import { generatePatch, formatResultWithDiff, structuredPatchHunkSchema } from "./diff-formatter.js";
 
 const LEFT_SINGLE_CURLY_QUOTE = '‘'
 const RIGHT_SINGLE_CURLY_QUOTE = '’'
@@ -134,6 +135,7 @@ const editOutputSchema = Type.Object({
   newString: Type.String(),
   originalFile: Type.String(),
   replaceAll: Type.Boolean(),
+  structuredPatch: Type.Array(structuredPatchHunkSchema),
 });
 
 type EditInput = Static<typeof editSchema>;
@@ -348,26 +350,24 @@ Usage:
       const newStats = await stat(fullPath);
       context.fileStateCache.recordEdit(fullPath, newContent, Math.floor(newStats.mtimeMs));
 
+      const patch = generatePatch(fullPath, content, newContent);
+
       return {
         filePath: fullPath,
         oldString: actualOldString,
         newString: new_string,
         originalFile: content,
         replaceAll: replace_all,
+        structuredPatch: patch,
       };
     },
 
     formatResult(output, _toolCallId) {
-      if (output.replaceAll) {
-        return [{
-          type: "text" as const,
-          text: `The file ${output.filePath} has been updated. All occurrences were successfully replaced.`,
-        }];
-      }
-      return [{
-        type: "text" as const,
-        text: `The file ${output.filePath} has been updated successfully.`,
-      }];
+      const baseMessage = output.replaceAll
+        ? `The file ${output.filePath} has been updated. All occurrences were successfully replaced.`
+        : `The file ${output.filePath} has been updated successfully.`;
+      const text = formatResultWithDiff(output.filePath, output.structuredPatch ?? [], baseMessage);
+      return [{ type: "text" as const, text }];
     },
   });
 }
