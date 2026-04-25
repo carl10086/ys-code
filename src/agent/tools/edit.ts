@@ -1,6 +1,7 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { readFile, writeFile, stat } from "fs/promises";
+import { readFile, writeFile, stat, readdir } from "fs/promises";
+import { dirname, basename } from "path";
 import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
@@ -81,6 +82,42 @@ function preserveQuoteStyle(oldString: string, actualOldString: string, newStrin
   if (hasDoubleQuotes) result = applyCurlyDoubleQuotes(result)
   if (hasSingleQuotes) result = applyCurlySingleQuotes(result)
   return result
+}
+
+/**
+ * 查找相似文件名（简单启发式）
+ * @param targetPath 目标文件路径
+ * @returns 相似文件名或 null
+ */
+async function findSimilarFile(targetPath: string): Promise<string | null> {
+  const dir = dirname(targetPath);
+  const base = basename(targetPath);
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return null;
+  }
+
+  const candidates = files.filter((f) => !f.startsWith("."));
+  if (candidates.length === 0) return null;
+
+  // 策略 1：前缀匹配（前 3 个字符相同）
+  const prefix = base.slice(0, 3).toLowerCase();
+  const prefixMatch = candidates.find((f) =>
+    f.toLowerCase().startsWith(prefix)
+  );
+  if (prefixMatch) return prefixMatch;
+
+  // 策略 2：去掉扩展名后互相包含
+  const targetNoExt = base.replace(/\.[^.]+$/, "").toLowerCase();
+  const containmentMatch = candidates.find((f) => {
+    const fNoExt = f.replace(/\.[^.]+$/, "").toLowerCase();
+    return fNoExt.includes(targetNoExt) || targetNoExt.includes(fNoExt);
+  });
+  if (containmentMatch) return containmentMatch;
+
+  return null;
 }
 
 const editSchema = Type.Object({
@@ -187,9 +224,13 @@ Usage:
           if (params.old_string === "") {
             return { ok: true };
           }
+          const similar = await findSimilarFile(fullPath);
+          const message = similar
+            ? `File does not exist. Did you mean: ${similar}?`
+            : "File does not exist.";
           return {
             ok: false,
-            message: "File does not exist.",
+            message,
             errorCode: 4,
           };
         }

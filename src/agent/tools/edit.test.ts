@@ -220,6 +220,56 @@ describe("Settings 保护", () => {
     }
   });
 });
+
+describe("相似文件建议", () => {
+  it("文件不存在且存在相似文件时给出建议", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    // 先创建一个相似文件（模拟用户已读取该文件）
+    const similarPath = '/tmp/edit.ts';
+    await writeFile(similarPath, "content", "utf-8");
+    const stats = await stat(similarPath);
+    cache.recordRead(similarPath, "content", Math.floor(stats.mtimeMs));
+    // 同时记录拼写错误的文件到缓存（模拟用户确实尝试编辑这个路径）
+    cache.recordRead('/tmp/editt.ts', "content", Date.now());
+
+    try {
+      const result = await tool.validateInput!({
+        file_path: '/tmp/editt.ts',  // 拼写错误
+        old_string: "foo",
+        new_string: "bar",
+      }, mockContext(cache));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errorCode).toBe(4);
+        expect(result.message).toContain("Did you mean");
+        expect(result.message).toContain("edit.ts");
+      }
+    } finally {
+      await unlink(similarPath).catch(() => {});
+    }
+  });
+
+  it("文件不存在且无相似文件时不给建议", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    // 模拟用户读取一个不存在的文件（这在实际中不会发生，但为了测试需要让 canEdit 通过）
+    // 我们直接记录一个不存在的文件到缓存
+    cache.recordRead('/tmp/xyz-unique-name-12345.ts', "content", Date.now());
+
+    const result = await tool.validateInput!({
+      file_path: '/tmp/xyz-unique-name-12345.ts',
+      old_string: "foo",
+      new_string: "bar",
+    }, mockContext(cache));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errorCode).toBe(4);
+      expect(result.message).not.toContain("Did you mean");
+    }
+  });
+});
+
 describe('EditTool dirty-write detection', () => {
   it('mtime 变化应触发 validateInput 拒绝（errorCode 7）', async () => {
     const cache = new FileStateCache();
