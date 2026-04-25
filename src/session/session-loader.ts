@@ -80,6 +80,14 @@ export class SessionLoader {
         }
         return msg as unknown as AgentMessage;
       }
+
+      case "attachment":
+        return {
+          role: "attachment",
+          attachmentType: entry.attachmentType,
+          content: entry.content,
+          timestamp: entry.timestamp,
+        } as unknown as AgentMessage;
     }
   }
 }
