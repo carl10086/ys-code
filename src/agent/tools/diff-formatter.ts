@@ -1,5 +1,20 @@
 // src/agent/tools/diff-formatter.ts
+import { Type } from "@sinclair/typebox";
 import { structuredPatch, type StructuredPatchHunk } from "diff";
+
+/** StructuredPatchHunk 的 TypeBox schema，用于 outputSchema 类型安全 */
+export const structuredPatchHunkSchema = Type.Object({
+  /** 旧文件起始行号 */
+  oldStart: Type.Number(),
+  /** 旧文件行数 */
+  oldLines: Type.Number(),
+  /** 新文件起始行号 */
+  newStart: Type.Number(),
+  /** 新文件行数 */
+  newLines: Type.Number(),
+  /** 差异行列表（以 +、-、空格开头） */
+  lines: Type.Array(Type.String()),
+});
 
 const AMPERSAND_TOKEN = "<<:AMPERSAND_TOKEN:>>";
 const DOLLAR_TOKEN = "<<:DOLLAR_TOKEN:>>";
@@ -45,9 +60,10 @@ export function formatPatchToText(
     return "";
   }
 
-  const lines: string[] = [];
-  lines.push(`--- a/${filePath}`);
-  lines.push(`+++ b/${filePath}`);
+  const lines: string[] = [
+    `--- a/${filePath}`,
+    `+++ b/${filePath}`,
+  ];
 
   for (const hunk of hunks) {
     lines.push(
@@ -59,4 +75,20 @@ export function formatPatchToText(
   }
 
   return lines.join("\n");
+}
+
+/**
+ * 将基础消息和 diff patch 组合为 LLM 可见的文本
+ * @param filePath 文件路径
+ * @param hunks patch hunks
+ * @param baseMessage 基础成功消息（不含 diff）
+ * @returns 组合后的文本
+ */
+export function formatResultWithDiff(
+  filePath: string,
+  hunks: StructuredPatchHunk[],
+  baseMessage: string,
+): string {
+  const diffText = formatPatchToText(filePath, hunks);
+  return diffText ? `${baseMessage}\n\n${diffText}` : baseMessage;
 }

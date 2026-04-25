@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { generatePatch, formatPatchToText } from './diff-formatter.js';
+import { generatePatch, formatPatchToText, formatResultWithDiff } from './diff-formatter.js';
 
 describe('diff-formatter', () => {
   describe('generatePatch', () => {
@@ -53,6 +53,20 @@ describe('diff-formatter', () => {
     it('returns "" for empty array', () => {
       const text = formatPatchToText('test.txt', []);
       expect(text).toBe('');
+    });
+  });
+
+  describe('formatResultWithDiff', () => {
+    it('有 diff 时应附加 diff 到基础消息', () => {
+      const hunks = generatePatch('test.txt', 'old\n', 'new\n');
+      const text = formatResultWithDiff('test.txt', hunks, 'Updated.');
+      expect(text).toContain('Updated.');
+      expect(text).toContain('--- a/test.txt');
+    });
+
+    it('无 diff 时应仅返回基础消息', () => {
+      const text = formatResultWithDiff('test.txt', [], 'Updated.');
+      expect(text).toBe('Updated.');
     });
   });
 });
