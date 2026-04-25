@@ -406,3 +406,53 @@ describe('EditTool dirty-write detection', () => {
     }
   });
 });
+
+describe('EditTool diff generation', () => {
+  it('execute should return structuredPatch', async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/edit-diff.txt';
+    const content = 'hello world\nfoo bar\n';
+    await writeFile(path, content, 'utf-8');
+    cache.recordRead(path, content, Date.now());
+
+    try {
+      const result = await tool.execute!('test-id', {
+        file_path: path,
+        old_string: 'hello',
+        new_string: 'hi',
+      }, mockContext(cache));
+
+      expect(result.structuredPatch).toBeDefined();
+      expect(Array.isArray(result.structuredPatch)).toBe(true);
+      expect(result.structuredPatch.length).toBeGreaterThan(0);
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+
+  it('formatResult should include diff text', async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const path = '/tmp/edit-diff-fmt.txt';
+    const content = 'hello world\nfoo bar\n';
+    await writeFile(path, content, 'utf-8');
+    cache.recordRead(path, content, Date.now());
+
+    try {
+      const result = await tool.execute!('test-id', {
+        file_path: path,
+        old_string: 'hello',
+        new_string: 'hi',
+      }, mockContext(cache));
+
+      const formatted = tool.formatResult!(result, 'test-id');
+      expect(formatted.length).toBe(1);
+      expect(formatted[0].type).toBe('text');
+      expect(formatted[0].text).toContain('--- a/');
+      expect(formatted[0].text).toContain('+++ b/');
+    } finally {
+      await unlink(path).catch(() => {});
+    }
+  });
+});
