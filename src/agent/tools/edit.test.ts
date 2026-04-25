@@ -150,6 +150,77 @@ describe('EditTool quote normalization', () => {
   });
 });
 
+describe("Notebook 保护", () => {
+  it("拒绝编辑 .ipynb 文件", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const notebookPath = '/tmp/test.ipynb';
+    await writeFile(notebookPath, '{"cells": []}', "utf-8");
+    cache.recordRead(notebookPath, '{"cells": []}', Date.now());
+
+    try {
+      const result = await tool.validateInput!({
+        file_path: notebookPath,
+        old_string: "cells",
+        new_string: "nodes",
+      }, mockContext(cache));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errorCode).toBe(5);
+      }
+      expect(result.ok === false && result.message).toContain("NotebookEditTool");
+    } finally {
+      await unlink(notebookPath).catch(() => {});
+    }
+  });
+});
+
+describe("Settings 保护", () => {
+  it("允许产生合法 JSON 的编辑", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const jsonPath = '/tmp/settings.json';
+    const content = '{"name": "old", "value": 1}';
+    await writeFile(jsonPath, content, "utf-8");
+    cache.recordRead(jsonPath, content, Date.now());
+
+    try {
+      const result = await tool.validateInput!({
+        file_path: jsonPath,
+        old_string: '"name": "old"',
+        new_string: '"name": "new"',
+      }, mockContext(cache));
+      expect(result.ok).toBe(true);
+    } finally {
+      await unlink(jsonPath).catch(() => {});
+    }
+  });
+
+  it("拒绝产生非法 JSON 的编辑", async () => {
+    const cache = new FileStateCache();
+    const tool = createEditTool('/tmp');
+    const jsonPath = '/tmp/settings.json';
+    const content = '{"name": "old", "value": 1}';
+    await writeFile(jsonPath, content, "utf-8");
+    cache.recordRead(jsonPath, content, Date.now());
+
+    try {
+      const result = await tool.validateInput!({
+        file_path: jsonPath,
+        old_string: '"name": "old"',
+        new_string: '"name": "new",',  // 尾部多余逗号导致非法 JSON
+      }, mockContext(cache));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errorCode).toBe(11);
+        expect(result.message).toContain("invalid JSON");
+      }
+    } finally {
+      await unlink(jsonPath).catch(() => {});
+    }
+  });
+});
+
 describe('EditTool dirty-write detection', () => {
   it('mtime 变化应触发 validateInput 拒绝（errorCode 7）', async () => {
     const cache = new FileStateCache();
