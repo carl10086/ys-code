@@ -1,11 +1,12 @@
 // src/agent/tools/write.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { mkdir, readFile, writeFile, stat } from "fs/promises";
+import { mkdir, readFile, stat } from "fs/promises";
 import type { Stats } from "fs";
 import { dirname, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 import { checkFileSize, DIRTY_WRITE_MESSAGE, MAX_FILE_SIZE_BYTES } from "./file-guard.js";
+import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
 
 const writeSchema = Type.Object({
   file_path: Type.String({ description: "The absolute path to the file to write (must be absolute, not relative)" }),
@@ -19,7 +20,6 @@ const writeOutputSchema = Type.Object({
   originalFile: Type.Union([Type.String(), Type.Null()]),
 });
 
-type WriteInput = Static<typeof writeSchema>;
 type WriteOutput = Static<typeof writeOutputSchema>;
 
 export function createWriteTool(cwd: string): AgentTool<typeof writeSchema, WriteOutput> {
@@ -101,8 +101,14 @@ Usage:
       const fullPath = resolve(cwd, params.file_path);
 
       let originalFile: string | null = null;
+      let fileEncoding: FileEncoding = {
+        encoding: "utf8",
+        lineEndings: "\n",
+      };
       try {
-        originalFile = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        originalFile = result.content;
+        fileEncoding = result.encoding;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
           throw e;
@@ -123,7 +129,7 @@ Usage:
       }
 
       await mkdir(dirname(fullPath), { recursive: true });
-      await writeFile(fullPath, params.content, "utf-8");
+      await writeFileWithEncoding(fullPath, params.content, fileEncoding);
 
       const newStats = await stat(fullPath);
       context.fileStateCache.recordEdit(fullPath, params.content, Math.floor(newStats.mtimeMs));

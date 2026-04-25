@@ -1,7 +1,9 @@
 // src/agent/tools/edit.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { readFile, writeFile, stat } from "fs/promises";
+import { readFile, stat, readdir } from "fs/promises";
+import { dirname, basename } from "path";
 import { checkFileSize, DIRTY_WRITE_MESSAGE } from "./file-guard.js";
+import { readFileWithEncoding, writeFileWithEncoding, type FileEncoding } from "./file-encoding.js";
 import { resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
@@ -81,6 +83,42 @@ function preserveQuoteStyle(oldString: string, actualOldString: string, newStrin
   if (hasDoubleQuotes) result = applyCurlyDoubleQuotes(result)
   if (hasSingleQuotes) result = applyCurlySingleQuotes(result)
   return result
+}
+
+/**
+ * 查找相似文件名（简单启发式）
+ * @param targetPath 目标文件路径
+ * @returns 相似文件名或 null
+ */
+async function findSimilarFile(targetPath: string): Promise<string | null> {
+  const dir = dirname(targetPath);
+  const base = basename(targetPath);
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return null;
+  }
+
+  const candidates = files.filter((f) => !f.startsWith("."));
+  if (candidates.length === 0) return null;
+
+  // 策略 1：前缀匹配（前 3 个字符相同）
+  const prefix = base.slice(0, 3).toLowerCase();
+  const prefixMatch = candidates.find((f) =>
+    f.toLowerCase().startsWith(prefix)
+  );
+  if (prefixMatch) return prefixMatch;
+
+  // 策略 2：去掉扩展名后互相包含
+  const targetNoExt = base.replace(/\.[^.]+$/, "").toLowerCase();
+  const containmentMatch = candidates.find((f) => {
+    const fNoExt = f.replace(/\.[^.]+$/, "").toLowerCase();
+    return fNoExt.includes(targetNoExt) || targetNoExt.includes(fNoExt);
+  });
+  if (containmentMatch) return containmentMatch;
+
+  return null;
 }
 
 const editSchema = Type.Object({
@@ -168,19 +206,33 @@ Usage:
 
       await checkFileSize(fullPath);
 
-      // 2. 读取文件
+      // 【新增】Notebook 保护
+      if (fullPath.endsWith(".ipynb")) {
+        return {
+          ok: false,
+          message: "Jupyter notebooks must be edited with a specialized tool. Use NotebookEditTool instead.",
+          errorCode: 5,
+        };
+      }
+
+      // 2. 读取文件（编码感知）
       let content: string;
       try {
-        content = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        content = result.content;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") {
           // 空 old_string 表示创建新文件 — 允许
           if (params.old_string === "") {
             return { ok: true };
           }
+          const similar = await findSimilarFile(fullPath);
+          const message = similar
+            ? `File does not exist. Did you mean: ${similar}?`
+            : "File does not exist.";
           return {
             ok: false,
-            message: "File does not exist.",
+            message,
             errorCode: 4,
           };
         }
@@ -216,6 +268,28 @@ Usage:
         };
       }
 
+      // 【新增】Settings 保护：JSON 文件编辑后必须仍是合法 JSON
+      if (fullPath.endsWith(".json")) {
+        let preview: string;
+        if (params.old_string === "") {
+          preview = params.new_string;
+        } else {
+          const actualNewString = preserveQuoteStyle(params.old_string, actualOldString, params.new_string);
+          preview = params.replace_all
+            ? content.replaceAll(actualOldString, actualNewString)
+            : content.replace(actualOldString, actualNewString);
+        }
+        try {
+          JSON.parse(preview);
+        } catch {
+          return {
+            ok: false,
+            message: "Edit would result in invalid JSON. Please check your new_string.",
+            errorCode: 11,
+          };
+        }
+      }
+
       return { ok: true };
     },
 
@@ -224,8 +298,14 @@ Usage:
       const { old_string, new_string, replace_all = false } = params;
 
       let content: string;
+      let fileEncoding: FileEncoding = {
+        encoding: "utf8",
+        lineEndings: "\n",
+      };
       try {
-        content = await readFile(fullPath, "utf-8");
+        const result = await readFileWithEncoding(fullPath);
+        content = result.content;
+        fileEncoding = result.encoding;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") {
           content = "";
@@ -262,7 +342,7 @@ Usage:
           : content.replace(actualOldString, actualNewString);
       }
 
-      await writeFile(fullPath, newContent, "utf-8");
+      await writeFileWithEncoding(fullPath, newContent, fileEncoding);
 
       // 【新增】更新缓存
       const newStats = await stat(fullPath);
