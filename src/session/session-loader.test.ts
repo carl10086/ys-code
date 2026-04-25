@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { SessionLoader } from "./session-loader.js";
 import { SessionManager } from "./session-manager.js";
-import type { Entry, UserEntry, AssistantEntry, CompactBoundaryEntry } from "./entry-types.js";
+import type { Entry } from "./entry-types.js";
 import type { AgentMessage } from "../agent/types.js";
 import { tmpdir } from "os";
 
@@ -88,11 +88,12 @@ describe("SessionLoader attachment support", () => {
       attachment: {
         type: "directory",
         path: "/test/dir",
-        content: ["file1.ts", "file2.ts"],
+        content: "file1.ts\nfile2.ts",
+        displayPath: "test/dir",
         timestamp: 1234567890,
       },
       timestamp: 1234567890,
-    } as AgentMessage;
+    } as unknown as AgentMessage;
 
     manager.appendMessage(originalMessage);
 
@@ -101,6 +102,6 @@ describe("SessionLoader attachment support", () => {
     expect(restoredMessages[0].role).toBe("attachment");
     expect((restoredMessages[0] as any).attachment.type).toBe("directory");
     expect((restoredMessages[0] as any).attachment.path).toBe("/test/dir");
-    expect((restoredMessages[0] as any).attachment.content).toEqual(["file1.ts", "file2.ts"]);
+    expect((restoredMessages[0] as any).attachment.content).toBe("file1.ts\nfile2.ts");
   });
 });
