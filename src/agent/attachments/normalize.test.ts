@@ -54,13 +54,13 @@ describe("normalizeMessages purity", () => {
     } as AgentMessage;
 
     const input = [userMsg, attachmentMsg];
-    const originalContent = userMsg.content;
+    const originalContent = (userMsg as any).content;
 
     const result = normalizeMessages(input);
 
     // 输入数组本身不变
     expect(input).toHaveLength(2);
-    expect(input[0].content).toBe(originalContent); // 元素不被修改
+    expect((input[0] as any).content).toBe(originalContent); // 元素不被修改
     expect(input[1].role).toBe("attachment"); // attachment 元素不变
 
     // 输出是新数组
@@ -68,8 +68,8 @@ describe("normalizeMessages purity", () => {
     // 输出中 attachment 已展开为 user
     expect(result).toHaveLength(1);
     expect(result[0].role).toBe("user");
-    expect(result[0].content).toContain("<system-reminder>");
-    expect(result[0].content).toContain("Hello");
+    expect((result[0] as any).content).toContain("<system-reminder>");
+    expect((result[0] as any).content).toContain("Hello");
   });
 
   it("should merge attachment into previous user message when possible", () => {
@@ -86,8 +86,8 @@ describe("normalizeMessages purity", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].role).toBe("user");
-    expect(result[0].content).toContain("First message");
-    expect(result[0].content).toContain("system-reminder");
+    expect((result[0] as any).content).toContain("First message");
+    expect((result[0] as any).content).toContain("system-reminder");
   });
 
   it("should not merge when previous message is not user", () => {
@@ -105,7 +105,7 @@ describe("normalizeMessages purity", () => {
     expect(result).toHaveLength(2);
     expect(result[0].role).toBe("assistant");
     expect(result[1].role).toBe("user");
-    expect(result[1].content).toContain("system-reminder");
+    expect((result[1] as any).content).toContain("system-reminder");
   });
 
   it("should handle multiple attachments in sequence", () => {
@@ -127,9 +127,9 @@ describe("normalizeMessages purity", () => {
 
     // 两个 attachment 都应合并到同一个 user message
     expect(result).toHaveLength(1);
-    expect(result[0].content).toContain("Hello");
-    expect(result[0].content).toContain("/a.ts");
-    expect(result[0].content).toContain("/b.ts");
+    expect((result[0] as any).content).toContain("Hello");
+    expect((result[0] as any).content).toContain("/a.ts");
+    expect((result[0] as any).content).toContain("/b.ts");
   });
 
   it("should handle empty messages array", () => {

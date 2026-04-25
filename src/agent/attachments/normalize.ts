@@ -1,5 +1,5 @@
 import type { UserMessage, Message } from "../../core/ai/types.js";
-import type { Attachment, AttachmentMessage } from "./types.js";
+import type { Attachment } from "./types.js";
 import type { AgentMessage } from "../types.js";
 
 /** 将单个 attachment 展开为 UserMessage 数组 */
@@ -67,7 +67,6 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
     }
     default: {
       // 穷尽检查 —— 新增类型时必须添加 case
-      const _exhaustive: never = attachment;
       return [];
     }
   }
