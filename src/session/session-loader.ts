@@ -84,8 +84,7 @@ export class SessionLoader {
       case "attachment":
         return {
           role: "attachment",
-          attachmentType: entry.attachmentType,
-          content: entry.content,
+          attachment: JSON.parse(entry.content),
           timestamp: entry.timestamp,
         } as unknown as AgentMessage;
     }
