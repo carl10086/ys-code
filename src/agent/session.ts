@@ -64,7 +64,10 @@ export class AgentSession {
 
   /** 已发送给 LLM 的 skill 名称集合（只读） */
   get sentSkillNames(): Set<string> {
-    return this.agent.state.sentSkillNames ?? new Set();
+    if (!this.agent.state.sentSkillNames) {
+      this.agent.state.sentSkillNames = new Set();
+    }
+    return this.agent.state.sentSkillNames;
   }
 
   private turnStartTime = 0;
@@ -291,8 +294,24 @@ export class AgentSession {
       case "agent_end":
         return;
       case "message_end": {
+        // 保存到 SessionManager（所有 role 的消息，包括 attachment）
         this.sessionManager.appendMessage(event.message);
         this.sessionManager.compactIfNeeded();
+
+        // 如果是 skill_listing attachment，标记 skills 已发送
+        const msg = event.message;
+        if (msg.role === "attachment") {
+          const attachment = (msg as any).attachment;
+          if (
+            attachment?.type === "skill_listing" &&
+            Array.isArray(attachment.skillNames)
+          ) {
+            for (const name of attachment.skillNames) {
+              this.sentSkillNames.add(name);
+            }
+          }
+        }
+
         break;
       }
       case "turn_start": {
