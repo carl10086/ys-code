@@ -18,6 +18,14 @@ interface DiffRendererProps {
  * - 上下文行（空格）：灰色
  */
 export function DiffRenderer({ filePath, hunks }: DiffRendererProps) {
+  if (hunks.length === 0) {
+    return (
+      <Box flexDirection="column" paddingLeft={2}>
+        <Text color="gray">No diff available for {filePath}</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box flexDirection="column" paddingLeft={2}>
       <Text color="cyan">{`--- a/${filePath}`}</Text>
