@@ -9,6 +9,7 @@ import type {
   AgentMessage,
   AgentTool,
   AgentToolResult,
+  ToolRenderResult,
   ToolUseContext,
 } from "./types.js";
 
@@ -177,6 +178,7 @@ async function finalizeExecutedToolCall(
 ): Promise<ToolResultMessage> {
   let content: (import("../core/ai/index.js").TextContent | import("../core/ai/index.js").ImageContent)[];
   let details: unknown;
+  let renderData: ToolRenderResult | undefined;
 
   if (executed.isError) {
     content = [{ type: "text", text: String(executed.output) }];
@@ -189,9 +191,22 @@ async function finalizeExecutedToolCall(
     } else {
       content = [{ type: "text", text: String(executed.output) }];
     }
+    if (prepared.tool.renderResult) {
+      try {
+        const rendered = prepared.tool.renderResult(executed.output, prepared.toolCall.id);
+        if (rendered) {
+          renderData = rendered;
+        }
+      } catch (error) {
+        logger.warn("Tool renderResult failed, falling back to plain text", {
+          toolName: prepared.tool.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
-  const result: AgentToolResult<any> = { content, details };
+  const result: AgentToolResult<any> = { content, details, renderData };
   return await emitToolCallOutcome(prepared.toolCall, result, executed.isError, emit);
 }
 

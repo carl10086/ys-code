@@ -2,7 +2,7 @@ import { SessionStorage } from "./session-storage.js";
 import { SessionLoader } from "./session-loader.js";
 import { CompactTrigger } from "./compact.js";
 import type { AgentMessage } from "../agent/types.js";
-import type { Entry, UserEntry, AssistantEntry, ToolResultEntry } from "./entry-types.js";
+import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, AttachmentEntry } from "./entry-types.js";
 
 /** SessionManager 配置 */
 export interface SessionManagerConfig {
@@ -135,6 +135,16 @@ export class SessionManager {
           isError: message.isError,
           details: message.details,
         } as ToolResultEntry;
+
+      case "attachment":
+        return {
+          type: "attachment",
+          uuid,
+          parentUuid,
+          timestamp,
+          attachmentType: (message as any).attachment.type,
+          content: JSON.stringify((message as any).attachment),
+        } as AttachmentEntry;
 
       default:
         throw new Error(`Unsupported message role: ${(message as any).role}`);

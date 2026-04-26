@@ -83,5 +83,15 @@ export interface CompactBoundaryEntry extends SessionEntry {
   tokensAfter: number;
 }
 
+/** Attachment 条目 */
+export interface AttachmentEntry extends SessionEntry {
+  /** 条目类型 */
+  type: "attachment";
+  /** 附件类型 */
+  attachmentType: "relevant_memories" | "file" | "directory" | "skill_listing";
+  /** 附件内容（序列化后的 JSON） */
+  content: string;
+}
+
 /** 所有条目的联合类型 */
-export type Entry = HeaderEntry | UserEntry | AssistantEntry | ToolResultEntry | CompactBoundaryEntry;
+export type Entry = HeaderEntry | UserEntry | AssistantEntry | ToolResultEntry | CompactBoundaryEntry | AttachmentEntry;

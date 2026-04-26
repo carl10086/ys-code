@@ -20,7 +20,10 @@ export class SessionLoader {
         continue;
       }
 
-      messages.push(this.entryToMessage(entry));
+      const message = this.entryToMessage(entry);
+      if (message !== undefined) {
+        messages.push(message);
+      }
     }
 
     return messages;
@@ -80,6 +83,22 @@ export class SessionLoader {
         }
         return msg as unknown as AgentMessage;
       }
+
+      case "attachment": {
+        try {
+          return {
+            role: "attachment",
+            attachment: JSON.parse(entry.content),
+            timestamp: entry.timestamp,
+          } as unknown as AgentMessage;
+        } catch {
+          return undefined as unknown as AgentMessage;
+        }
+      }
+
+      default:
+        // 向后兼容：忽略不认识的 Entry 类型（REQ-10）
+        return undefined as unknown as AgentMessage;
     }
   }
 }

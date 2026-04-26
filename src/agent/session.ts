@@ -6,7 +6,7 @@ import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
-import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
+import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "./tools/index.js";
 import { getCommands } from "../commands/index.js";
@@ -20,7 +20,7 @@ export type AgentSessionEvent =
   | { type: "thinking_delta"; text: string; isFirst: boolean }
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
   | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string };
 
 /** AgentSession 构造选项 */
@@ -64,7 +64,10 @@ export class AgentSession {
 
   /** 已发送给 LLM 的 skill 名称集合（只读） */
   get sentSkillNames(): Set<string> {
-    return this.agent.state.sentSkillNames ?? new Set();
+    if (!this.agent.state.sentSkillNames) {
+      this.agent.state.sentSkillNames = new Set();
+    }
+    return this.agent.state.sentSkillNames;
   }
 
   private turnStartTime = 0;
@@ -291,8 +294,24 @@ export class AgentSession {
       case "agent_end":
         return;
       case "message_end": {
+        // 保存到 SessionManager（所有 role 的消息，包括 attachment）
         this.sessionManager.appendMessage(event.message);
         this.sessionManager.compactIfNeeded();
+
+        // 如果是 skill_listing attachment，标记 skills 已发送
+        const msg = event.message;
+        if (msg.role === "attachment") {
+          const attachment = (msg as any).attachment;
+          if (
+            attachment?.type === "skill_listing" &&
+            Array.isArray(attachment.skillNames)
+          ) {
+            for (const name of attachment.skillNames) {
+              this.sentSkillNames.add(name);
+            }
+          }
+        }
+
         break;
       }
       case "turn_start": {
@@ -343,6 +362,7 @@ export class AgentSession {
           isError: event.isError,
           summary: summary || "done",
           timeMs: elapsed,
+          renderData: (event.result as AgentToolResult<any>)?.renderData,
         });
         break;
       }

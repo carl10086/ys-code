@@ -3,7 +3,6 @@ import {
   type AssistantMessage,
   type Context,
   streamSimple,
-  type AssistantMessageEvent,
   type Tool,
 } from "../core/ai/index.js";
 import type {
@@ -16,39 +15,100 @@ import type {
 import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
 import { extractAtMentionedFiles, readAtMentionedFile } from "./attachments/at-mention.js";
-import { injectSkillListingAttachments } from "./attachments/skill-listing.js";
 import type { Message } from "../core/ai/index.js";
-import type { AttachmentMessage } from "./attachments/types.js";
 import { logger } from "../utils/logger.js";
+import { join } from "node:path";
+import { getCommands } from "../commands/index.js";
+import { formatSkillListing } from "./attachments/skill-listing.js";
+import type { PromptCommand } from "../commands/types.js";
 
 /** 事件发射器类型 */
 export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
 
 /**
- * 将 AgentMessage[] 转换为最终发送给 LLM 的 Message[]
- * 包含：userContext attachments、skill listing、@mention attachments、normalize
+ * 阶段 1: 生成 Attachment Messages
+ * 生成但不保存，返回需要被添加的 attachment 列表
  */
-async function transformMessages(
+async function generateAttachments(
   context: AgentContext,
   config: AgentLoopConfig,
-  signal?: AbortSignal,
-): Promise<Message[]> {
-  let messages = context.messages;
+  _signal?: AbortSignal,
+): Promise<AgentMessage[]> {
+  const attachments: AgentMessage[] = [];
 
-  if (config.transformContext) {
-    messages = await config.transformContext(messages, signal);
-  } else if (!config.disableUserContext) {
+  // userContext attachments
+  if (!config.disableUserContext) {
     const userContext = await getUserContext({ cwd: process.cwd() });
-    const attachments = getUserContextAttachments(userContext);
-    messages = [...attachments, ...messages];
+    const userContextAttachments = getUserContextAttachments(userContext);
+    attachments.push(...userContextAttachments);
   }
 
+  // skill listing attachments
   const sentSkillNames = context.sentSkillNames ?? new Set<string>();
-  messages = await injectSkillListingAttachments(messages, process.cwd(), sentSkillNames);
-  messages = await injectAtMentionAttachments(messages, process.cwd());
+  const skillCommands = await getCommands(join(process.cwd(), ".claude/skills"));
+  const newSkills = skillCommands.filter(
+    (cmd): cmd is PromptCommand => cmd.type === "prompt" && !sentSkillNames.has(cmd.name)
+  );
+  if (newSkills.length > 0) {
+    const content = formatSkillListing(newSkills);
+    attachments.push({
+      role: "attachment",
+      attachment: {
+        type: "skill_listing",
+        content,
+        skillNames: newSkills.map(s => s.name),
+        timestamp: Date.now(),
+      },
+      timestamp: Date.now(),
+    } as AgentMessage);
+  }
 
-  const normalizedMessages = normalizeMessages(messages);
-  return config.convertToLlm(normalizedMessages);
+  // @mention attachments
+  const mentionPromises: Promise<void>[] = [];
+  for (const msg of context.messages) {
+    if (msg.role !== "user" || typeof msg.content !== "string") continue;
+    const mentionedFiles = extractAtMentionedFiles(msg.content);
+    for (const fp of mentionedFiles) {
+      mentionPromises.push(
+        readAtMentionedFile(fp, process.cwd()).then((attachment) => {
+          if (attachment) {
+            attachments.push({ role: "attachment", attachment, timestamp: Date.now() } as AgentMessage);
+          }
+        }),
+      );
+    }
+  }
+  await Promise.all(mentionPromises);
+
+  return attachments;
+}
+
+/**
+ * 阶段 2: 保存 Attachments 到 Agent State
+ * 通过事件机制将 attachment 持久化
+ */
+async function saveAttachments(
+  attachments: AgentMessage[],
+  emit: AgentEventSink,
+): Promise<void> {
+  for (const attachment of attachments) {
+    await emit({ type: "message_start", message: attachment });
+    await emit({ type: "message_end", message: attachment });
+  }
+}
+
+/**
+ * 阶段 3: 构建 API Payload
+ * 纯函数，输入完整 messages（含 attachment），输出 LLM 可用格式
+ */
+function buildApiPayload(
+  messages: AgentMessage[],
+  convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>,
+): Promise<Message[]> {
+  // normalize 将 attachment → user message（<system-reminder> 包装）
+  const normalized = normalizeMessages(messages);
+  // convertToLlm 过滤 role（默认只保留 user/assistant/toolResult）
+  return Promise.resolve(convertToLlm(normalized as AgentMessage[]));
 }
 
 /**
@@ -127,7 +187,17 @@ export async function streamAssistantResponse(
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<AssistantMessage> {
-  const llmMessages = await transformMessages(context, config, signal);
+  // === 阶段 1: 生成 Attachments ===
+  const attachments = await generateAttachments(context, config, signal);
+
+  // === 阶段 2: 保存 Attachments 到 State ===
+  // 这会触发 message_end 事件，将 attachment 写入 agent.state.messages
+  await saveAttachments(attachments, emit);
+
+  // === 阶段 3: 构建 API Payload ===
+  // 显式构建包含 attachment 的完整消息列表，不依赖 context.messages 是否已被修改
+  const allMessages = [...context.messages, ...attachments];
+  const llmMessages = await buildApiPayload(allMessages, config.convertToLlm);
 
   const llmContext: Context = {
     systemPrompt: config.systemPrompt,
@@ -231,3 +301,6 @@ export async function streamAssistantResponse(
   await finalizeStreamMessage(context, finalMessage, addedPartial, emit);
   return finalMessage;
 }
+
+// 导出三阶段函数供测试使用
+export { generateAttachments, saveAttachments, buildApiPayload };

@@ -163,5 +163,19 @@ Usage:
       const text = formatResultWithDiff(output.filePath, output.structuredPatch ?? [], baseMessage);
       return [{ type: "text" as const, text }];
     },
+
+    renderResult(output, _toolCallId) {
+      if (output.type === "create") {
+        return { type: "plain", text: `Created ${output.filePath}` };
+      }
+      if (!output.structuredPatch || output.structuredPatch.length === 0) {
+        return { type: "plain", text: `Updated ${output.filePath}` };
+      }
+      return {
+        type: "structured_diff",
+        filePath: output.filePath,
+        hunks: output.structuredPatch,
+      };
+    },
   });
 }

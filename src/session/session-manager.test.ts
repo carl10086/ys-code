@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { SessionManager } from "./session-manager.js";
 import type { AgentMessage } from "../agent/types.js";
+import "../agent/attachments/types.js";
+import type { AttachmentEntry } from "./entry-types.js";
 
 describe("SessionManager", () => {
   let tmpDir: string;
@@ -46,5 +48,77 @@ describe("SessionManager", () => {
     expect(latestMessages.length).toBe(2);
     expect(latestMessages[0].role).toBe("user");
     expect(latestMessages[1].role).toBe("assistant");
+  });
+});
+
+describe("SessionManager attachment support", () => {
+  let tmpDir: string;
+  let manager: SessionManager;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), "sm-attach-test-"));
+    manager = new SessionManager({ baseDir: tmpDir, cwd: process.cwd() });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("should convert attachment message to AttachmentEntry", () => {
+    const message: AgentMessage = {
+      role: "attachment",
+      attachment: {
+        type: "skill_listing",
+        content: "Available skills: read, write",
+        skillNames: ["read", "write"],
+        timestamp: 1234567890,
+      },
+      timestamp: 1234567890,
+    } as AgentMessage;
+
+    manager.appendMessage(message);
+
+    const entries = (manager as any).storage.readAllEntries(manager.filePath);
+    const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
+
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry?.attachmentType).toBe("skill_listing");
+    expect(attachmentEntry?.content).toBe(JSON.stringify((message as any).attachment));
+
+    // round-trip verification
+    const restored = manager.restoreMessages();
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
+  });
+
+  it("should convert file attachment to AttachmentEntry", () => {
+    const message: AgentMessage = {
+      role: "attachment",
+      attachment: {
+        type: "file",
+        filePath: "/test/file.ts",
+        content: { type: "text", text: "export const x = 1;" },
+        displayPath: "test/file.ts",
+        timestamp: 1234567890,
+      },
+      timestamp: 1234567890,
+    } as AgentMessage;
+
+    manager.appendMessage(message);
+
+    const entries = (manager as any).storage.readAllEntries(manager.filePath);
+    const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
+
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry?.attachmentType).toBe("file");
+    const parsed = JSON.parse(attachmentEntry!.content);
+    expect(parsed.filePath).toBe("/test/file.ts");
+
+    // round-trip verification
+    const restored = manager.restoreMessages();
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
   });
 });

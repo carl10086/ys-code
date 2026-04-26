@@ -11,6 +11,7 @@ import type {
   ToolResultMessage,
 } from "../core/ai/index.js";
 import type { Static, TSchema } from "@sinclair/typebox";
+import type { StructuredPatchHunk } from "diff";
 import type { FileStateCache } from "./file-state.js";
 
 /** 流函数类型 */
@@ -39,12 +40,19 @@ export interface CustomAgentMessages {}
 /** Agent 消息类型 */
 export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessages];
 
+/** 工具 TUI 渲染数据 */
+export type ToolRenderResult =
+  | { type: "structured_diff"; filePath: string; hunks: StructuredPatchHunk[] }
+  | { type: "plain"; text: string };
+
 /** 工具执行结果
  * @template T 详细信息类型
  */
 export interface AgentToolResult<T> {
   content: (TextContent | ImageContent)[];
   details: T;
+  /** TUI 渲染数据（可选） */
+  renderData?: ToolRenderResult;
   /** 注入到消息列表的新消息（UI 隐藏，LLM 可见） */
   newMessages?: AgentMessage[];
   /** 上下文修改器 */
@@ -134,6 +142,15 @@ export interface AgentTool<
     toolCallId: string,
   ) => (TextContent | ImageContent)[] | string;
 
+  /**
+   * 将执行结果转换为 TUI 渲染数据（可选）。
+   * 若提供，则 TUI 层可使用结构化数据渲染更丰富的展示。
+   */
+  renderResult?: (
+    output: TOutput,
+    toolCallId: string,
+  ) => ToolRenderResult | null;
+
   /** 是否为只读操作 */
   isReadOnly?: boolean;
 
@@ -187,7 +204,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   systemPrompt?: SystemPrompt;
   model: Model<any>;   // 使用的 AI 模型
   convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;   // 将 Agent 消息转换为 LLM 消息格式
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;   // 可选的消息转换/过滤函数
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;   // 可选的自定义 API Key 获取函数
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
   getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数

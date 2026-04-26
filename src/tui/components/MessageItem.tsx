@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import React from "react";
 import type { UIMessage } from "../types.js";
 import { Markdown } from "./Markdown.js";
+import { DiffRenderer } from "./DiffRenderer.js";
 
 export interface MessageItemProps {
   /** 要渲染的 UI 消息 */
@@ -58,10 +59,25 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       const status = message.isError ? "ERR" : "OK";
       const timeSec = (message.timeMs / 1000).toFixed(1);
       const color = message.isError ? "red" : "green";
+
+      if (!message.isError && message.renderData?.type === "structured_diff") {
+        return (
+          <Box flexDirection="column">
+            <Text color={color}>
+              {status} {message.toolName} {"->"} {timeSec}s
+            </Text>
+            <DiffRenderer
+              filePath={message.renderData.filePath}
+              hunks={message.renderData.hunks}
+            />
+          </Box>
+        );
+      }
+
       return (
         <Box flexDirection="column">
           <Text color={color}>
-            {status} {message.toolName} {'->'} {message.summary} {timeSec}s
+            {status} {message.toolName} {"->"} {message.summary} {timeSec}s
           </Text>
         </Box>
       );

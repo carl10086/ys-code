@@ -487,3 +487,47 @@ describe('EditTool diff generation', () => {
     }
   });
 });
+
+describe('EditTool renderResult', () => {
+  it('编辑文件应返回 structured_diff', async () => {
+    const cache = new FileStateCache();
+    await writeFile('/tmp/edit-render.txt', 'hello world', 'utf-8');
+    const stats = await stat('/tmp/edit-render.txt');
+    cache.recordRead('/tmp/edit-render.txt', 'hello world', Math.floor(stats.mtimeMs));
+
+    const tool = createEditTool('/tmp');
+    try {
+      const output = await tool.execute!('test-id', {
+        file_path: '/tmp/edit-render.txt',
+        old_string: 'hello',
+        new_string: 'hi',
+      }, mockContext(cache));
+
+      expect(tool.renderResult).toBeDefined();
+      const renderData = tool.renderResult!(output, 'test-id');
+      expect(renderData).not.toBeNull();
+      expect(renderData!.type).toBe('structured_diff');
+      const diffData = renderData as { type: 'structured_diff'; filePath: string; hunks: any[] };
+      expect(diffData.filePath).toBe('/tmp/edit-render.txt');
+      expect(diffData.hunks.length).toBeGreaterThan(0);
+    } finally {
+      await unlink('/tmp/edit-render.txt').catch(() => {});
+    }
+  });
+
+  it('无变化时应返回 plain', () => {
+    const tool = createEditTool('/tmp');
+    const output = {
+      filePath: '/tmp/test.txt',
+      oldString: 'a',
+      newString: 'b',
+      originalFile: 'a',
+      replaceAll: false,
+      structuredPatch: [],
+    };
+
+    const renderData = tool.renderResult!(output, 'test-id');
+    expect(renderData).not.toBeNull();
+    expect(renderData!.type).toBe('plain');
+  });
+});

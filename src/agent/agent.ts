@@ -156,8 +156,6 @@ export interface AgentOptions {
   systemPrompt?: (context: AgentContext) => Promise<SystemPrompt>;
   /** 将 Agent 消息转换为 LLM 消息格式 */
   convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-  /** 消息转换/过滤函数 */
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
   /** 流函数 */
   streamFn?: StreamFn;
   /** 自定义 API Key 获取函数 */
@@ -193,8 +191,6 @@ export class Agent {
 
   /** 将 Agent 消息转换为 LLM 消息格式 */
   public convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-  /** 消息转换/过滤函数 */
-  public transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
   /** 流函数 */
   public streamFn: StreamFn;
   /** 自定义 API Key 获取函数 */
@@ -219,7 +215,6 @@ export class Agent {
     this._state = createMutableAgentState(options.initialState);
     this.systemPrompt = options.systemPrompt ?? (async () => asSystemPrompt([""]));
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
-    this.transformContext = options.transformContext;
     this.streamFn = options.streamFn ?? streamSimple;
     this.getApiKey = options.getApiKey;
     this.onPayload = options.onPayload;
@@ -462,7 +457,6 @@ export class Agent {
       maxRetryDelayMs: this.maxRetryDelayMs,
       toolExecution: this.toolExecution,
       convertToLlm: this.convertToLlm,
-      transformContext: this.transformContext,
       getApiKey: this.getApiKey,
       systemPrompt: resolvedSystemPrompt,
       getSteeringMessages: async () => {
