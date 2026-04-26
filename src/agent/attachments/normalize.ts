@@ -67,7 +67,8 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
     }
     default: {
       // 穷尽检查 —— 新增类型时必须添加 case
-      return [];
+      const _exhaustive: never = attachment;
+      return _exhaustive ?? [];
     }
   }
 }

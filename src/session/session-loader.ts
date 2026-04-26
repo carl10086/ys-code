@@ -84,12 +84,17 @@ export class SessionLoader {
         return msg as unknown as AgentMessage;
       }
 
-      case "attachment":
-        return {
-          role: "attachment",
-          attachment: JSON.parse(entry.content),
-          timestamp: entry.timestamp,
-        } as unknown as AgentMessage;
+      case "attachment": {
+        try {
+          return {
+            role: "attachment",
+            attachment: JSON.parse(entry.content),
+            timestamp: entry.timestamp,
+          } as unknown as AgentMessage;
+        } catch {
+          return undefined as unknown as AgentMessage;
+        }
+      }
 
       default:
         // 向后兼容：忽略不认识的 Entry 类型（REQ-10）

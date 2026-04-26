@@ -187,7 +187,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   systemPrompt?: SystemPrompt;
   model: Model<any>;   // 使用的 AI 模型
   convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;   // 将 Agent 消息转换为 LLM 消息格式
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;   // 可选的消息转换/过滤函数
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;   // 可选的自定义 API Key 获取函数
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
   getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数

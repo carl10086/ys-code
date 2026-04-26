@@ -37,7 +37,7 @@ async function generateAttachments(
   const attachments: AgentMessage[] = [];
 
   // userContext attachments
-  if (!config.disableUserContext && !config.transformContext) {
+  if (!config.disableUserContext) {
     const userContext = await getUserContext({ cwd: process.cwd() });
     const userContextAttachments = getUserContextAttachments(userContext);
     attachments.push(...userContextAttachments);
@@ -64,16 +64,21 @@ async function generateAttachments(
   }
 
   // @mention attachments
+  const mentionPromises: Promise<void>[] = [];
   for (const msg of context.messages) {
     if (msg.role !== "user" || typeof msg.content !== "string") continue;
     const mentionedFiles = extractAtMentionedFiles(msg.content);
     for (const fp of mentionedFiles) {
-      const attachment = await readAtMentionedFile(fp, process.cwd());
-      if (attachment) {
-        attachments.push({ role: "attachment", attachment, timestamp: Date.now() } as AgentMessage);
-      }
+      mentionPromises.push(
+        readAtMentionedFile(fp, process.cwd()).then((attachment) => {
+          if (attachment) {
+            attachments.push({ role: "attachment", attachment, timestamp: Date.now() } as AgentMessage);
+          }
+        }),
+      );
     }
   }
+  await Promise.all(mentionPromises);
 
   return attachments;
 }
