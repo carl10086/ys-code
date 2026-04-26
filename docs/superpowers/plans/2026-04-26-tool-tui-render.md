@@ -112,7 +112,7 @@ async function finalizeExecutedToolCall(
 ): Promise<ToolResultMessage> {
   let content: (import("../core/ai/index.js").TextContent | import("../core/ai/index.js").ImageContent)[];
   let details: unknown;
-  let renderData: import("./types.js").ToolRenderResult | undefined;
+  let renderData: ToolRenderResult | undefined;
 
   if (executed.isError) {
     content = [{ type: "text", text: String(executed.output) }];
@@ -350,7 +350,7 @@ git commit -m "feat(write-tool): add renderResult returning structured_diff or p
 找到 `src/agent/session.ts` 第 18-24 行的 `AgentSessionEvent` 类型定义，修改 `tool_end` 分支：
 
 ```typescript
-  | { type: "tool_end"; toolCallId: string; toolName: string; args: unknown; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
 ```
 
 - [ ] **Step 2: 修改 handleAgentEvent 传递 renderData**
