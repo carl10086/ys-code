@@ -1,6 +1,7 @@
 // src/web/debug/debug-api.test.ts
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { handleDebugAPI } from "./debug-api.js";
+import { handleDebugAPI, buildDebugContext } from "./debug-api.js";
+import type { AgentMessage } from "../../agent/types.js";
 import { setDebugAgentSession } from "./debug-context.js";
 
 // Mock AgentSession
@@ -87,5 +88,74 @@ describe("Debug API", () => {
     const req = new Request("http://localhost/api/debug/unknown");
     const res = await handleDebugAPI(req);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("Debug API buildDebugContext", () => {
+  beforeEach(() => {
+    setDebugAgentSession(undefined);
+  });
+
+  afterEach(() => {
+    setDebugAgentSession(undefined);
+  });
+
+  it("should include normalized messages in llmMessages", async () => {
+    const mockSession = {
+      messages: [
+        { role: "user", content: "Hello", timestamp: 1000 } as AgentMessage,
+        {
+          role: "attachment",
+          attachment: { type: "skill_listing", content: "Skills", skillNames: [], timestamp: 2000 },
+          timestamp: 2000,
+        } as AgentMessage,
+      ],
+      convertToLlm: (msgs: AgentMessage[]) => msgs.filter((m) => m.role !== "attachment"),
+      sessionId: "test-session",
+      model: { name: "test-model", provider: "test-provider" },
+      isStreaming: false,
+      pendingToolCalls: new Set(),
+      tools: [],
+      getSystemPrompt: () => "You are a helpful assistant.",
+    };
+
+    setDebugAgentSession(mockSession as any);
+
+    const context = await buildDebugContext();
+
+    expect(context).not.toBeNull();
+    expect(context!.messages).toHaveLength(2); // 原始消息含 attachment
+    expect(context!.llmMessages).toHaveLength(1); // LLM payload 不含 attachment
+    expect(context!.llmMessages[0].role).toBe("user");
+    // 验证 normalizeMessages 被调用（通过检查 content 是否包含 system-reminder）
+    expect(context!.llmMessages[0].content).toContain("<system-reminder>");
+  });
+
+  it("should return null when no active session", async () => {
+    setDebugAgentSession(undefined);
+
+    const context = await buildDebugContext();
+
+    expect(context).toBeNull();
+  });
+
+  it("should handle empty messages", async () => {
+    const mockSession = {
+      messages: [],
+      convertToLlm: (msgs: AgentMessage[]) => msgs,
+      sessionId: "empty-session",
+      model: { name: "test", provider: "test" },
+      isStreaming: false,
+      pendingToolCalls: new Set(),
+      tools: [],
+      getSystemPrompt: () => "",
+    };
+
+    setDebugAgentSession(mockSession as any);
+
+    const context = await buildDebugContext();
+
+    expect(context!.messages).toHaveLength(0);
+    expect(context!.llmMessages).toHaveLength(0);
   });
 });

@@ -1,5 +1,5 @@
 // src/agent/__tests__/session.test.ts
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import * as path from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -335,5 +335,92 @@ describe("AgentSession", () => {
     expect(calledWith[1].isMeta).toBe(true);
 
     agent.prompt = originalPrompt;
+  });
+});
+
+describe("AgentSession attachment handling", () => {
+  it("should append attachment message to sessionManager on message_end", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    const appendSpy = spyOn((session as any)["sessionManager"], "appendMessage");
+
+    const attachmentMessage: AgentMessage = {
+      role: "attachment",
+      attachment: { type: "file", filePath: "/test.ts", displayPath: "test.ts", content: { type: "text", text: "" }, timestamp: 1000 },
+      timestamp: 1000,
+    } as AgentMessage;
+
+    // 通过 agent 触发事件
+    (session as any)["handleAgentEvent"]({ type: "message_end", message: attachmentMessage });
+
+    expect(appendSpy).toHaveBeenCalledWith(attachmentMessage);
+  });
+
+  it("should mark skills as sent for skill_listing attachment", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    const skillMessage: AgentMessage = {
+      role: "attachment",
+      attachment: {
+        type: "skill_listing",
+        content: "Skills",
+        skillNames: ["read", "write"],
+        timestamp: 1000,
+      },
+      timestamp: 1000,
+    } as AgentMessage;
+
+    session["handleAgentEvent"]({ type: "message_end", message: skillMessage });
+
+    expect(session.sentSkillNames.has("read")).toBe(true);
+    expect(session.sentSkillNames.has("write")).toBe(true);
+  });
+
+  it("should not affect sentSkillNames for non-skill attachment", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    const initialSize = session.sentSkillNames.size;
+
+    const fileMessage: AgentMessage = {
+      role: "attachment",
+      attachment: { type: "file", filePath: "/test.ts", displayPath: "test.ts", content: { type: "text", text: "" }, timestamp: 1000 },
+      timestamp: 1000,
+    } as AgentMessage;
+
+    session["handleAgentEvent"]({ type: "message_end", message: fileMessage });
+
+    expect(session.sentSkillNames.size).toBe(initialSize);
+  });
+
+  it("should not affect sentSkillNames for regular assistant message", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    const initialSize = session.sentSkillNames.size;
+
+    const assistantMessage: AgentMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "hi" }],
+      timestamp: 1000,
+    } as AgentMessage;
+
+    session["handleAgentEvent"]({ type: "message_end", message: assistantMessage });
+
+    expect(session.sentSkillNames.size).toBe(initialSize);
   });
 });

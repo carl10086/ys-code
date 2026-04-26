@@ -202,7 +202,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         const role = msg.role || msg.type || 'unknown';
         const summary = getMessageSummary(msg);
         return '<div class="message-item ' + role + '">' +
-          '<div class="message-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">' +
+          '<div class="message-header">' +
             '<span class="message-role">' + role + '</span>' +
             '<span class="message-summary">' + summary + '</span>' +
           '</div>' +
@@ -211,6 +211,17 @@ export const DEBUG_HTML = `<!DOCTYPE html>
           '</div>' +
         '</div>';
       }).join('');
+    }
+
+    function setupMessageToggle(containerId) {
+      const container = document.getElementById(containerId);
+      container.addEventListener('click', function(e) {
+        const header = e.target.closest('.message-header');
+        if (header) {
+          const body = header.nextElementSibling;
+          body.style.display = body.style.display === 'none' ? 'block' : 'none';
+        }
+      });
     }
 
     function renderTools(tools) {
@@ -282,6 +293,10 @@ export const DEBUG_HTML = `<!DOCTYPE html>
 
     // 刷新按钮
     document.getElementById('refresh-btn').addEventListener('click', loadData);
+
+    // 设置消息折叠事件委托
+    setupMessageToggle('tab-messages');
+    setupMessageToggle('tab-llm');
 
     // 初始加载
     loadData();

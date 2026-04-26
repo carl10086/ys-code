@@ -1,14 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { streamAssistantResponse, injectAtMentionAttachments } from "./stream-assistant.js";
+import { streamAssistantResponse, injectAtMentionAttachments, generateAttachments, saveAttachments, buildApiPayload } from "./stream-assistant.js";
 import { createAssistantMessageEventStream } from "../core/ai/utils/event-stream.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
 import type { AssistantMessage, Message } from "../core/ai/types.js";
 import { asSystemPrompt } from "../core/ai/types.js";
-import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { mkdtempSync, writeFileSync, rmSync, readdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { clearMemoryFilesCache } from "../utils/claudemd.js";
 import { clearUserContextCache } from "./context/user-context.js";
+
+function getCurrentSkillNames(): string[] {
+  try {
+    return readdirSync(join(process.cwd(), ".claude/skills"));
+  } catch {
+    return [];
+  }
+}
 
 function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopConfig {
   return {
@@ -26,6 +34,7 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
     },
     convertToLlm: (messages: any[]) => [...messages] as Message[],
     systemPrompt: asSystemPrompt(["test"]),
+    disableUserContext: true,
     ...overrides,
   } as AgentLoopConfig;
 }
@@ -34,6 +43,7 @@ function createMockContext(): AgentContext {
   return {
     messages: [],
     tools: [],
+    sentSkillNames: new Set(getCurrentSkillNames()),
   };
 }
 
@@ -172,7 +182,7 @@ describe("streamAssistantResponse userContext integration", () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
 
     const context = createMockContext();
-    const config = createMockConfig();
+    const config = createMockConfig({ disableUserContext: false });
 
     let capturedMessages: Message[] | undefined;
     const streamFn = async (_model: any, ctx: any) => {
@@ -238,6 +248,7 @@ describe("streamAssistantResponse userContext integration", () => {
 
     let receivedMessages: Message[] | undefined;
     const config = createMockConfig({
+      disableUserContext: false,
       convertToLlm: (messages: any[]) => {
         receivedMessages = messages as Message[];
         return messages as Message[];
@@ -400,5 +411,101 @@ describe("injectAtMentionAttachments", () => {
         displayPath: "subdir",
       },
     });
+  });
+});
+
+describe("generateAttachments", () => {
+  it("should not generate userContext attachments when disabled", async () => {
+    const context: AgentContext = { messages: [] };
+    const config: AgentLoopConfig = {
+      model: { name: "test", provider: "test" },
+      convertToLlm: (m) => m as any,
+      disableUserContext: true,
+    } as AgentLoopConfig;
+
+    const attachments = await generateAttachments(context, config);
+
+    const hasUserContext = attachments.some(
+      (a) => a.role === "attachment" && (a as any).attachment.type === "relevant_memories"
+    );
+    expect(hasUserContext).toBe(false);
+  });
+
+  it("should not duplicate skill listing for already sent skills", async () => {
+    const context: AgentContext = {
+      messages: [],
+      sentSkillNames: new Set(["read"]),
+    };
+    const config: AgentLoopConfig = {
+      model: { name: "test", provider: "test" },
+      convertToLlm: (m) => m as any,
+    } as AgentLoopConfig;
+
+    const attachments = await generateAttachments(context, config);
+
+    const skillAttachment = attachments.find(
+      (a) => a.role === "attachment" && (a as any).attachment.type === "skill_listing"
+    );
+    if (skillAttachment) {
+      expect((skillAttachment as any).attachment.skillNames).not.toContain("read");
+    }
+  });
+});
+
+describe("saveAttachments", () => {
+  it("should emit message_start and message_end for each attachment", async () => {
+    const attachments: AgentMessage[] = [
+      {
+        role: "attachment",
+        attachment: { type: "skill_listing", content: "Skills", skillNames: [], timestamp: 1000 },
+        timestamp: 1000,
+      } as AgentMessage,
+    ];
+
+    const events: any[] = [];
+    const mockEmit = async (event: any) => {
+      events.push(event);
+    };
+
+    await saveAttachments(attachments, mockEmit);
+
+    expect(events).toHaveLength(2);
+    expect(events[0].type).toBe("message_start");
+    expect(events[0].message.role).toBe("attachment");
+    expect(events[1].type).toBe("message_end");
+    expect(events[1].message.role).toBe("attachment");
+  });
+
+  it("should handle empty attachments array", async () => {
+    const events: any[] = [];
+    const mockEmit = async (event: any) => {
+      events.push(event);
+    };
+
+    await saveAttachments([], mockEmit);
+
+    expect(events).toHaveLength(0);
+  });
+});
+
+describe("buildApiPayload", () => {
+  it("should call normalizeMessages then convertToLlm", async () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "Hello", timestamp: 1000 } as AgentMessage,
+      {
+        role: "attachment",
+        attachment: { type: "skill_listing", content: "Skills", skillNames: [], timestamp: 2000 },
+        timestamp: 2000,
+      } as AgentMessage,
+    ];
+
+    const convertToLlm = (msgs: AgentMessage[]) =>
+      msgs.filter((m) => m.role === "user" || m.role === "assistant");
+
+    const result = await buildApiPayload(messages, convertToLlm);
+
+    // attachment 已被 normalize 为 user message，然后被 convertToLlm 保留
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    expect(result.every((m) => (m as any).role !== "attachment")).toBe(true);
   });
 });
