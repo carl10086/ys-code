@@ -20,7 +20,7 @@ export type AgentSessionEvent =
   | { type: "thinking_delta"; text: string; isFirst: boolean }
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
   | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string };
 
 /** AgentSession 构造选项 */
@@ -343,6 +343,7 @@ export class AgentSession {
           isError: event.isError,
           summary: summary || "done",
           timeMs: elapsed,
+          renderData: (event.result as any)?.renderData,
         });
         break;
       }
