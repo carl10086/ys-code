@@ -308,3 +308,44 @@ describe("编码/行尾保持", () => {
     }
   });
 });
+
+describe('WriteTool renderResult', () => {
+  it('创建文件应返回 plain', async () => {
+    const cache = new FileStateCache();
+    const tool = createWriteTool('/tmp');
+    const output = await tool.execute!('test-id', {
+      file_path: '/tmp/write-render-create.txt',
+      content: 'new file',
+    }, mockContext(cache));
+
+    expect(tool.renderResult).toBeDefined();
+    const renderData = tool.renderResult!(output, 'test-id');
+    expect(renderData).not.toBeNull();
+    expect(renderData!.type).toBe('plain');
+    expect((renderData as { type: 'plain'; text: string }).text).toContain('Created');
+
+    await unlink('/tmp/write-render-create.txt').catch(() => {});
+  });
+
+  it('更新文件应返回 structured_diff', async () => {
+    const cache = new FileStateCache();
+    await writeFile('/tmp/write-render-update.txt', 'old content', 'utf-8');
+    const stats = await stat('/tmp/write-render-update.txt');
+    cache.recordRead('/tmp/write-render-update.txt', 'old content', Math.floor(stats.mtimeMs));
+
+    const tool = createWriteTool('/tmp');
+    const output = await tool.execute!('test-id', {
+      file_path: '/tmp/write-render-update.txt',
+      content: 'new content',
+    }, mockContext(cache));
+
+    const renderData = tool.renderResult!(output, 'test-id');
+    expect(renderData).not.toBeNull();
+    expect(renderData!.type).toBe('structured_diff');
+    const diffData = renderData as { type: 'structured_diff'; filePath: string; hunks: any[] };
+    expect(diffData.filePath).toBe('/tmp/write-render-update.txt');
+    expect(diffData.hunks.length).toBeGreaterThan(0);
+
+    await unlink('/tmp/write-render-update.txt').catch(() => {});
+  });
+});
