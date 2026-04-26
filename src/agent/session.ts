@@ -6,7 +6,7 @@ import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
-import type { AgentEvent, AgentMessage, AgentTool, ThinkingLevel } from "./types.js";
+import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "./tools/index.js";
 import { getCommands } from "../commands/index.js";
@@ -20,7 +20,7 @@ export type AgentSessionEvent =
   | { type: "thinking_delta"; text: string; isFirst: boolean }
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
   | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string };
 
 /** AgentSession 构造选项 */
@@ -362,6 +362,7 @@ export class AgentSession {
           isError: event.isError,
           summary: summary || "done",
           timeMs: elapsed,
+          renderData: (event.result as AgentToolResult<any>)?.renderData,
         });
         break;
       }
