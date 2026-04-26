@@ -1,7 +1,10 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { extractAtMentionedFiles, readAtMentionedFile } from "./at-mention.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("extractAtMentionedFiles", () => {
   it("提取单个普通路径", () => {
@@ -66,7 +69,16 @@ describe("extractAtMentionedFiles", () => {
 });
 
 describe("readAtMentionedFile", () => {
-  const tmpDir = "/tmp/ys-test-mention";
+  let tmpDir: string;
+
+  beforeAll(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "at-mention-"));
+    fs.writeFileSync(join(tmpDir, "small.txt"), "line1\nline2");
+  });
+
+  afterAll(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   it("应读取存在的文件并返回 FileAttachment", async () => {
     const result = await readAtMentionedFile(path.join(tmpDir, "small.txt"), tmpDir);
