@@ -192,9 +192,16 @@ async function finalizeExecutedToolCall(
       content = [{ type: "text", text: String(executed.output) }];
     }
     if (prepared.tool.renderResult) {
-      const rendered = prepared.tool.renderResult(executed.output, prepared.toolCall.id);
-      if (rendered) {
-        renderData = rendered;
+      try {
+        const rendered = prepared.tool.renderResult(executed.output, prepared.toolCall.id);
+        if (rendered) {
+          renderData = rendered;
+        }
+      } catch (error) {
+        logger.warn("Tool renderResult failed, falling back to plain text", {
+          toolName: prepared.tool.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }
