@@ -8,7 +8,7 @@ export type UIMessage =
   | { type: "thinking"; text: string }
   | { type: "text"; text: string }
   | { type: "tool_start"; toolName: string; args: unknown }
-  | { type: "tool_end"; toolName: string; isError: boolean; summary: string; timeMs: number }
+  | { type: "tool_end"; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("../agent/types.js").ToolRenderResult }
   | {
       type: "assistant_end";
       tokens: number;
