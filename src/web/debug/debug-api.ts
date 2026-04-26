@@ -1,6 +1,7 @@
 // src/web/debug/debug-api.ts
 import type { AgentMessage } from "../../agent/types.js";
 import type { Message } from "../../core/ai/index.js";
+import { normalizeMessages } from "../../agent/attachments/normalize.js";
 import { getDebugAgentSession } from "./debug-context.js";
 
 /**
@@ -32,14 +33,14 @@ export interface DebugContextResponse {
 /**
  * 构建 Debug 上下文响应
  */
-async function buildDebugContext(): Promise<DebugContextResponse | null> {
+export async function buildDebugContext(): Promise<DebugContextResponse | null> {
   const session = getDebugAgentSession();
   if (!session) {
     return null;
   }
 
-  const messages = [...session.messages];
-  const llmMessages = await session.convertToLlm(messages);
+  const messages = [...session.messages];  // 包含 attachment
+  const llmMessages = await session.convertToLlm(normalizeMessages(messages));  // 正确的 LLM payload
 
   return {
     sessionId: session.sessionId,
