@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync, symlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { loadCommandsFromDir, getProjectCommandDirs } from "./loadCommandsDir.js";
+import type { PromptCommand } from "./types.js";
 
 describe("loadCommandsFromDir", () => {
   let tempDir: string;
@@ -44,10 +45,10 @@ describe("loadCommandsFromDir", () => {
     const result = await loadCommandsFromDir(cmdsDir, "userSettings");
     expect(result.length).toBe(2);
 
-    const names = result.map((c: typeof result[0]) => c.name).sort();
+    const names = result.map((c: PromptCommand) => c.name).sort();
     expect(names).toEqual(["hello", "world"]);
 
-    const helloCmd = result.find((c: typeof result[0]) => c.name === "hello");
+    const helloCmd = result.find((c: PromptCommand) => c.name === "hello");
     expect(helloCmd).toBeDefined();
     expect(helloCmd!.description).toBe("Say hello");
     expect(helloCmd!.type).toBe("prompt");

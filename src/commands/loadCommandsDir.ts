@@ -8,6 +8,8 @@ import {
 } from "../skills/frontmatter.js";
 import { logger } from "../utils/logger.js";
 
+const VALID_COMMAND_NAME = /^[a-zA-Z0-9_-]+$/;
+
 /**
  * 从单个 commands 目录加载所有 .md 命令文件
  * 只扫描直接位于目录下的 *.md 文件，忽略子目录
@@ -25,39 +27,48 @@ export async function loadCommandsFromDir(
   }
 
   const mdFiles = entries.filter(
-    (entry) => entry.isFile() && entry.name.endsWith(".md")
+    (entry) =>
+      entry.name.endsWith(".md") && (entry.isFile() || entry.isSymbolicLink())
   );
 
-  const commands: PromptCommand[] = [];
+  const commands = (
+    await Promise.all(
+      mdFiles.map(async (file) => {
+        const filePath = join(dirPath, file.name);
+        const commandName = file.name.replace(/\.md$/, "");
 
-  for (const file of mdFiles) {
-    const filePath = join(dirPath, file.name);
-    const commandName = file.name.replace(/\.md$/, "");
+        if (!VALID_COMMAND_NAME.test(commandName)) {
+          logger.warn(
+            `Invalid command name "${commandName}" in ${filePath}, skipping`
+          );
+          return null;
+        }
 
-    try {
-      const rawContent = await readFile(filePath, { encoding: "utf-8" });
-      const { frontmatter, content: markdownContent } =
-        parseFrontmatter(rawContent);
+        try {
+          const rawContent = await readFile(filePath, { encoding: "utf-8" });
+          const { frontmatter, content: markdownContent } =
+            parseFrontmatter(rawContent);
 
-      const parsed = parseSkillFrontmatterFields(
-        frontmatter,
-        markdownContent,
-        commandName
-      );
+          const parsed = parseSkillFrontmatterFields(
+            frontmatter,
+            markdownContent,
+            commandName
+          );
 
-      const cmd = createPromptCommand({
-        commandName,
-        markdownContent,
-        source,
-        ...parsed,
-      });
-
-      commands.push(cmd);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn(`Failed to load command from ${filePath}: ${message}`);
-    }
-  }
+          return createPromptCommand({
+            commandName,
+            markdownContent,
+            source,
+            ...parsed,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.warn(`Failed to load command from ${filePath}: ${message}`);
+          return null;
+        }
+      })
+    )
+  ).filter((cmd): cmd is PromptCommand => cmd !== null);
 
   return commands;
 }
@@ -120,7 +131,6 @@ export async function getProjectCommandDirs(
  */
 function createPromptCommand({
   commandName,
-  displayName,
   description,
   markdownContent,
   allowedTools,
@@ -133,7 +143,6 @@ function createPromptCommand({
   source,
 }: {
   commandName: string;
-  displayName: string | undefined;
   description: string;
   markdownContent: string;
   allowedTools: string[];
