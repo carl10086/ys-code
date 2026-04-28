@@ -270,3 +270,93 @@ describe("runLoop 控制流结构", () => {
     expect(source).not.toContain("createAgentStream");
   });
 });
+
+describe("runAgentLoop modelOverride", () => {
+  it("modelOverride 存在时临时切换模型并在 turn 结束恢复", async () => {
+    const originalModel = createMockModel();
+    const context: AgentContext = {
+      messages: [],
+      tools: [],
+      modelOverride: "MiniMax-M2.7",
+    };
+    const config: AgentLoopConfig = {
+      model: originalModel,
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let capturedModel: any;
+    const streamFn = async (model: any) => {
+      capturedModel = model;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      const msg = createAssistantMessage("hi");
+      stream.end(msg);
+      return stream;
+    };
+
+    const prompts = [createUserMessage("hello")];
+    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
+
+    expect(capturedModel.name).toBe("MiniMax-M2.7");
+    expect(config.model.name).toBe("test"); // 恢复原始模型
+  });
+
+  it("modelOverride 无效时忽略并保持当前模型", async () => {
+    const originalModel = createMockModel();
+    const context: AgentContext = {
+      messages: [],
+      tools: [],
+      modelOverride: "nonexistent-model",
+    };
+    const config: AgentLoopConfig = {
+      model: originalModel,
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    let capturedModel: any;
+    const streamFn = async (model: any) => {
+      capturedModel = model;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      const msg = createAssistantMessage("hi");
+      stream.end(msg);
+      return stream;
+    };
+
+    const prompts = [createUserMessage("hello")];
+    await runAgentLoop(prompts, context, config, async () => {}, undefined, streamFn as any);
+
+    expect(capturedModel.name).toBe("test");
+    expect(config.model.name).toBe("test");
+  });
+
+  it("stream 抛出异常后仍恢复原始模型", async () => {
+    const originalModel = createMockModel();
+    const context: AgentContext = {
+      messages: [],
+      tools: [],
+      modelOverride: "MiniMax-M2.7",
+    };
+    const config: AgentLoopConfig = {
+      model: originalModel,
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const streamFn = async () => {
+      throw new Error("stream error");
+    };
+
+    const prompts = [createUserMessage("hello")];
+    await expect(
+      runAgentLoop(prompts, context, config, async () => {}, undefined, streamFn as any)
+    ).rejects.toThrow("stream error");
+
+    expect(config.model.name).toBe("test");
+  });
+});

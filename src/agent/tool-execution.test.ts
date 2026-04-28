@@ -243,4 +243,90 @@ describe("executeToolCalls", () => {
       "message_end",
     ]);
   });
+
+  it("工具返回 newMessages 时加入 currentContext.pendingMessages", async () => {
+    const tool: AgentTool = {
+      name: "meta",
+      description: "meta",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => ({
+        text: "done",
+        newMessages: [{ role: "user", content: "meta-msg", timestamp: Date.now() }],
+      }),
+      formatResult: () => [{ type: "text", text: "done" }],
+    };
+
+    const context = createMockContext([tool]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "meta", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const emit = async () => {};
+
+    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(context.pendingMessages).toHaveLength(1);
+    expect((context.pendingMessages![0] as any).content).toBe("meta-msg");
+  });
+
+  it("工具返回 modelOverride 时写入 currentContext.modelOverride", async () => {
+    const tool: AgentTool = {
+      name: "model",
+      description: "model",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => ({
+        text: "done",
+        modelOverride: "MiniMax-M2.7",
+      }),
+      formatResult: () => [{ type: "text", text: "done" }],
+    };
+
+    const context = createMockContext([tool]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "model", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const emit = async () => {};
+
+    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(context.modelOverride).toBe("MiniMax-M2.7");
+  });
+
+  it("多个工具返回 modelOverride 时后者覆盖前者", async () => {
+    const toolA: AgentTool = {
+      name: "toolA",
+      description: "toolA",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => ({ modelOverride: "model-A" }),
+      formatResult: () => [{ type: "text", text: "a" }],
+    };
+    const toolB: AgentTool = {
+      name: "toolB",
+      description: "toolB",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => ({ modelOverride: "model-B" }),
+      formatResult: () => [{ type: "text", text: "b" }],
+    };
+
+    const context = createMockContext([toolA, toolB]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "toolA", arguments: {} },
+      { type: "toolCall", id: "call-2", name: "toolB", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = { toolExecution: "sequential" } as any;
+    const emit = async () => {};
+
+    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(context.modelOverride).toBe("model-B");
+  });
 });
