@@ -1,11 +1,11 @@
 // src/tui/app.tsx
 import { Box } from "ink";
 import React, { useEffect, useState } from "react";
-import type { AgentMessage } from "../agent/types.js";
 import type { Command } from "../commands/index.js";
 import { logger } from "../utils/logger.js";
 import { getModel, getEnvApiKey } from "../core/ai/index.js";
 import { executeCommand, getCommands } from "../commands/index.js";
+import { dispatchCommandResult } from "./command-utils.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
@@ -56,10 +56,13 @@ export function App(): React.ReactElement {
       appendSystemMessage,
       resetSession,
     }, ".claude/skills", process.cwd());
-    if (result.handled && result.textResult) {
-      appendSystemMessage(result.textResult);
-    }
-    return result.handled;
+    return dispatchCommandResult(
+      result,
+      text,
+      session,
+      appendUserMessage,
+      appendSystemMessage,
+    );
   };
 
   const handleSubmit = async (text: string) => {
@@ -77,32 +80,13 @@ export function App(): React.ReactElement {
         resetSession,
       }, ".claude/skills", process.cwd());
 
-      if (result.handled) {
-        // 显示用户输入
-        appendUserMessage(trimmed);
-
-        // 处理 meta 消息 - 使用 prompt 数组在同一 turn 发送
-        if (result.metaMessages && result.metaMessages.length > 0) {
-          // 构建消息数组：用户输入 + meta messages
-          const messages: AgentMessage[] = [
-            { role: "user", content: [{ type: "text", text: trimmed }], timestamp: Date.now() },
-            ...result.metaMessages.map(
-              (metaContent): AgentMessage => ({
-                role: "user" as const,
-                content: [{ type: "text" as const, text: metaContent }],
-                timestamp: Date.now(),
-                isMeta: true,
-              }),
-            ),
-          ];
-          session.prompt(messages);
-        } else {
-          session.prompt(trimmed);
-        }
-
-        if (result.textResult) {
-          appendSystemMessage(result.textResult);
-        }
+      if (dispatchCommandResult(
+        result,
+        trimmed,
+        session,
+        appendUserMessage,
+        appendSystemMessage,
+      )) {
         return;
       }
     }
