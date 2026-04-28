@@ -21,6 +21,7 @@ export function dispatchCommandResult(
   appendUserMessage(text);
 
   // 处理 meta 消息 - 使用 prompt 数组在同一 turn 发送
+  const promptOptions = result.model ? { model: result.model } : undefined;
   if (result.metaMessages && result.metaMessages.length > 0) {
     const messages: AgentMessage[] = [
       { role: "user", content: [{ type: "text", text }], timestamp: Date.now() },
@@ -33,9 +34,9 @@ export function dispatchCommandResult(
         }),
       ),
     ];
-    session.prompt(messages);
+    session.prompt(messages, promptOptions);
   } else {
-    session.prompt(text);
+    session.prompt(text, promptOptions);
   }
 
   if (result.textResult) {

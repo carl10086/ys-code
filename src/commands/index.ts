@@ -141,6 +141,8 @@ export interface ExecuteCommandResult {
   metaMessages?: string[];
   /** 完成回调（local-jsx 命令使用） */
   onDone?: LocalJSXCommandOnDone;
+  /** 命令级模型覆盖（prompt 命令使用） */
+  model?: string;
 }
 
 /**
@@ -204,6 +206,14 @@ export async function executeCommand(
 
   // prompt 类型命令：获取 skill 内容作为 meta 消息返回
   if (command.type === "prompt") {
+    // P0: userInvocable 检查
+    if (command.userInvocable === false) {
+      return {
+        handled: true,
+        textResult: `This skill can only be invoked by the model, not directly by users. Ask the model to use the "${command.name}" skill for you.`,
+      };
+    }
+
     try {
       logger.debug("Fetching skill content", { commandName });
       const contentBlocks = await command.getPromptForCommand(args);
@@ -212,7 +222,7 @@ export async function executeCommand(
         .map(block => block.text)
         .join('\n\n');
       logger.debug("Skill metaMessages generated", { metaMessagesCount: 1, contentLength: textContent.length });
-      return { handled: true, metaMessages: [textContent] };
+      return { handled: true, metaMessages: [textContent], model: command.model };
     } catch {
       return { handled: false };
     }

@@ -1,5 +1,6 @@
 // src/agent/agent-loop.ts
-import { type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
+import { type AssistantMessage, type Model, type ToolResultMessage } from "../core/ai/index.js";
+import { findModelById } from "../core/ai/models.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
 import { logger } from "../utils/logger.js";
@@ -33,36 +34,57 @@ async function runTurnOnce(
 ): Promise<{ assistantMessage: AssistantMessage; toolResults: ToolResultMessage[] }> {
   logger.debug("runTurnOnce started");
 
-  if (pendingMessages.length > 0) {
-    for (const message of pendingMessages) {
-      logger.debug("Injecting pending message", { role: message.role });
-      await emit({ type: "message_start", message });
-      await emit({ type: "message_end", message });
-      currentContext.messages.push(message);
-      newMessages.push(message);
+  // T6: 应用 modelOverride（由 SkillTool 等设置）
+  let originalModel: Model<any> | undefined;
+  if (currentContext.modelOverride) {
+    const resolvedModel = findModelById(currentContext.modelOverride);
+    if (resolvedModel) {
+      originalModel = config.model;
+      config.model = resolvedModel;
+      logger.info("Model overridden for tool turn", { model: resolvedModel.name });
+    } else {
+      logger.warn("Unknown model override, ignoring", { model: currentContext.modelOverride });
     }
-    pendingMessages.length = 0;
+    currentContext.modelOverride = undefined;
   }
 
-  const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
-  newMessages.push(message);
+  try {
+    if (pendingMessages.length > 0) {
+      for (const message of pendingMessages) {
+        logger.debug("Injecting pending message", { role: message.role });
+        await emit({ type: "message_start", message });
+        await emit({ type: "message_end", message });
+        currentContext.messages.push(message);
+        newMessages.push(message);
+      }
+      pendingMessages.length = 0;
+    }
 
-  const toolCalls = message.content.filter((c) => c.type === "toolCall");
-  const hasMoreToolCalls = toolCalls.length > 0;
+    const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
+    newMessages.push(message);
 
-  const toolResults: ToolResultMessage[] = [];
-  if (hasMoreToolCalls) {
-    toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
+    const toolCalls = message.content.filter((c) => c.type === "toolCall");
+    const hasMoreToolCalls = toolCalls.length > 0;
 
-    for (const result of toolResults) {
-      currentContext.messages.push(result);
-      newMessages.push(result);
+    const toolResults: ToolResultMessage[] = [];
+    if (hasMoreToolCalls) {
+      toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
+
+      for (const result of toolResults) {
+        currentContext.messages.push(result);
+        newMessages.push(result);
+      }
+    }
+
+    await emit({ type: "turn_end", message, toolResults });
+
+    return { assistantMessage: message, toolResults };
+  } finally {
+    // 恢复原始模型
+    if (originalModel) {
+      config.model = originalModel;
     }
   }
-
-  await emit({ type: "turn_end", message, toolResults });
-
-  return { assistantMessage: message, toolResults };
 }
 
 /**
@@ -95,7 +117,7 @@ async function runLoop(
       }
       hasPreEmittedTurnStart = false;
 
-      const { assistantMessage: message, toolResults } = await runTurnOnce(
+      const { assistantMessage: message } = await runTurnOnce(
         currentContext,
         newMessages,
         pendingMessages,

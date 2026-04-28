@@ -150,6 +150,23 @@ describe("loadCommandsFromDir", () => {
     expect(names).toEqual(["link", "target"]);
   });
 
+  it("应跳过逃逸出命令目录的符号链接", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    const escapeDir = join(tempDir, "escape");
+    mkdirSync(cmdsDir, { recursive: true });
+    mkdirSync(escapeDir, { recursive: true });
+
+    writeFileSync(
+      join(escapeDir, "secret.md"),
+      "---\ndescription: Secret command\n---\n# Secret"
+    );
+    // 创建一个指向 cmdsDir 外部的符号链接
+    symlinkSync(join(escapeDir, "secret.md"), join(cmdsDir, "escape.md"));
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(0);
+  });
+
   it("frontmatter YAML 解析失败时应使用 fallback 继续加载", async () => {
     const cmdsDir = join(tempDir, "commands");
     mkdirSync(cmdsDir, { recursive: true });
@@ -163,6 +180,75 @@ describe("loadCommandsFromDir", () => {
     expect(result.length).toBe(1);
     expect(result[0].name).toBe("bad-yaml");
     expect(result[0].description).toBe("Bad YAML Command");
+  });
+
+  it("getPromptForCommand 应替换 $ARGUMENTS 占位符", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "greet.md"),
+      "---\ndescription: Greet\n---\n# Greet\n\nHello $ARGUMENTS!"
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(1);
+
+    const blocks = await result[0].getPromptForCommand("world");
+    expect(blocks[0].type).toBe("text");
+    expect((blocks[0] as any).text).toContain("Hello world!");
+  });
+
+  it("getPromptForCommand 应跳过代码块内的占位符", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "code.md"),
+      "---\ndescription: Code\n---\n# Code\n\n```\necho $ARGUMENTS\n```\n\nOutside: $ARGUMENTS"
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    const blocks = await result[0].getPromptForCommand("hello");
+    const text = (blocks[0] as any).text;
+
+    expect(text).toContain("echo $ARGUMENTS"); // 代码块内未替换
+    expect(text).toContain("Outside: hello");   // 代码块外已替换
+  });
+
+  it("getPromptForCommand 无占位符时应自动追加 ARGUMENTS", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "noop.md"),
+      "---\ndescription: Noop\n---\n# Noop\n\nJust a command."
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    const blocks = await result[0].getPromptForCommand("foo bar");
+    const text = (blocks[0] as any).text;
+
+    expect(text).toContain("Just a command.");
+    expect(text).toContain("ARGUMENTS: foo bar");
+  });
+
+  it("getPromptForCommand 应替换 frontmatter 定义的具名参数", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "named.md"),
+      "---\ndescription: Named\narguments: [name, age]\n---\n# Named\n\nName: $name, Age: $age"
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(1);
+
+    const blocks = await result[0].getPromptForCommand("Alice 30");
+    const text = (blocks[0] as any).text;
+
+    expect(text).toContain("Name: Alice, Age: 30");
   });
 });
 

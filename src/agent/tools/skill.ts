@@ -18,9 +18,9 @@ const SkillOutputSchema = Type.Object({
   }),
   newMessages: Type.Optional(Type.Array(Type.Any())),
   contextModifier: Type.Optional(Type.Any()),
+  modelOverride: Type.Optional(Type.String()),
 });
 
-type SkillInput = Static<typeof SkillInputSchema>;
 type SkillOutput = Static<typeof SkillOutputSchema>;
 
 /**
@@ -41,7 +41,22 @@ Call this tool with the exact skill name from the listing.`,
     isReadOnly: true,
     isConcurrencySafe: true,
 
-    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
+    async validateInput(params, _context) {
+      const commands = await getCommands();
+      const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
+
+      if (!command) {
+        return { ok: false, message: `Skill "${params.skill}" not found.` };
+      }
+
+      if (command.userInvocable === false) {
+        return { ok: false, message: `Skill "${params.skill}" is not available for invocation.` };
+      }
+
+      return { ok: true };
+    },
+
+    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[]; modelOverride?: string }> {
       const commands = await getCommands();
       const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
 
@@ -50,10 +65,10 @@ Call this tool with the exact skill name from the listing.`,
         return messages;
       };
 
+      // 防御性检查：validateInput 已通过，但框架不保证一定调用
       if (!command) {
-        // 返回错误结果
         return {
-          content: [],
+          content: [{ type: "text", text: `Skill "${params.skill}" not found` }],
           details: { success: false, skillName: params.skill },
           contextModifier: modifier,
         };
@@ -82,6 +97,7 @@ Call this tool with the exact skill name from the listing.`,
         details: { success: true, skillName: params.skill },
         newMessages: [metaUserMessage as AgentMessage],
         contextModifier: modifier,
+        modelOverride: command.model,
       };
     },
 

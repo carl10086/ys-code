@@ -9,6 +9,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { clearMemoryFilesCache } from "../utils/claudemd.js";
 import { clearUserContextCache } from "./context/user-context.js";
+import { getCommands } from "../commands/index.js";
+import type { PromptCommand } from "../commands/types.js";
 
 function getCurrentSkillNames(): string[] {
   try {
@@ -39,17 +41,21 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
   } as AgentLoopConfig;
 }
 
-function createMockContext(): AgentContext {
+async function createMockContext(): Promise<AgentContext> {
+  const allCommands = await getCommands(join(process.cwd(), ".claude/skills"));
+  const allNames = allCommands
+    .filter((cmd): cmd is PromptCommand => cmd.type === "prompt")
+    .map((cmd) => cmd.name);
   return {
     messages: [],
     tools: [],
-    sentSkillNames: new Set(getCurrentSkillNames()),
+    sentSkillNames: new Set([...getCurrentSkillNames(), ...allNames]),
   };
 }
 
 describe("streamAssistantResponse", () => {
   it("正常流式响应：正确处理 start、text_delta、done 事件", async () => {
-    const context = createMockContext();
+    const context = await createMockContext();
     const config = createMockConfig();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
@@ -89,7 +95,7 @@ describe("streamAssistantResponse", () => {
   });
 
   it("无流事件直接返回结果：触发 message_start + message_end", async () => {
-    const context = createMockContext();
+    const context = await createMockContext();
     const config = createMockConfig();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
@@ -118,7 +124,7 @@ describe("streamAssistantResponse", () => {
   });
 
   it("streamFunction 抛出异常时向上传播", async () => {
-    const context = createMockContext();
+    const context = await createMockContext();
     const config = createMockConfig();
     const emit = async () => {};
 
@@ -130,7 +136,7 @@ describe("streamAssistantResponse", () => {
   });
 
   it("signal aborted 时 streamFunction 应收到取消信号", async () => {
-    const context = createMockContext();
+    const context = await createMockContext();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
     const controller = new AbortController();
@@ -181,7 +187,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("默认应自动 prepend userContext 到 messages", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
 
-    const context = createMockContext();
+    const context = await createMockContext();
     const config = createMockConfig({ disableUserContext: false });
 
     let capturedMessages: Message[] | undefined;
@@ -213,7 +219,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("disableUserContext 为 true 时不应 prepend meta message", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
 
-    const context = createMockContext();
+    const context = await createMockContext();
     const config = createMockConfig({ disableUserContext: true });
 
     let capturedMessages: Message[] | undefined;
@@ -244,7 +250,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("convertToLlm 收到的消息应为 Message[]（无 attachment）", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test");
 
-    const context = createMockContext();
+    const context = await createMockContext();
 
     let receivedMessages: Message[] | undefined;
     const config = createMockConfig({

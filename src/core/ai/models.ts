@@ -37,6 +37,18 @@ export function getModels<TProvider extends KnownProvider>(
 	return models ? (Array.from(models.values()) as Model<ModelApi<TProvider, keyof (typeof MODELS)[TProvider]>>[]) : [];
 }
 
+/**
+ * Find a model by its ID across all providers.
+ * Returns undefined if not found.
+ */
+export function findModelById(modelId: string): Model<Api> | undefined {
+	for (const providerModels of modelRegistry.values()) {
+		const model = providerModels.get(modelId);
+		if (model) return model;
+	}
+	return undefined;
+}
+
 export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage): Usage["cost"] {
 	usage.cost.input = (model.cost.input / 1000000) * usage.input;
 	usage.cost.output = (model.cost.output / 1000000) * usage.output;

@@ -336,6 +336,56 @@ describe("AgentSession", () => {
 
     agent.prompt = originalPrompt;
   });
+
+  it("prompt with model option should override and restore", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({
+      cwd: "/tmp",
+      model,
+      apiKey: "test",
+      systemPrompt: async () => asSystemPrompt([""]),
+      sessionBaseDir: tmpDir,
+    });
+
+    const agent = (session as any).agent;
+    const originalPrompt = agent.prompt;
+    let modelDuringPrompt = "";
+    agent.prompt = async () => {
+      modelDuringPrompt = session.model.name;
+    };
+
+    await session.prompt("hello", { model: "MiniMax-M2.7" });
+
+    expect(modelDuringPrompt).toBe("MiniMax-M2.7");
+    expect(session.model.name).toBe("MiniMax-M2.7-highspeed");
+
+    agent.prompt = originalPrompt;
+  });
+
+  it("prompt with invalid model option should ignore and warn", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({
+      cwd: "/tmp",
+      model,
+      apiKey: "test",
+      systemPrompt: async () => asSystemPrompt([""]),
+      sessionBaseDir: tmpDir,
+    });
+
+    const agent = (session as any).agent;
+    const originalPrompt = agent.prompt;
+    let modelDuringPrompt = "";
+    agent.prompt = async () => {
+      modelDuringPrompt = session.model.name;
+    };
+
+    await session.prompt("hello", { model: "nonexistent-model" });
+
+    expect(modelDuringPrompt).toBe("MiniMax-M2.7-highspeed");
+    expect(session.model.name).toBe("MiniMax-M2.7-highspeed");
+
+    agent.prompt = originalPrompt;
+  });
 });
 
 describe("AgentSession attachment handling", () => {
