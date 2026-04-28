@@ -57,7 +57,11 @@ export interface AgentToolResult<T> {
   newMessages?: AgentMessage[];
   /** 上下文修改器 */
   contextModifier?: (messages: AgentMessage[]) => AgentMessage[];
-  /** 命令级模型覆盖 */
+  /**
+   * 命令级模型覆盖。
+   * - 顺序执行时：最后一个有 override 的工具生效（覆盖式）
+   * - 并行执行时：第一个（按请求顺序）有 override 的工具生效，避免竞争
+   */
   modelOverride?: string;
 }
 

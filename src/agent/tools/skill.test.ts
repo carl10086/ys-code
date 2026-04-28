@@ -34,7 +34,36 @@ describe("createSkillTool", () => {
     expect(result.newMessages![0].content).toBe("Skill content: hello");
   });
 
-  it("skill 未找到时返回错误", async () => {
+  it("validateInput: skill 未找到时返回错误", async () => {
+    const tool = createSkillTool(async () => []);
+
+    const result = await tool.validateInput!({ skill: "missing" }, {
+      abortSignal: new AbortController().signal,
+      messages: [],
+      tools: [],
+      fileStateCache: {} as any,
+    });
+
+    expect(result.ok).toBe(false);
+    expect((result as any).message).toContain("not found");
+  });
+
+  it("validateInput: userInvocable=false 的 skill 应被阻止", async () => {
+    const command = createMockCommand({ userInvocable: false });
+    const tool = createSkillTool(async () => [command]);
+
+    const result = await tool.validateInput!({ skill: "test-skill" }, {
+      abortSignal: new AbortController().signal,
+      messages: [],
+      tools: [],
+      fileStateCache: {} as any,
+    });
+
+    expect(result.ok).toBe(false);
+    expect((result as any).message).toContain("not available");
+  });
+
+  it("execute: skill 未找到时返回防御性错误", async () => {
     const tool = createSkillTool(async () => []);
 
     const result = await tool.execute("call-1", { skill: "missing" }, {
@@ -47,6 +76,7 @@ describe("createSkillTool", () => {
     expect(result.details.success).toBe(false);
     expect(result.details.skillName).toBe("missing");
     expect(result.newMessages).toBeUndefined();
+    expect((result.content[0] as any).text).toContain("not found");
   });
 
   it("当 command 有 model 字段时返回 modelOverride", async () => {

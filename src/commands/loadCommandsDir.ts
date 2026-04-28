@@ -7,7 +7,10 @@ import {
   parseSkillFrontmatterFields,
 } from "../skills/frontmatter.js";
 import { logger } from "../utils/logger.js";
-import { substituteArguments } from "../utils/argumentSubstitution.js";
+import {
+  substituteArguments,
+  ARGUMENTS_APPEND_PREFIX,
+} from "../utils/argumentSubstitution.js";
 
 const VALID_COMMAND_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
@@ -173,12 +176,11 @@ function substituteArgumentsOutsideCodeBlocks(
       if (inCodeBlock) {
         return line;
       }
-      const before = line;
-      const after = substituteArguments(line, args, false, argumentNames);
-      if (after !== before) {
+      const result = substituteArguments(line, args, false, argumentNames);
+      if (result.hasReplaced) {
         hasReplaced = true;
       }
-      return after;
+      return result.content;
     })
     .join("\n");
   return { content: result, hasReplaced };
@@ -239,7 +241,7 @@ function createPromptCommand({
         finalContent = content;
         // 若无占位符被替换，自动追加 ARGUMENTS
         if (!hasReplaced) {
-          finalContent = finalContent + `\n\nARGUMENTS: ${args}`;
+          finalContent = finalContent + `\n\n${ARGUMENTS_APPEND_PREFIX} ${args}`;
         }
       }
 

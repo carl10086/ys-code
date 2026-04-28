@@ -1,5 +1,5 @@
 // src/agent/agent-loop.ts
-import { type AssistantMessage, type ToolResultMessage } from "../core/ai/index.js";
+import { type AssistantMessage, type Model, type ToolResultMessage } from "../core/ai/index.js";
 import { findModelById } from "../core/ai/models.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
@@ -35,12 +35,12 @@ async function runTurnOnce(
   logger.debug("runTurnOnce started");
 
   // T6: 应用 modelOverride（由 SkillTool 等设置）
-  let originalModel: typeof config.model | undefined;
+  let originalModel: Model<any> | undefined;
   if (currentContext.modelOverride) {
     const resolvedModel = findModelById(currentContext.modelOverride);
     if (resolvedModel) {
       originalModel = config.model;
-      (config as { model: typeof config.model }).model = resolvedModel;
+      config.model = resolvedModel;
       logger.info("Model overridden for tool turn", { model: resolvedModel.name });
     } else {
       logger.warn("Unknown model override, ignoring", { model: currentContext.modelOverride });
@@ -81,8 +81,8 @@ async function runTurnOnce(
     return { assistantMessage: message, toolResults };
   } finally {
     // 恢复原始模型
-    if (originalModel && originalModel !== config.model) {
-      (config as { model: typeof config.model }).model = originalModel;
+    if (originalModel) {
+      config.model = originalModel;
     }
   }
 }
@@ -117,7 +117,7 @@ async function runLoop(
       }
       hasPreEmittedTurnStart = false;
 
-      const { assistantMessage: message, toolResults } = await runTurnOnce(
+      const { assistantMessage: message } = await runTurnOnce(
         currentContext,
         newMessages,
         pendingMessages,

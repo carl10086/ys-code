@@ -297,8 +297,8 @@ async function executeToolCallsParallel(
       currentContext.pendingMessages.push(...executed.newMessages);
       logger.debug("Tool newMessages queued for next turn (parallel)", { count: executed.newMessages.length });
     }
-    // 传递 modelOverride
-    if (executed.modelOverride) {
+    // 传递 modelOverride（第一个生效，避免竞争）
+    if (executed.modelOverride && !currentContext.modelOverride) {
       currentContext.modelOverride = executed.modelOverride;
     }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });

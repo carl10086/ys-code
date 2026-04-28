@@ -245,6 +245,11 @@ export class Agent {
     return this._state;
   }
 
+  /** 设置当前模型（用于命令级模型覆盖） */
+  setModel(model: Model<any>): void {
+    this._state.model = model;
+  }
+
   /** 引导队列模式 */
   set steeringMode(mode: QueueMode) {
     this.steeringQueue.mode = mode;

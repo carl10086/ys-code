@@ -230,7 +230,7 @@ export class AgentSession {
       const resolvedModel = findModelById(options.model);
       if (resolvedModel) {
         originalModel = this.agent.state.model;
-        (this.agent.state as { model: Model<any> }).model = resolvedModel;
+        this.agent.setModel(resolvedModel);
         logger.info("Model overridden for this turn", { model: resolvedModel.name });
       } else {
         logger.warn("Unknown model override, ignoring", { model: options.model });
@@ -251,7 +251,7 @@ export class AgentSession {
     } finally {
       // 恢复原始模型
       if (originalModel) {
-        (this.agent.state as { model: Model<any> }).model = originalModel;
+        this.agent.setModel(originalModel);
         logger.info("Model restored", { model: originalModel.name });
       }
     }

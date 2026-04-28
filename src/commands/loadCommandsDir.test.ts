@@ -150,6 +150,23 @@ describe("loadCommandsFromDir", () => {
     expect(names).toEqual(["link", "target"]);
   });
 
+  it("应跳过逃逸出命令目录的符号链接", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    const escapeDir = join(tempDir, "escape");
+    mkdirSync(cmdsDir, { recursive: true });
+    mkdirSync(escapeDir, { recursive: true });
+
+    writeFileSync(
+      join(escapeDir, "secret.md"),
+      "---\ndescription: Secret command\n---\n# Secret"
+    );
+    // 创建一个指向 cmdsDir 外部的符号链接
+    symlinkSync(join(escapeDir, "secret.md"), join(cmdsDir, "escape.md"));
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(0);
+  });
+
   it("frontmatter YAML 解析失败时应使用 fallback 继续加载", async () => {
     const cmdsDir = join(tempDir, "commands");
     mkdirSync(cmdsDir, { recursive: true });
