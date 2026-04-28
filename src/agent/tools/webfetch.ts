@@ -23,6 +23,11 @@ type WebFetchOutput = Static<typeof webFetchOutputSchema>;
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_HTTP_CONTENT_LENGTH = 5 * 1024 * 1024;
 
+/** @internal Test-only override for timeout */
+export const __testConfig = {
+  fetchTimeoutMs: FETCH_TIMEOUT_MS,
+};
+
 export function createWebFetchTool(): AgentTool<typeof webFetchSchema, WebFetchOutput> {
   return defineAgentTool({
     name: "WebFetch",
@@ -50,7 +55,7 @@ The tool fetches the raw content from the URL, converts HTML to Markdown if need
       const url = params.url;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), __testConfig.fetchTimeoutMs);
 
       // Link the external abort signal
       const onAbort = () => controller.abort();
