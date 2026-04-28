@@ -38,6 +38,7 @@
     "react-dom": "^19.2.5",
     "sharp": "^0.34.5",
     "strip-ansi": "7.2.0",
+    "turndown": "^7.2.4",
     "vscode-jsonrpc": "8.2.1",
     "vscode-languageserver-types": "3.17.5",
     "wrap-ansi": "10.0.0",
@@ -48,6 +49,7 @@
     "@types/bun": "^1.3.11",
     "@types/picomatch": "^4.0.3",
     "@types/react": "^19.2.14",
+    "@types/turndown": "^5.0.6",
     "ink-testing-library": "^4.0.0",
     "typescript": "6.0.2"
   }
