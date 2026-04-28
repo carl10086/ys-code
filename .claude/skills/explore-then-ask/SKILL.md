@@ -22,6 +22,10 @@ Do NOT invoke any implementation skill, write any code, scaffold any project, or
 - You must use chinese to present design and trade-offs
 </IMPORTANT>
 
+## Anti-Pattern: "This Is Too Simple To Need A Design"
+
+Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+
 ## Checklist
 
 Complete these in order:
@@ -128,13 +132,3 @@ Simply confirm the agreed-upon direction and wait for the user's next instructio
 - **Incremental validation** — Present design, get approval before moving on
 - **Be flexible** — Go back and clarify when something doesn't make sense
 
-## Failure Modes to Avoid
-
-1. Asking questions without reading context first
-2. Making wrong assumptions without checking
-3. Not surfacing inconsistencies you notice
-4. Not presenting tradeoffs on non-obvious decisions
-5. Being sycophantic ("没问题！") to approaches with clear problems
-6. Overcomplicating the design
-7. Skipping the assumption-surfacing step
-8. Writing code or docs before the design is approved

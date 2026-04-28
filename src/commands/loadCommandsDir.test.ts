@@ -107,6 +107,63 @@ describe("loadCommandsFromDir", () => {
     expect(result[0].name).toBe("no-frontmatter");
     expect(result[0].description).toBe("No Frontmatter Command");
   });
+
+  it("应跳过名称不符合规则的 .md 文件", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "hello world.md"),
+      "---\ndescription: Bad\n---\n# Hello"
+    );
+    writeFileSync(
+      join(cmdsDir, "-rf.md"),
+      "---\ndescription: Bad\n---\n# RF"
+    );
+    writeFileSync(
+      join(cmdsDir, "..hidden.md"),
+      "---\ndescription: Bad\n---\n# Hidden"
+    );
+    writeFileSync(
+      join(cmdsDir, "valid.md"),
+      "---\ndescription: Valid\n---\n# Valid"
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("valid");
+  });
+
+  it("应正确跟随指向有效文件的符号链接", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "target.md"),
+      "---\ndescription: Target command\n---\n# Target"
+    );
+    symlinkSync(join(cmdsDir, "target.md"), join(cmdsDir, "link.md"));
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(2);
+    const names = result.map((c: PromptCommand) => c.name).sort();
+    expect(names).toEqual(["link", "target"]);
+  });
+
+  it("frontmatter YAML 解析失败时应使用 fallback 继续加载", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "bad-yaml.md"),
+      "---\n[invalid: yaml: [\n---\n# Bad YAML Command\n\nSome content."
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("bad-yaml");
+    expect(result[0].description).toBe("Bad YAML Command");
+  });
 });
 
 describe("getProjectCommandDirs", () => {

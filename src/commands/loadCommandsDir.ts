@@ -1,6 +1,6 @@
-import { readdir, readFile, stat } from "fs/promises";
+import { readdir, readFile, stat, realpath } from "fs/promises";
 import { homedir } from "os";
-import { join, dirname, normalize } from "path";
+import { join, dirname, normalize, sep } from "path";
 import type { PromptCommand, SkillContentBlock } from "./types.js";
 import {
   parseFrontmatter,
@@ -8,7 +8,7 @@ import {
 } from "../skills/frontmatter.js";
 import { logger } from "../utils/logger.js";
 
-const VALID_COMMAND_NAME = /^[a-zA-Z0-9_-]+$/;
+const VALID_COMMAND_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
 /**
  * 从单个 commands 目录加载所有 .md 命令文件
@@ -45,6 +45,16 @@ export async function loadCommandsFromDir(
         }
 
         try {
+          if (file.isSymbolicLink()) {
+            const resolvedPath = await realpath(filePath);
+            const resolvedDir = await realpath(dirPath);
+            if (!resolvedPath.startsWith(resolvedDir + sep)) {
+              logger.warn(
+                `Symlink escapes command directory, skipping ${filePath}`
+              );
+              return null;
+            }
+          }
           const rawContent = await readFile(filePath, { encoding: "utf-8" });
           const { frontmatter, content: markdownContent } =
             parseFrontmatter(rawContent);
@@ -84,11 +94,25 @@ export async function getProjectCommandDirs(
   const dirs: string[] = [];
   const normalizedHome = normalize(home);
 
+  let resolvedHome: string;
+  try {
+    resolvedHome = await realpath(normalizedHome);
+  } catch {
+    resolvedHome = normalizedHome;
+  }
+
   let current = normalize(cwd);
 
   while (true) {
+    let resolvedCurrent: string;
+    try {
+      resolvedCurrent = await realpath(current);
+    } catch {
+      resolvedCurrent = current;
+    }
+
     // 停止条件：到达 home 目录（不检查 home 本身）
-    if (current === normalizedHome) {
+    if (resolvedCurrent === resolvedHome) {
       break;
     }
 
@@ -124,6 +148,30 @@ export async function getProjectCommandDirs(
   }
 
   return dirs;
+}
+
+/**
+ * 替换 markdown 中的 $ARGUMENTS，但跳过 fenced code blocks
+ */
+function replaceArgumentsOutsideCodeBlocks(
+  content: string,
+  args: string
+): string {
+  const lines = content.split("\n");
+  let inCodeBlock = false;
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+        inCodeBlock = !inCodeBlock;
+        return line;
+      }
+      if (inCodeBlock) {
+        return line;
+      }
+      return line.replace(/\$ARGUMENTS/g, args);
+    })
+    .join("\n");
 }
 
 /**
@@ -171,9 +219,9 @@ function createPromptCommand({
     getPromptForCommand: async (args: string): Promise<SkillContentBlock[]> => {
       let finalContent = markdownContent;
 
-      // 简单的参数替换: $ARGUMENTS 替换为实际参数
+      // 简单的参数替换: $ARGUMENTS 替换为实际参数（跳过代码块）
       if (args) {
-        finalContent = finalContent.replace(/\$ARGUMENTS/g, args);
+        finalContent = replaceArgumentsOutsideCodeBlocks(finalContent, args);
       }
 
       return [{ type: "text", text: finalContent }];
