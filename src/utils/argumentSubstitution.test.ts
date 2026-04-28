@@ -149,4 +149,10 @@ describe("substituteArguments", () => {
       substituteArguments("$a $b", "first", false, ["a", "b"]),
     ).toBe("first ");
   });
+
+  it("handles named arguments with regex special characters", () => {
+    expect(
+      substituteArguments("Value: $foo.bar", "test", false, ["foo.bar"]),
+    ).toBe("Value: test");
+  });
 });

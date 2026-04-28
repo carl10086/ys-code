@@ -72,6 +72,9 @@ export function substituteArguments(
   const parsedArgs = parseArguments(args);
   const originalContent = content;
 
+  // Escape special regex characters for safe interpolation
+  const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   // Replace named arguments (e.g., $foo, $bar) with their values
   // Named arguments map to positions: argumentNames[0] -> parsedArgs[0], etc.
   for (let i = 0; i < argumentNames.length; i++) {
@@ -80,7 +83,7 @@ export function substituteArguments(
 
     // Match $name but not $name[...] or $nameXxx (word chars)
     content = content.replace(
-      new RegExp(`\\$${name}(?![\\[\\w])`, "g"),
+      new RegExp(`\\$${escapeRegExp(name)}(?![\\[\\w])`, "g"),
       parsedArgs[i] ?? "",
     );
   }

@@ -35,13 +35,15 @@ async function runTurnOnce(
   logger.debug("runTurnOnce started");
 
   // T6: 应用 modelOverride（由 SkillTool 等设置）
-  let originalModel = config.model;
+  let originalModel: typeof config.model | undefined;
   if (currentContext.modelOverride) {
     const resolvedModel = findModelById(currentContext.modelOverride);
     if (resolvedModel) {
       originalModel = config.model;
       (config as { model: typeof config.model }).model = resolvedModel;
       logger.info("Model overridden for tool turn", { model: resolvedModel.name });
+    } else {
+      logger.warn("Unknown model override, ignoring", { model: currentContext.modelOverride });
     }
     currentContext.modelOverride = undefined;
   }
@@ -79,7 +81,7 @@ async function runTurnOnce(
     return { assistantMessage: message, toolResults };
   } finally {
     // 恢复原始模型
-    if (originalModel !== config.model) {
+    if (originalModel && originalModel !== config.model) {
       (config as { model: typeof config.model }).model = originalModel;
     }
   }

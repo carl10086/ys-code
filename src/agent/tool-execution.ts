@@ -174,7 +174,7 @@ async function executePreparedToolCall(
 
 async function finalizeExecutedToolCall(
   prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown },
-  executed: { output: unknown; isError: boolean },
+  executed: { output: unknown; isError: boolean; newMessages?: AgentMessage[]; modelOverride?: string },
   emit: AgentEventSink,
 ): Promise<ToolResultMessage> {
   let content: (import("../core/ai/index.js").TextContent | import("../core/ai/index.js").ImageContent)[];

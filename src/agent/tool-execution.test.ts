@@ -329,4 +329,44 @@ describe("executeToolCalls", () => {
 
     expect(context.modelOverride).toBe("model-B");
   });
+
+  it("并行执行时 modelOverride 由最后完成的工具决定", async () => {
+    const toolFast: AgentTool = {
+      name: "fast",
+      description: "fast",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => {
+        await new Promise(r => setTimeout(r, 5));
+        return { modelOverride: "model-fast" };
+      },
+      formatResult: () => [{ type: "text", text: "fast" }],
+    };
+    const toolSlow: AgentTool = {
+      name: "slow",
+      description: "slow",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => {
+        await new Promise(r => setTimeout(r, 30));
+        return { modelOverride: "model-slow" };
+      },
+      formatResult: () => [{ type: "text", text: "slow" }],
+    };
+
+    const context = createMockContext([toolFast, toolSlow]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "fast", arguments: {} },
+      { type: "toolCall", id: "call-2", name: "slow", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = { toolExecution: "parallel" } as any;
+    const emit = async () => {};
+
+    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    // slow 工具后完成，其 modelOverride 应覆盖 fast 的
+    expect(context.modelOverride).toBe("model-slow");
+  });
 });

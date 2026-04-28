@@ -215,6 +215,24 @@ describe("loadCommandsFromDir", () => {
     expect(text).toContain("Just a command.");
     expect(text).toContain("ARGUMENTS: foo bar");
   });
+
+  it("getPromptForCommand 应替换 frontmatter 定义的具名参数", async () => {
+    const cmdsDir = join(tempDir, "commands");
+    mkdirSync(cmdsDir, { recursive: true });
+
+    writeFileSync(
+      join(cmdsDir, "named.md"),
+      "---\ndescription: Named\narguments: [name, age]\n---\n# Named\n\nName: $name, Age: $age"
+    );
+
+    const result = await loadCommandsFromDir(cmdsDir, "userSettings");
+    expect(result.length).toBe(1);
+
+    const blocks = await result[0].getPromptForCommand("Alice 30");
+    const text = (blocks[0] as any).text;
+
+    expect(text).toContain("Name: Alice, Age: 30");
+  });
 });
 
 describe("getProjectCommandDirs", () => {

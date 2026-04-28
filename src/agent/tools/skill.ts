@@ -21,7 +21,6 @@ const SkillOutputSchema = Type.Object({
   modelOverride: Type.Optional(Type.String()),
 });
 
-type SkillInput = Static<typeof SkillInputSchema>;
 type SkillOutput = Static<typeof SkillOutputSchema>;
 
 /**
