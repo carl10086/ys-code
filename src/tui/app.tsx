@@ -20,7 +20,7 @@ export function App(): React.ReactElement {
   const [commands, setCommands] = useState<Command[]>([]);
 
   useEffect(() => {
-    getCommands(".claude/skills").then(setCommands);
+    getCommands(".claude/skills", process.cwd()).then(setCommands);
   }, []);
 
   const [gitBranch, setGitBranch] = useState<string | null>(gitBranchProvider.getBranch());
@@ -55,7 +55,7 @@ export function App(): React.ReactElement {
       appendUserMessage,
       appendSystemMessage,
       resetSession,
-    });
+    }, ".claude/skills", process.cwd());
     if (result.handled && result.textResult) {
       appendSystemMessage(result.textResult);
     }
@@ -75,7 +75,7 @@ export function App(): React.ReactElement {
         appendUserMessage,
         appendSystemMessage,
         resetSession,
-      });
+      }, ".claude/skills", process.cwd());
 
       if (result.handled) {
         // 显示用户输入

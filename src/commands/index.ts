@@ -1,4 +1,6 @@
 // src/commands/index.ts
+import { homedir } from "os";
+import { join } from "path";
 import type { Command, CommandContext, LocalJSXCommandOnDone } from "./types.js";
 import { getCommandName, isCommandEnabled } from "./types.js";
 import type React from "react";
@@ -15,6 +17,7 @@ import system from "./system/index.js";
 import skills from "./skills/index.js";
 import debug from "./debug/index.js";
 import { loadSkillsFromSkillsDir } from "../skills/loadSkillsDir.js";
+import { loadCommandsFromDir, getProjectCommandDirs } from "./loadCommandsDir.js";
 
 /** 所有内置命令列表（不含动态加载的 skills） */
 export const BUILTIN_COMMANDS: Command[] = [
@@ -28,37 +31,77 @@ export const BUILTIN_COMMANDS: Command[] = [
 ];
 
 /**
- * 获取完整命令列表（包含动态加载的 skills）
+ * 获取完整命令列表（包含内置命令、skills、用户级和项目级 commands）
  * @param skillsBasePath skills 目录路径
+ * @param cwd 当前工作目录（用于项目级 commands 遍历）
  * @returns 合并后的命令列表
  */
-export async function getCommands(skillsBasePath?: string): Promise<Command[]> {
-  const builtins = BUILTIN_COMMANDS;
+export async function getCommands(
+  skillsBasePath?: string,
+  cwd: string = process.cwd()
+): Promise<Command[]> {
+  const commandMap = new Map<string, Command>();
 
-  if (!skillsBasePath) {
-    return builtins;
+  // 1. 内置命令（最低优先级）
+  for (const cmd of BUILTIN_COMMANDS) {
+    commandMap.set(cmd.name, cmd);
   }
 
+  // 2. Skills
+  if (skillsBasePath) {
+    try {
+      const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
+      for (const cmd of loadedSkills) {
+        commandMap.set(cmd.name, cmd);
+      }
+    } catch {
+      // 动态加载失败时，继续使用已加载的命令
+      logger.warn("Failed to load skills from " + skillsBasePath);
+    }
+  }
+
+  // 3. 用户级 commands
   try {
-    const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
-    return [...builtins, ...loadedSkills];
+    const userCmds = await loadCommandsFromDir(
+      join(homedir(), ".claude/commands"),
+      "userSettings"
+    );
+    for (const cmd of userCmds) {
+      commandMap.set(cmd.name, cmd);
+    }
   } catch {
-    // 动态加载失败时，返回内置命令作为 fallback
-    return builtins;
+    // graceful degradation
   }
+
+  // 4. 项目级 commands（最高优先级，后加载覆盖先加载）
+  try {
+    const projectDirs = await getProjectCommandDirs(cwd);
+    for (const dir of projectDirs) {
+      const projectCmds = await loadCommandsFromDir(dir, "projectSettings");
+      for (const cmd of projectCmds) {
+        commandMap.set(cmd.name, cmd);
+      }
+    }
+  } catch {
+    // graceful degradation
+  }
+
+  return Array.from(commandMap.values());
 }
 
 /**
  * 根据名称查找命令（支持别名）- 异步版本
  * @param commandName 命令名称（不含 /）
  * @param skillsBasePath skills 目录路径（可选）
+ * @param cwd 当前工作目录（可选）
  * @returns 匹配的 Command 或 undefined
  */
 export async function findCommand(
   commandName: string,
   skillsBasePath?: string,
+  cwd?: string
 ): Promise<Command | undefined> {
-  const commands = await getCommands(skillsBasePath);
+  const commands = await getCommands(skillsBasePath, cwd);
   return commands.find((cmd) =>
     cmd.name === commandName ||
     cmd.aliases?.includes(commandName) ||
@@ -105,12 +148,14 @@ export interface ExecuteCommandResult {
  * @param input 用户完整输入（如 "/exit"）
  * @param context 命令执行上下文
  * @param skillsBasePath skills 目录路径（可选，用于动态加载 skills）
+ * @param cwd 当前工作目录（可选，用于项目级 commands 遍历）
  * @returns 执行结果
  */
 export async function executeCommand(
   input: string,
   context: CommandContext,
   skillsBasePath?: string,
+  cwd: string = process.cwd(),
 ): Promise<ExecuteCommandResult> {
   const { parseSlashCommand } = await import("./parser.js");
   const parsed = parseSlashCommand(input);
@@ -119,7 +164,7 @@ export async function executeCommand(
   }
 
   const { commandName, args } = parsed;
-  const command = await findCommand(commandName, skillsBasePath);
+  const command = await findCommand(commandName, skillsBasePath, cwd);
   if (!command || !isCommandEnabled(command)) {
     return { handled: false };
   }
