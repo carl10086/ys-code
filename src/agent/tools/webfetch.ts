@@ -5,7 +5,6 @@ import { validateUrl, truncateContent } from "./webfetch-utils.js";
 
 const webFetchSchema = Type.Object({
   url: Type.String({ description: "The URL to fetch content from" }),
-  prompt: Type.String({ description: "How to process the fetched content" }),
 });
 
 const webFetchOutputSchema = Type.Object({
@@ -17,11 +16,14 @@ const webFetchOutputSchema = Type.Object({
   durationMs: Type.Number({ description: "Time taken in milliseconds" }),
 });
 
-type WebFetchInput = Static<typeof webFetchSchema>;
 type WebFetchOutput = Static<typeof webFetchOutputSchema>;
 
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_HTTP_CONTENT_LENGTH = 5 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+
+/** Thrown for user-visible business errors (not network failures) */
+class WebFetchUserError extends Error {}
 
 /** @internal Test-only override for timeout */
 export const __testConfig = {
@@ -77,22 +79,46 @@ The tool fetches the raw content from the URL, converts HTML to Markdown if need
       context.abortSignal.addEventListener("abort", onAbort);
 
       try {
-        const response = await fetch(url, {
+        let response = await fetch(url, {
           signal: controller.signal,
+          redirect: "manual",
           headers: {
             Accept: "text/markdown, text/html, */*",
           },
         });
 
-        clearTimeout(timeoutId);
-        context.abortSignal.removeEventListener("abort", onAbort);
+        // Handle redirects manually with validation
+        let redirectCount = 0;
+        while (
+          redirectCount < MAX_REDIRECTS &&
+          [301, 302, 307, 308].includes(response.status)
+        ) {
+          const location = response.headers.get("location");
+          if (!location) break;
+
+          const newUrl = new URL(location, url).toString();
+          if (!validateUrl(newUrl)) {
+            throw new WebFetchUserError("Redirect to unsafe URL blocked");
+          }
+
+          url = newUrl;
+          redirectCount++;
+
+          response = await fetch(url, {
+            signal: controller.signal,
+            redirect: "manual",
+            headers: {
+              Accept: "text/markdown, text/html, */*",
+            },
+          });
+        }
 
         const contentType = response.headers.get("content-type") || "";
         const rawBuffer = await response.arrayBuffer();
         const bytes = rawBuffer.byteLength;
 
         if (bytes > MAX_HTTP_CONTENT_LENGTH) {
-          throw new Error(
+          throw new WebFetchUserError(
             `Content too large: ${bytes} bytes (max ${MAX_HTTP_CONTENT_LENGTH} bytes)`,
           );
         }
@@ -117,9 +143,18 @@ The tool fetches the raw content from the URL, converts HTML to Markdown if need
           durationMs: Date.now() - start,
         };
       } catch (error) {
+        // Sanitize error message to avoid information disclosure
+        // Pass through user-facing business errors and abort signals
+        if (error instanceof WebFetchUserError) {
+          throw error;
+        }
+        if (error instanceof Error && error.message === "Aborted") {
+          throw error;
+        }
+        throw new Error("Failed to fetch URL");
+      } finally {
         clearTimeout(timeoutId);
         context.abortSignal.removeEventListener("abort", onAbort);
-        throw error;
       }
     },
     formatResult(output) {
