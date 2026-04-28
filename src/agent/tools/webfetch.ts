@@ -160,6 +160,12 @@ The tool fetches the raw content from the URL, converts HTML to Markdown if need
     formatResult(output) {
       return [{ type: "text", text: output.result }];
     },
+    renderResult(output) {
+      return {
+        type: "plain",
+        text: `Fetched ${output.url} (${output.code} ${output.codeText}, ${output.bytes} bytes)`,
+      };
+    },
   });
 }
 

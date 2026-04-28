@@ -24,7 +24,7 @@ describe("AgentSession", () => {
     expect(session.isStreaming).toBe(false);
     expect(session.messages).toEqual([]);
     expect(session.model).toBe(model);
-    expect(session.tools).toHaveLength(6); // 5 个默认工具 + SkillTool
+    expect(session.tools).toHaveLength(7); // 6 个默认工具 + SkillTool
   });
 
   it("should emit turn_start when agent emits turn_start", () => {
