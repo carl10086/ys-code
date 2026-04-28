@@ -60,18 +60,29 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       const timeSec = (message.timeMs / 1000).toFixed(1);
       const color = message.isError ? "red" : "green";
 
-      if (!message.isError && message.renderData?.type === "structured_diff") {
-        return (
-          <Box flexDirection="column">
-            <Text color={color}>
-              {status} {message.toolName} {"->"} {timeSec}s
-            </Text>
-            <DiffRenderer
-              filePath={message.renderData.filePath}
-              hunks={message.renderData.hunks}
-            />
-          </Box>
-        );
+      if (!message.isError && message.renderData) {
+        if (message.renderData.type === "structured_diff") {
+          return (
+            <Box flexDirection="column">
+              <Text color={color}>
+                {status} {message.toolName} {"->"} {timeSec}s
+              </Text>
+              <DiffRenderer
+                filePath={message.renderData.filePath}
+                hunks={message.renderData.hunks}
+              />
+            </Box>
+          );
+        }
+        if (message.renderData.type === "plain") {
+          return (
+            <Box flexDirection="column">
+              <Text color={color}>
+                {status} {message.toolName} {"->"} {message.renderData.text} {timeSec}s
+              </Text>
+            </Box>
+          );
+        }
       }
 
       return (

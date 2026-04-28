@@ -9,7 +9,7 @@ import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createSkillTool, createWebFetchTool } from "./tools/index.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
@@ -101,6 +101,7 @@ export class AgentSession {
       createEditTool(options.cwd),
       createBashTool(options.cwd),
       createGlobTool(options.cwd),
+      createWebFetchTool(),
     ];
     this.agent = new Agent({
       systemPrompt: async () => asSystemPrompt([""]),
