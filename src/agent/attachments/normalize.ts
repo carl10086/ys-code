@@ -5,18 +5,6 @@ import type { AgentMessage } from "../types.js";
 /** 将单个 attachment 展开为 UserMessage 数组 */
 export function normalizeAttachment(attachment: Attachment): UserMessage[] {
   switch (attachment.type) {
-    case "relevant_memories": {
-      const content = [
-        "<system-reminder>",
-        "As you answer the user's questions, you can use the following context:",
-        ...attachment.entries.map((e) => `# ${e.key}\n${e.value}`),
-        "",
-        "IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.",
-        "</system-reminder>",
-        "",
-      ].join("\n");
-      return [{ role: "user", content, timestamp: attachment.timestamp }];
-    }
     case "file": {
       // attachment.content 是 FileReadToolOutput 对象
       const toolInput = JSON.stringify({ file_path: attachment.filePath });

@@ -64,7 +64,7 @@ describe("SessionManager attachment support", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("should convert attachment message to AttachmentEntry", () => {
+  it("should ignore attachment message (not persist)", () => {
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -81,18 +81,14 @@ describe("SessionManager attachment support", () => {
     const entries = (manager as any).storage.readAllEntries(manager.filePath);
     const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
 
-    expect(attachmentEntry).toBeDefined();
-    expect(attachmentEntry?.attachmentType).toBe("skill_listing");
-    expect(attachmentEntry?.content).toBe(JSON.stringify((message as any).attachment));
+    expect(attachmentEntry).toBeUndefined();
 
-    // round-trip verification
+    // restore 也不应返回 attachment
     const restored = manager.restoreMessages();
-    expect(restored.length).toBe(1);
-    expect(restored[0].role).toBe("attachment");
-    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
+    expect(restored.length).toBe(0);
   });
 
-  it("should convert file attachment to AttachmentEntry", () => {
+  it("should ignore file attachment (not persist)", () => {
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -110,15 +106,10 @@ describe("SessionManager attachment support", () => {
     const entries = (manager as any).storage.readAllEntries(manager.filePath);
     const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
 
-    expect(attachmentEntry).toBeDefined();
-    expect(attachmentEntry?.attachmentType).toBe("file");
-    const parsed = JSON.parse(attachmentEntry!.content);
-    expect(parsed.filePath).toBe("/test/file.ts");
+    expect(attachmentEntry).toBeUndefined();
 
-    // round-trip verification
+    // restore 也不应返回 attachment
     const restored = manager.restoreMessages();
-    expect(restored.length).toBe(1);
-    expect(restored[0].role).toBe("attachment");
-    expect((restored[0] as any).attachment).toEqual((message as any).attachment);
+    expect(restored.length).toBe(0);
   });
 });

@@ -1,24 +1,9 @@
-import type { UserMessage } from "../../core/ai/types.js";
-
 /** 附件基础接口 */
 export interface BaseAttachment {
   /** 附件类型 */
   type: string;
   /** 生成时间戳 */
   timestamp: number;
-}
-
-/** 相关记忆附件（CLAUDE.md 等上下文） */
-export interface RelevantMemoriesAttachment extends BaseAttachment {
-  /** 附件类型 */
-  type: "relevant_memories";
-  /** 上下文项列表 */
-  entries: Array<{
-    /** 上下文键名，如 "CLAUDE.md" */
-    key: string;
-    /** 上下文内容 */
-    value: string;
-  }>;
 }
 
 /**
@@ -83,8 +68,8 @@ export interface SkillListingAttachment extends BaseAttachment {
   skillNames: string[];
 }
 
-/** 附件联合体 —— 包含 relevant_memories、file、directory、skill_listing */
-export type Attachment = RelevantMemoriesAttachment | FileAttachment | DirectoryAttachment | SkillListingAttachment;
+/** 附件联合体 —— 包含 file、directory、skill_listing */
+export type Attachment = FileAttachment | DirectoryAttachment | SkillListingAttachment;
 
 /** 附件消息 */
 export interface AttachmentMessage {

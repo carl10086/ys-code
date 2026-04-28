@@ -53,6 +53,9 @@ export class SessionManager {
 
   /** 追加消息并持久化 */
   appendMessage(message: AgentMessage): void {
+    // attachment 消息动态生成，不需要持久化（对齐 CC 设计）
+    if (message.role === "attachment") return;
+
     const entry = this.messageToEntry(message);
     this.storage.appendEntry(this._filePath, entry);
     this._lastUuid = entry.uuid;
@@ -135,16 +138,6 @@ export class SessionManager {
           isError: message.isError,
           details: message.details,
         } as ToolResultEntry;
-
-      case "attachment":
-        return {
-          type: "attachment",
-          uuid,
-          parentUuid,
-          timestamp,
-          attachmentType: (message as any).attachment.type,
-          content: JSON.stringify((message as any).attachment),
-        } as AttachmentEntry;
 
       default:
         throw new Error(`Unsupported message role: ${(message as any).role}`);

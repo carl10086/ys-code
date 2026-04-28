@@ -3,6 +3,7 @@ import type { AgentMessage } from "../../agent/types.js";
 import type { Message } from "../../core/ai/index.js";
 import { normalizeMessages } from "../../agent/attachments/normalize.js";
 import { getDebugAgentSession } from "./debug-context.js";
+import { getUserContext, prependUserContext } from "../../agent/context/user-context.js";
 
 /**
  * Debug 上下文响应结构
@@ -40,7 +41,11 @@ export async function buildDebugContext(): Promise<DebugContextResponse | null> 
   }
 
   const messages = [...session.messages];  // 包含 attachment
-  const llmMessages = await session.convertToLlm(normalizeMessages(messages));  // 正确的 LLM payload
+  let normalized = normalizeMessages(messages);
+  // 动态注入 userContext（对齐实际 API 调用逻辑）
+  const userContext = await getUserContext({ cwd: process.cwd() });
+  normalized = prependUserContext(normalized, userContext);
+  const llmMessages = await session.convertToLlm(normalized);  // 正确的 LLM payload
 
   return {
     sessionId: session.sessionId,
