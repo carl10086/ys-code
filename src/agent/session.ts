@@ -41,6 +41,8 @@ export interface AgentSessionOptions {
   sessionBaseDir?: string;
   /** Compact 触发阈值（可选，默认不启用） */
   compactThreshold?: number;
+  /** 是否恢复最近会话（可选，默认 false） */
+  restoreSession?: boolean;
 }
 
 export class AgentSession {
@@ -106,24 +108,35 @@ export class AgentSession {
 
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
-    // 初始化 SessionManager，尝试恢复最近会话
+    // 初始化 SessionManager
     const sessionBaseDir = options.sessionBaseDir ?? path.join(os.homedir(), ".ys-code", "sessions");
-    const restoredManager = SessionManager.restoreLatest({
-      baseDir: sessionBaseDir,
-      cwd: this.cwd,
-      compactThreshold: options.compactThreshold,
-    });
 
-    if (restoredManager) {
-      this.sessionManager = restoredManager;
-      const restoredMessages = this.sessionManager.restoreMessages();
-      if (restoredMessages.length > 0) {
-        for (const msg of restoredMessages) {
-          this.agent.state.messages.push(msg);
+    if (options.restoreSession) {
+      // 尝试恢复最近会话
+      const restoredManager = SessionManager.restoreLatest({
+        baseDir: sessionBaseDir,
+        cwd: this.cwd,
+        compactThreshold: options.compactThreshold,
+      });
+
+      if (restoredManager) {
+        this.sessionManager = restoredManager;
+        const restoredMessages = this.sessionManager.restoreMessages();
+        if (restoredMessages.length > 0) {
+          for (const msg of restoredMessages) {
+            this.agent.state.messages.push(msg);
+          }
+          logger.info("Session restored", { messageCount: restoredMessages.length, sessionId: this.sessionManager.sessionId });
         }
-        logger.info("Session restored", { messageCount: restoredMessages.length, sessionId: this.sessionManager.sessionId });
+      } else {
+        this.sessionManager = new SessionManager({
+          baseDir: sessionBaseDir,
+          cwd: this.cwd,
+          compactThreshold: options.compactThreshold,
+        });
       }
     } else {
+      // 不恢复会话，创建新的 SessionManager
       this.sessionManager = new SessionManager({
         baseDir: sessionBaseDir,
         cwd: this.cwd,

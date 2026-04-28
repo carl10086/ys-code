@@ -67,12 +67,23 @@ async function _getMemoryFiles(cwd: string): Promise<MemoryFileInfo[]> {
     files.push(...levelFiles);
   }
 
+  const priorityMap: Record<string, number> = {
+    user: MemoryFilePriority.USER,
+    project: MemoryFilePriority.PROJECT,
+    local: MemoryFilePriority.LOCAL,
+  };
+
   const seen = new Map<string, MemoryFileInfo>();
   for (const file of files) {
-    seen.set(file.fullPath, file);
+    const existing = seen.get(file.fullPath);
+    if (!existing || (priorityMap[file.source] ?? 999) < (priorityMap[existing.source] ?? 999)) {
+      seen.set(file.fullPath, file);
+    }
   }
 
-  return Array.from(seen.values());
+  return Array.from(seen.values()).sort((a, b) => {
+    return (priorityMap[a.source] ?? 999) - (priorityMap[b.source] ?? 999);
+  });
 }
 
 async function collectLevelFiles(
@@ -96,16 +107,8 @@ async function collectLevelFiles(
   }
 
   const rulesDir = join(dir, ".claude", "rules");
-  if (await dirExists(rulesDir)) {
-    const entries = await fs.readdir(rulesDir);
-    for (const entry of entries.sort()) {
-      if (entry.endsWith(".md")) {
-        const rulePath = join(rulesDir, entry);
-        const info = await processMemoryFile(rulePath, source, { cwd });
-        if (info) files.push(info);
-      }
-    }
-  }
+  const ruleFiles = await collectMdRulesRecursive(rulesDir, source, { cwd });
+  files.push(...ruleFiles);
 
   return files;
 }
@@ -114,15 +117,6 @@ async function fileExists(path: string): Promise<boolean> {
   try {
     const stat = await fs.stat(path);
     return stat.isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function dirExists(path: string): Promise<boolean> {
-  try {
-    const stat = await fs.stat(path);
-    return stat.isDirectory();
   } catch {
     return false;
   }
@@ -233,6 +227,40 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, any> |
   }
 }
 
+/** 递归收集 .claude/rules/ 目录下的所有 .md 文件（包括子目录） */
+async function collectMdRulesRecursive(
+  rulesDir: string,
+  source: string,
+  options: { cwd: string },
+): Promise<MemoryFileInfo[]> {
+  const files: MemoryFileInfo[] = [];
+
+  async function walk(dir: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(dir);
+    } catch {
+      return;
+    }
+
+    for (const entry of entries.sort()) {
+      const entryPath = join(dir, entry);
+      const stat = await fs.stat(entryPath).catch(() => null);
+      if (!stat) continue;
+
+      if (stat.isDirectory()) {
+        await walk(entryPath);
+      } else if (entry.endsWith(".md")) {
+        const info = await processMemoryFile(entryPath, source, options);
+        if (info) files.push(info);
+      }
+    }
+  }
+
+  await walk(rulesDir);
+  return files;
+}
+
 /** 移除 HTML 块级注释 */
 function stripHtmlBlockComments(content: string): string {
   try {
@@ -259,17 +287,21 @@ export function filterInjectedMemoryFiles(
   return files.filter((f) => !injectedPaths.has(f.fullPath));
 }
 
-const MEMORY_INSTRUCTION_PROMPT = `The following additional context was automatically retrieved. It may or may not be relevant to the user's request. You should use it if it is relevant, and ignore it if it is not.`;
+const MEMORY_INSTRUCTION_PROMPT = `Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.`;
 
-/** 将 memory 文件列表格式化为 claudeMd 字符串 */
+/** 将 memory 文件列表格式化为 claudeMd 字符串（对齐 CC） */
 export function getClaudeMds(files: MemoryFileInfo[]): string | null {
   if (files.length === 0) return null;
-  const parts = [MEMORY_INSTRUCTION_PROMPT, ""];
+  const memories: string[] = [];
   for (const file of files) {
-    const desc = file.description ? ` (${file.description})` : "";
-    parts.push(`Contents of ${file.path}${desc}:`);
-    parts.push(file.content);
-    parts.push("");
+    const description =
+      file.source === "project"
+        ? " (project instructions, checked into the codebase)"
+        : file.source === "local"
+          ? " (user's private project instructions, not checked in)"
+          : " (user's private global instructions for all projects)";
+    const content = file.content.trim();
+    memories.push(`Contents of ${file.path}${description}:\n\n${content}`);
   }
-  return parts.join("\n");
+  return `${MEMORY_INSTRUCTION_PROMPT}\n\n${memories.join("\n\n")}`;
 }

@@ -12,7 +12,7 @@ import type {
   StreamFn,
   AgentMessage,
 } from "./types.js";
-import { getUserContext, getUserContextAttachments } from "./context/user-context.js";
+import { getUserContext, prependUserContext } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
 import { extractAtMentionedFiles, readAtMentionedFile } from "./attachments/at-mention.js";
 import type { Message } from "../core/ai/index.js";
@@ -31,17 +31,10 @@ export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
  */
 async function generateAttachments(
   context: AgentContext,
-  config: AgentLoopConfig,
+  _config: AgentLoopConfig,
   _signal?: AbortSignal,
 ): Promise<AgentMessage[]> {
   const attachments: AgentMessage[] = [];
-
-  // userContext attachments
-  if (!config.disableUserContext) {
-    const userContext = await getUserContext({ cwd: process.cwd() });
-    const userContextAttachments = getUserContextAttachments(userContext);
-    attachments.push(...userContextAttachments);
-  }
 
   // skill listing attachments
   const sentSkillNames = context.sentSkillNames ?? new Set<string>();
@@ -195,9 +188,15 @@ export async function streamAssistantResponse(
   await saveAttachments(attachments, emit);
 
   // === 阶段 3: 构建 API Payload ===
-  // 显式构建包含 attachment 的完整消息列表，不依赖 context.messages 是否已被修改
-  const allMessages = [...context.messages, ...attachments];
-  const llmMessages = await buildApiPayload(allMessages, config.convertToLlm);
+  let allMessages = [...context.messages, ...attachments] as Message[];
+
+  // 动态注入 userContext（不持久化）
+  if (!config.disableUserContext) {
+    const userContext = await getUserContext({ cwd: process.cwd() });
+    allMessages = prependUserContext(allMessages, userContext);
+  }
+
+  const llmMessages = await buildApiPayload(allMessages as AgentMessage[], config.convertToLlm);
 
   const llmContext: Context = {
     systemPrompt: config.systemPrompt,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { getMemoryFiles, clearMemoryFilesCache, processMemoryFile, getClaudeMds } from "./claudemd.js";
@@ -25,6 +25,50 @@ describe("getMemoryFiles", () => {
     const files = await getMemoryFiles(tempDir);
     expect(files.length).toBeGreaterThanOrEqual(1);
     expect(files.some((f) => f.path.endsWith("CLAUDE.md"))).toBe(true);
+  });
+
+  it("应递归发现 .claude/rules/ 目录下的 .md 文件", async () => {
+    const rulesDir = join(tempDir, ".claude", "rules");
+    const subDir = join(rulesDir, "sub");
+    mkdirSync(subDir, { recursive: true });
+    writeFileSync(join(rulesDir, "a.md"), "# Rule A");
+    writeFileSync(join(subDir, "b.md"), "# Rule B");
+
+    const files = await getMemoryFiles(tempDir);
+    const paths = files.map((f) => f.path);
+    expect(paths.some((p) => p.endsWith("a.md"))).toBe(true);
+    expect(paths.some((p) => p.includes("sub") && p.endsWith("b.md"))).toBe(true);
+  });
+
+  it("应向上遍历目录发现 CLAUDE.md", async () => {
+    const subDir = join(tempDir, "sub");
+    mkdirSync(subDir, { recursive: true });
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# Root");
+    writeFileSync(join(subDir, "CLAUDE.md"), "# Sub");
+
+    process.cwd = () => subDir;
+    clearMemoryFilesCache();
+
+    const files = await getMemoryFiles(subDir);
+    const claudeFiles = files.filter((f) => f.path.endsWith("CLAUDE.md"));
+    expect(claudeFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("缓存应生效且可被清除", async () => {
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# V1");
+
+    const files1 = await getMemoryFiles(tempDir);
+    expect(files1[0].content).toBe("# V1");
+
+    // 修改文件但不清理缓存
+    writeFileSync(join(tempDir, "CLAUDE.md"), "# V2");
+    const files2 = await getMemoryFiles(tempDir);
+    expect(files2[0].content).toBe("# V1"); // 仍是旧内容
+
+    // 清除缓存后应获取新内容
+    clearMemoryFilesCache();
+    const files3 = await getMemoryFiles(tempDir);
+    expect(files3[0].content).toBe("# V2");
   });
 });
 
@@ -101,9 +145,9 @@ describe("processMemoryFile frontmatter & stripping", () => {
       { path: "b.md", fullPath: "/b.md", content: "B", source: "project" },
     ]);
     expect(result).not.toBeNull();
-    expect(result).toContain("Contents of a.md:");
+    expect(result).toContain("Contents of a.md (project instructions, checked into the codebase):");
     expect(result).toContain("A");
-    expect(result).toContain("Contents of b.md:");
+    expect(result).toContain("Contents of b.md (project instructions, checked into the codebase):");
     expect(result).toContain("B");
   });
 });
