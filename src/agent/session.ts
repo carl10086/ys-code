@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { Model, SystemPrompt } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
+import { findModelById } from "../core/ai/models.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
@@ -13,6 +14,11 @@ import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 import { SessionManager } from "../session/index.js";
+
+export interface PromptOptions {
+  /** 临时覆盖当前 turn 的模型 */
+  model?: string;
+}
 
 /** AgentSession 向 UI 层发出的事件 */
 export type AgentSessionEvent =
@@ -206,26 +212,48 @@ export class AgentSession {
   }
 
   /** 发送用户消息（消息数组，用于 meta message 注入） */
-  async prompt(messages: AgentMessage[]): Promise<void>;
+  async prompt(messages: AgentMessage[], options?: PromptOptions): Promise<void>;
   /** 发送用户消息 */
-  async prompt(text: string): Promise<void>;
+  async prompt(text: string, options?: PromptOptions): Promise<void>;
   /** 发送用户消息（AgentMessage 格式） */
-  async prompt(message: AgentMessage): Promise<void>;
-  async prompt(textOrMessageOrArray: string | AgentMessage | AgentMessage[]): Promise<void> {
+  async prompt(message: AgentMessage, options?: PromptOptions): Promise<void>;
+  async prompt(textOrMessageOrArray: string | AgentMessage | AgentMessage[], options?: PromptOptions): Promise<void> {
     // 确保 SkillTool 已注册完成，避免竞态条件
     if (this.skillToolInitPromise) {
       await this.skillToolInitPromise;
       this.skillToolInitPromise = null;
     }
+
+    // P1: 命令级模型覆盖
+    let originalModel: Model<any> | undefined;
+    if (options?.model) {
+      const resolvedModel = findModelById(options.model);
+      if (resolvedModel) {
+        originalModel = this.agent.state.model;
+        (this.agent.state as { model: Model<any> }).model = resolvedModel;
+        logger.info("Model overridden for this turn", { model: resolvedModel.name });
+      } else {
+        logger.warn("Unknown model override, ignoring", { model: options.model });
+      }
+    }
+
     logger.info("Turn started", { model: this.agent.state.model.name });
     await this.refreshSystemPrompt();
 
-    if (Array.isArray(textOrMessageOrArray)) {
-      await this.agent.prompt(textOrMessageOrArray);
-    } else if (typeof textOrMessageOrArray === "string") {
-      await this.agent.prompt(textOrMessageOrArray);
-    } else {
-      await this.agent.prompt(textOrMessageOrArray);
+    try {
+      if (Array.isArray(textOrMessageOrArray)) {
+        await this.agent.prompt(textOrMessageOrArray);
+      } else if (typeof textOrMessageOrArray === "string") {
+        await this.agent.prompt(textOrMessageOrArray);
+      } else {
+        await this.agent.prompt(textOrMessageOrArray);
+      }
+    } finally {
+      // 恢复原始模型
+      if (originalModel) {
+        (this.agent.state as { model: Model<any> }).model = originalModel;
+        logger.info("Model restored", { model: originalModel.name });
+      }
     }
   }
 

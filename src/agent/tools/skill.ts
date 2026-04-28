@@ -18,6 +18,7 @@ const SkillOutputSchema = Type.Object({
   }),
   newMessages: Type.Optional(Type.Array(Type.Any())),
   contextModifier: Type.Optional(Type.Any()),
+  modelOverride: Type.Optional(Type.String()),
 });
 
 type SkillInput = Static<typeof SkillInputSchema>;
@@ -41,7 +42,7 @@ Call this tool with the exact skill name from the listing.`,
     isReadOnly: true,
     isConcurrencySafe: true,
 
-    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
+    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[]; modelOverride?: string }> {
       const commands = await getCommands();
       const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
 
@@ -82,6 +83,7 @@ Call this tool with the exact skill name from the listing.`,
         details: { success: true, skillName: params.skill },
         newMessages: [metaUserMessage as AgentMessage],
         contextModifier: modifier,
+        modelOverride: command.model,
       };
     },
 

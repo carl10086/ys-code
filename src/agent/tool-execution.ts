@@ -133,7 +133,7 @@ async function executePreparedToolCall(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<{ output: unknown; isError: boolean; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
+): Promise<{ output: unknown; isError: boolean; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[]; modelOverride?: string }> {
   const updateEvents: Promise<void>[] = [];
   const context = buildToolUseContext(currentContext, config, signal);
 
@@ -157,11 +157,12 @@ async function executePreparedToolCall(
       },
     );
     await Promise.all(updateEvents);
-    // 提取 newMessages 和 contextModifier
+    // 提取 newMessages、contextModifier 和 modelOverride
     const toolResult = output as AgentToolResult<unknown>;
     const newMessages = toolResult?.newMessages;
     const contextModifier = toolResult?.contextModifier;
-    return { output, isError: false, newMessages, contextModifier };
+    const modelOverride = toolResult?.modelOverride;
+    return { output, isError: false, newMessages, contextModifier, modelOverride };
   } catch (error) {
     await Promise.all(updateEvents);
     return {
@@ -240,6 +241,10 @@ async function executeToolCallsSequential(
         currentContext.pendingMessages.push(...executed.newMessages);
         logger.debug("Tool newMessages queued for next turn", { count: executed.newMessages.length });
       }
+      // 传递 modelOverride
+      if (executed.modelOverride) {
+        currentContext.modelOverride = executed.modelOverride;
+      }
       logger.debug("Tool execution result (sequential)", { toolName: toolCall.name, output: executed.output, isError: executed.isError });
       results.push(await finalizeExecutedToolCall(preparation, executed, emit));
     }
@@ -291,6 +296,10 @@ async function executeToolCallsParallel(
       currentContext.pendingMessages = currentContext.pendingMessages || [];
       currentContext.pendingMessages.push(...executed.newMessages);
       logger.debug("Tool newMessages queued for next turn (parallel)", { count: executed.newMessages.length });
+    }
+    // 传递 modelOverride
+    if (executed.modelOverride) {
+      currentContext.modelOverride = executed.modelOverride;
     }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);

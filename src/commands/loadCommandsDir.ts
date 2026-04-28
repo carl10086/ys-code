@@ -7,6 +7,7 @@ import {
   parseSkillFrontmatterFields,
 } from "../skills/frontmatter.js";
 import { logger } from "../utils/logger.js";
+import { substituteArguments } from "../utils/argumentSubstitution.js";
 
 const VALID_COMMAND_NAME = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
@@ -151,15 +152,18 @@ export async function getProjectCommandDirs(
 }
 
 /**
- * 替换 markdown 中的 $ARGUMENTS，但跳过 fenced code blocks
+ * 替换 markdown 中的参数占位符，但跳过 fenced code blocks
+ * @returns { content: string; hasReplaced: boolean }
  */
-function replaceArgumentsOutsideCodeBlocks(
+function substituteArgumentsOutsideCodeBlocks(
   content: string,
-  args: string
-): string {
+  args: string,
+  argumentNames: string[] = [],
+): { content: string; hasReplaced: boolean } {
   const lines = content.split("\n");
   let inCodeBlock = false;
-  return lines
+  let hasReplaced = false;
+  const result = lines
     .map((line) => {
       const trimmed = line.trim();
       if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
@@ -169,9 +173,15 @@ function replaceArgumentsOutsideCodeBlocks(
       if (inCodeBlock) {
         return line;
       }
-      return line.replace(/\$ARGUMENTS/g, args);
+      const before = line;
+      const after = substituteArguments(line, args, false, argumentNames);
+      if (after !== before) {
+        hasReplaced = true;
+      }
+      return after;
     })
     .join("\n");
+  return { content: result, hasReplaced };
 }
 
 /**
@@ -219,9 +229,18 @@ function createPromptCommand({
     getPromptForCommand: async (args: string): Promise<SkillContentBlock[]> => {
       let finalContent = markdownContent;
 
-      // 简单的参数替换: $ARGUMENTS 替换为实际参数（跳过代码块）
+      // 参数替换（跳过代码块）
       if (args) {
-        finalContent = replaceArgumentsOutsideCodeBlocks(finalContent, args);
+        const { content, hasReplaced } = substituteArgumentsOutsideCodeBlocks(
+          finalContent,
+          args,
+          argumentNames,
+        );
+        finalContent = content;
+        // 若无占位符被替换，自动追加 ARGUMENTS
+        if (!hasReplaced) {
+          finalContent = finalContent + `\n\nARGUMENTS: ${args}`;
+        }
       }
 
       return [{ type: "text", text: finalContent }];

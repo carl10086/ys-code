@@ -119,4 +119,69 @@ describe("commands/index integration", () => {
     expect(result.metaMessages).toBeDefined();
     expect(result.metaMessages![0]).toContain("Hello world!");
   });
+
+  it("executeCommand 应阻止 userInvocable=false 的命令", async () => {
+    const fakeHome = join(tempDir, "home");
+    const fakeProject = join(tempDir, "project");
+    const projCmdsDir = join(fakeProject, ".claude", "commands");
+
+    mkdirSync(projCmdsDir, { recursive: true });
+    mkdirSync(join(fakeProject, ".git"), { recursive: true });
+
+    writeFileSync(
+      join(projCmdsDir, "modelonly.md"),
+      "---\ndescription: Model Only\nuser-invocable: false\n---\n# Model Only"
+    );
+
+    mock.module("os", () => ({
+      homedir: () => fakeHome,
+    }));
+
+    const result = await executeCommand(
+      "/modelonly",
+      {
+        session: {} as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+      undefined,
+      fakeProject
+    );
+    expect(result.handled).toBe(true);
+    expect(result.textResult).toContain("can only be invoked by the model");
+  });
+
+  it("executeCommand 应允许 userInvocable=true 的命令", async () => {
+    const fakeHome = join(tempDir, "home");
+    const fakeProject = join(tempDir, "project");
+    const projCmdsDir = join(fakeProject, ".claude", "commands");
+
+    mkdirSync(projCmdsDir, { recursive: true });
+    mkdirSync(join(fakeProject, ".git"), { recursive: true });
+
+    writeFileSync(
+      join(projCmdsDir, "usercmd.md"),
+      "---\ndescription: User Cmd\nuser-invocable: true\n---\n# User Cmd"
+    );
+
+    mock.module("os", () => ({
+      homedir: () => fakeHome,
+    }));
+
+    const result = await executeCommand(
+      "/usercmd",
+      {
+        session: {} as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+      undefined,
+      fakeProject
+    );
+    expect(result.handled).toBe(true);
+    expect(result.metaMessages).toBeDefined();
+    expect(result.metaMessages![0]).toContain("# User Cmd");
+  });
 });

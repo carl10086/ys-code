@@ -57,6 +57,8 @@ export interface AgentToolResult<T> {
   newMessages?: AgentMessage[];
   /** 上下文修改器 */
   contextModifier?: (messages: AgentMessage[]) => AgentMessage[];
+  /** 命令级模型覆盖 */
+  modelOverride?: string;
 }
 
 /** 工具执行上下文 */
@@ -169,6 +171,8 @@ export interface AgentContext {
   sentSkillNames?: Set<string>;
   /** 工具返回的新消息，供循环使用（UI 隐藏，LLM 可见） */
   pendingMessages?: AgentMessage[];
+  /** 命令级模型覆盖（由 SkillTool 等设置） */
+  modelOverride?: string;
 }
 
 /** Agent 公开状态 */

@@ -88,4 +88,25 @@ describe("dispatchCommandResult", () => {
 
     expect(systemMessage).toBe("Done");
   });
+
+  it("当 result.model 存在时传递给 session.prompt", () => {
+    let promptArgs: unknown[] = [];
+    let userMessage = "";
+    const session = { prompt: (...args: unknown[]) => { promptArgs = args; } } as any;
+    const appendUserMessage = (text: string) => { userMessage = text; };
+    const appendSystemMessage = () => {};
+
+    const result = { handled: true, metaMessages: ["meta"], model: "MiniMax-M2.7" };
+    dispatchCommandResult(
+      result,
+      "/spec 1",
+      session,
+      appendUserMessage,
+      appendSystemMessage,
+    );
+
+    expect(userMessage).toBe("/spec 1");
+    expect(promptArgs.length).toBe(2);
+    expect((promptArgs[1] as any).model).toBe("MiniMax-M2.7");
+  });
 });
