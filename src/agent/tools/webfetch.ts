@@ -52,7 +52,22 @@ The tool fetches the raw content from the URL, converts HTML to Markdown if need
     },
     async execute(_toolCallId, params, context) {
       const start = Date.now();
-      const url = params.url;
+      let url = params.url;
+
+      if (context.abortSignal.aborted) {
+        throw new Error("Aborted");
+      }
+
+      // Upgrade http to https
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol === "http:") {
+          parsedUrl.protocol = "https:";
+          url = parsedUrl.toString();
+        }
+      } catch {
+        // Invalid URL, will fail later in fetch
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), __testConfig.fetchTimeoutMs);

@@ -50,9 +50,9 @@ export function validateUrl(url: string): boolean {
 
 function isPrivateIp(hostname: string): boolean {
   // Check if it's an IPv4 address
-  const ipv4Match = hostname.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
-    const [, a, b, c, d] = ipv4Match.map(Number);
+    const [, a, b] = ipv4Match.map(Number);
 
     // 10.0.0.0/8
     if (a === 10) return true;

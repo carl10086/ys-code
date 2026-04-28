@@ -120,33 +120,35 @@ describe("WebFetchTool", () => {
     const originalTimeout = __testConfig.fetchTimeoutMs;
     __testConfig.fetchTimeoutMs = 50; // Short timeout for testing
 
-    globalThis.fetch = (async (_url: any, init?: any) => {
-      // Return a promise that resolves when aborted or after a long time
-      return new Promise((_resolve, reject) => {
-        const checkInterval = setInterval(() => {
-          if (init?.signal?.aborted) {
-            clearInterval(checkInterval);
-            reject(new Error("Timeout"));
-          }
-        }, 5);
-      });
-    }) as any;
+    try {
+      globalThis.fetch = (async (_url: any, init?: any) => {
+        // Return a promise that resolves when aborted or after a long time
+        return new Promise((_resolve, reject) => {
+          const checkInterval = setInterval(() => {
+            if (init?.signal?.aborted) {
+              clearInterval(checkInterval);
+              reject(new Error("Timeout"));
+            }
+          }, 5);
+        });
+      }) as any;
 
-    const startTime = Date.now();
-    await expect(
-      tool.execute(
-        "call-timeout",
-        { url: "https://example.com", prompt: "test" },
-        { abortSignal: new AbortController().signal } as any,
-      ),
-    ).rejects.toThrow();
+      const startTime = Date.now();
+      await expect(
+        tool.execute(
+          "call-timeout",
+          { url: "https://example.com", prompt: "test" },
+          { abortSignal: new AbortController().signal } as any,
+        ),
+      ).rejects.toThrow();
 
-    __testConfig.fetchTimeoutMs = originalTimeout;
-
-    // Should have taken close to 50ms (with some margin)
-    const elapsed = Date.now() - startTime;
-    expect(elapsed).toBeGreaterThanOrEqual(40);
-    expect(elapsed).toBeLessThanOrEqual(500);
+      // Should have taken close to 50ms (with some margin)
+      const elapsed = Date.now() - startTime;
+      expect(elapsed).toBeGreaterThanOrEqual(40);
+      expect(elapsed).toBeLessThanOrEqual(500);
+    } finally {
+      __testConfig.fetchTimeoutMs = originalTimeout;
+    }
   });
 
   it("propagates network errors", async () => {
