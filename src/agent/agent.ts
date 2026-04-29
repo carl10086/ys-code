@@ -519,7 +519,7 @@ export class Agent {
     } satisfies AgentMessage;
     this._state.messages = [...this._state.messages, failureMessage];
     this._state.errorMessage = failureMessage.errorMessage;
-    await this.processEvents({ type: "agent_end", messages: [failureMessage] });
+    await this.processEvents({ type: "agent_end" });
   }
 
   /** 完成运行 */

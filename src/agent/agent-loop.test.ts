@@ -65,14 +65,17 @@ describe("runAgentLoop", () => {
     const result = await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
 
     expect(callCount).toBe(1);
-    expect(result.length).toBe(2);
-    expect(result[1].role).toBe("assistant");
+    expect(result).toBeUndefined();
 
     const eventTypes = events.map(e => e.type);
     expect(eventTypes).toContain("agent_start");
     expect(eventTypes).toContain("turn_start");
     expect(eventTypes).toContain("turn_end");
     expect(eventTypes).toContain("agent_end");
+    const assistantEnd = events.find((e) => e.type === "message_end" && e.message.role === "assistant");
+    expect(assistantEnd).toBeDefined();
+    const agentEnd = events.find((e) => e.type === "agent_end") as any;
+    expect(agentEnd).not.toHaveProperty("messages");
   });
 
   it("steeringMessages 在 turn 之间正确注入", async () => {
@@ -227,10 +230,13 @@ describe("runAgentLoopContinue", () => {
 
     const result = await runAgentLoopContinue(context, config, emit, undefined, streamFn as any);
 
-    expect(result.length).toBe(1);
-    expect(result[0].role).toBe("assistant");
+    expect(result).toBeUndefined();
     expect(events.map(e => e.type)).toContain("agent_start");
     expect(events.map(e => e.type)).toContain("agent_end");
+    const assistantEnd = events.find((e) => e.type === "message_end" && e.message.role === "assistant");
+    expect(assistantEnd).toBeDefined();
+    const agentEnd = events.find((e) => e.type === "agent_end") as any;
+    expect(agentEnd).not.toHaveProperty("messages");
   });
 
   it("最后一条消息为 assistant 时抛出错误", async () => {
