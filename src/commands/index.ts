@@ -133,6 +133,8 @@ export const COMMANDS: Command[] = BUILTIN_COMMANDS;
 export interface ExecuteCommandResult {
   /** 是否匹配并执行了命令 */
   handled: boolean;
+  /** 是否为 compact 命令结果（本轮不应继续 query 主模型） */
+  compact?: true;
   /** 若为 local-jsx 命令，返回待渲染的 JSX */
   jsx?: React.ReactNode;
   /** 若为 local 命令，返回文本结果 */
@@ -177,6 +179,9 @@ export async function executeCommand(
       const result = await module.call(args, context);
       if (result.type === "text") {
         return { handled: true, textResult: result.value };
+      }
+      if (result.type === "compact") {
+        return { handled: true, compact: true, textResult: result.displayText };
       }
       return { handled: true };
     } catch {

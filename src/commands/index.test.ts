@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { getCommands, findCommand, executeCommand, BUILTIN_COMMANDS } from "./index.js";
+import type { Command } from "./types.js";
 
 describe("commands/index", () => {
   it("getCommands() 不传参数时至少返回内置命令（向后兼容）", async () => {
@@ -183,5 +184,38 @@ describe("commands/index integration", () => {
     expect(result.handled).toBe(true);
     expect(result.metaMessages).toBeDefined();
     expect(result.metaMessages![0]).toContain("# User Cmd");
+  });
+
+  it("executeCommand 应将 compact local command 标记为不继续 query 的结果", async () => {
+    const compactCommand = {
+      type: "local",
+      name: "fakecompact",
+      description: "Fake compact command",
+      load: async () => ({
+        call: async () => ({
+          type: "compact",
+          displayText: "Compacted",
+        }),
+      }),
+    } satisfies Command;
+    BUILTIN_COMMANDS.push(compactCommand);
+
+    try {
+      const result = await executeCommand(
+        "/fakecompact",
+        {
+          session: {} as any,
+          appendUserMessage: () => {},
+          appendSystemMessage: () => {},
+          resetSession: () => {},
+        },
+      );
+
+      expect(result.handled).toBe(true);
+      expect(result.compact).toBe(true);
+      expect(result.textResult).toBe("Compacted");
+    } finally {
+      BUILTIN_COMMANDS.pop();
+    }
   });
 });

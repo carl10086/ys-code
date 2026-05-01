@@ -16,6 +16,7 @@ export interface CommandContext {
 /** 本地命令执行结果 */
 export type CommandResult =
   | { type: "text"; value: string }
+  | { type: "compact"; displayText: string }
   | { type: "skip" };
 
 /** 命令基础结构 */
