@@ -133,7 +133,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
     }
     .message-tool-status.success { background: rgba(80,200,120,0.15); color: #50c878; }
     .message-tool-status.error { background: rgba(220,53,69,0.15); color: #dc3545; }
-    .message-item.tool.error { border-left-color: var(--pico-color-red-500); }
+    .message-item.tool.error { border-left-color: #dc3545; }
     .message-timestamp {
       font-size: 0.75rem;
       color: var(--pico-muted-color);
@@ -251,7 +251,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       return JSON.stringify(msg.content).slice(0, 60);
     }
 
-    function renderMessageList(messages, containerId) {
+    function renderMessageList(messages, containerId, plain) {
       const container = document.getElementById(containerId);
       if (!messages || messages.length === 0) {
         container.innerHTML = '<p class="empty-state">无消息</p>';
@@ -259,6 +259,18 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       }
       container.innerHTML = messages.map((msg, i) => {
         const role = msg.role || msg.type || 'unknown';
+        if (plain) {
+          const summary = getMessageSummary(msg);
+          return '<div class="message-item ' + role + '">' +
+            '<div class="message-header">' +
+              '<span class="message-role">' + role + '</span>' +
+              '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
+            '</div>' +
+            '<div class="message-body" style="display:none">' +
+              '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+            '</div>' +
+          '</div>';
+        }
         if (role === 'user') return renderUserMessage(msg);
         if (role === 'toolResult') return renderToolResultMessage(msg);
         if (role === 'assistant') return renderAssistantMessage(msg);
@@ -267,7 +279,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         return '<div class="message-item ' + role + '">' +
           '<div class="message-header">' +
             '<span class="message-role">' + role + '</span>' +
-            '<span class="message-summary">' + summary + '</span>' +
+            '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
           '</div>' +
           '<div class="message-body" style="display:none">' +
             '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
@@ -282,7 +294,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       return '<div class="message-item user">' +
         '<div class="message-header">' +
           '<span><span class="message-role-badge">👤 用户</span><span class="message-timestamp">' + time + '</span></span>' +
-          '<span class="message-summary">' + summary + '</span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
           '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
@@ -302,7 +314,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       return '<div class="message-item tool ' + errorClass + '">' +
         '<div class="message-header">' +
           '<span><span class="message-role-badge">🛠️ ' + escapeHtml(toolName) + '</span>' + statusBadge + '<span class="message-timestamp">' + time + '</span></span>' +
-          '<span class="message-summary">' + summary + '</span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
           '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
@@ -341,7 +353,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       return '<div class="message-item assistant">' +
         '<div class="message-header">' +
           '<span><span class="message-role-badge">🤖 Assistant</span><span class="message-timestamp">' + time + '</span></span>' +
-          '<span class="message-summary">' + summary + '</span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
           bodyHtml +
@@ -412,7 +424,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
 
         // 渲染标签页
         renderMessageList(data.messages, 'tab-messages');
-        renderMessageList(data.llmMessages, 'tab-llm');
+        renderMessageList(data.llmMessages, 'tab-llm', true);
         document.getElementById('tab-system').innerHTML = '<pre><code>' + (data.systemPrompt || '无') + '</code></pre>';
         renderTools(data.toolNames);
 
