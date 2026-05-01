@@ -181,6 +181,52 @@ export const DEBUG_HTML = `<!DOCTYPE html>
     }
     .llm-badge.meta { background: rgba(128,128,128,0.15); color: #888; }
     .llm-badge.attach { background: rgba(74,144,226,0.15); color: #4a90e2; }
+    .section-card {
+      border: 1px solid var(--pico-muted-border-color);
+      border-radius: 0.5rem;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: rgba(128,128,128,0.05);
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-header:hover { background: rgba(128,128,128,0.1); }
+    .section-name { font-weight: 600; font-size: 0.875rem; }
+    .section-type {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+    }
+    .section-type.static { background: rgba(80,200,120,0.15); color: #50c878; }
+    .section-type.dynamic { background: rgba(255,165,0,0.15); color: #ffa500; }
+    .section-desc {
+      font-size: 0.75rem;
+      color: var(--pico-muted-color);
+      margin-left: auto;
+    }
+    .boundary-divider {
+      text-align: center;
+      padding: 0.75rem;
+      color: var(--pico-primary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-top: 2px dashed var(--pico-primary);
+      border-bottom: 2px dashed var(--pico-primary);
+      margin: 1rem 0;
+    }
+    .section-content {
+      padding: 1rem;
+      display: none;
+    }
+    .section-content.active { display: block; }
+    .section-content pre { margin: 0; max-height: 400px; overflow: auto; }
   </style>
 </head>
 <body>
@@ -404,6 +450,51 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       container.innerHTML = '<ul>' + tools.map(t => '<li><strong>' + t + '</strong></li>').join('') + '</ul>';
     }
 
+    function renderSystemPromptSections(sections) {
+      const container = document.getElementById('tab-system');
+      if (!sections || sections.length === 0) {
+        container.innerHTML = '<p class="empty-state">无 system prompt 数据</p>';
+        return;
+      }
+
+      let html = '';
+      let lastType = null;
+
+      for (const section of sections) {
+        // 类型切换时插入 boundary divider
+        if (lastType === 'static' && section.type === 'dynamic') {
+          html += '<div class="boundary-divider">=== DYNAMIC SYSTEM PROMPT SECTIONS ===</div>';
+        }
+        lastType = section.type;
+
+        const typeClass = section.type === 'static' ? 'static' : 'dynamic';
+        html +=
+          '<div class="section-card">' +
+            '<div class="section-header" data-section="' + escapeHtml(section.name) + '">' +
+              '<span class="section-name">' + escapeHtml(section.name) + '</span>' +
+              '<span class="section-type ' + typeClass + '">' + (section.type === 'static' ? 'Static' : 'Dynamic') + '</span>' +
+              '<span class="section-desc">' + escapeHtml(section.description) + '</span>' +
+            '</div>' +
+            '<div class="section-content">' +
+              '<pre><code>' + escapeHtml(section.content || '') + '</code></pre>' +
+            '</div>' +
+          '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function setupSectionToggle() {
+      const container = document.getElementById('tab-system');
+      container.addEventListener('click', function(e) {
+        const header = e.target.closest('.section-header');
+        if (header) {
+          const content = header.nextElementSibling;
+          content.classList.toggle('active');
+        }
+      });
+    }
+
     async function loadData() {
       try {
         const res = await fetch('/api/debug/context');
@@ -441,7 +532,11 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         // 渲染标签页
         renderMessageList(data.messages, 'tab-messages');
         renderMessageList(data.llmMessages, 'tab-llm', true);
-        document.getElementById('tab-system').innerHTML = '<pre><code>' + (data.systemPrompt || '无') + '</code></pre>';
+        if (data.systemPromptSections) {
+          renderSystemPromptSections(data.systemPromptSections);
+        } else {
+          document.getElementById('tab-system').innerHTML = '<pre><code>' + (data.systemPrompt || '无') + '</code></pre>';
+        }
         renderTools(data.toolNames);
 
         document.getElementById('timestamp').textContent = '更新时间: ' + formatTime(data.timestamp);
@@ -468,6 +563,9 @@ export const DEBUG_HTML = `<!DOCTYPE html>
     // 设置消息折叠事件委托
     setupMessageToggle('tab-messages');
     setupMessageToggle('tab-llm');
+
+    // 设置 section 折叠事件委托
+    setupSectionToggle();
 
     // 初始加载
     loadData();
