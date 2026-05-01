@@ -6,6 +6,13 @@ export {
   getMessagesAfterCompactBoundary,
   isCompactBoundaryMessage,
 } from "./messages.js";
+export {
+  COMPACT_SUMMARY_SECTIONS,
+  formatCompactSummary,
+  getCompactPrompt,
+  NO_TOOLS_PREAMBLE,
+  NO_TOOLS_TRAILER,
+} from "./prompt.js";
 export type { CompactConfig } from "./trigger.js";
 export type {
   CompactBoundaryMessage,
