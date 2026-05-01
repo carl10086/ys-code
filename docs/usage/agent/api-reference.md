@@ -18,9 +18,6 @@ interface AgentOptions {
   // 消息转换函数（AgentMessage[] → Message[]）
   convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
 
-  // 上下文预处理
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-
   // 自定义流函数
   streamFn?: StreamFn;
 
@@ -29,10 +26,6 @@ interface AgentOptions {
 
   // Payload 回调
   onPayload?: (payload: unknown, model: Model) => unknown | undefined;
-
-  // Tool 执行钩子
-  beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
-  afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
 
   // 队列模式
   steeringMode?: QueueMode;   // "all" | "one-at-a-time"

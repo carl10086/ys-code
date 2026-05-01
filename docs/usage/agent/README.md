@@ -21,7 +21,7 @@ MINIMAX_CN_API_KEY=your_key_here
 ```typescript
 import { Type } from "@sinclair/typebox";
 import { Agent, type AgentTool } from "../../src/agent/index.js";
-import { getModel } from "../../src/core/ai/index.js";
+import { asSystemPrompt, getModel } from "../../src/core/ai/index.js";
 
 // 定义一个加法工具
 const addTool: AgentTool = {
@@ -31,20 +31,21 @@ const addTool: AgentTool = {
     a: Type.Number({ description: "First number" }),
     b: Type.Number({ description: "Second number" }),
   }),
+  outputSchema: Type.Object({
+    result: Type.Number(),
+  }),
   label: "Add",
   async execute(toolCallId, params) {
-    return {
-      content: [{ type: "text", text: `${params.a} + ${params.b} = ${params.a + params.b}` }],
-      details: { result: params.a + params.b },
-    };
+    return { result: params.a + params.b };
   },
+  formatResult: (output) => [{ type: "text", text: String(output.result) }],
 };
 
 // 创建 Agent
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const agent = new Agent({
+  systemPrompt: async () => asSystemPrompt(["You are a helpful math assistant. Use the provided tools for ALL calculations."]),
   initialState: {
-    systemPrompt: "You are a helpful math assistant. Use the provided tools for ALL calculations.",
     model,
     tools: [addTool],
     thinkingLevel: "off",
