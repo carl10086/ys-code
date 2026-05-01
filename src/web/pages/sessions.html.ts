@@ -50,6 +50,8 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
     .thinking-block, .tool-call-block { margin-top: 0.75rem; padding: 0.75rem; background-color: rgba(128,128,128,0.1); border-radius: 0.25rem; }
     .tool-call-name { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem; }
     .tool-call-args { font-family: monospace; font-size: 0.75rem; background-color: rgba(128,128,128,0.15); padding: 0.5rem; border-radius: 0.25rem; overflow-x: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+    .entry-error-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; background: rgba(220,53,69,0.15); color: #dc3545; margin-bottom: 0.5rem; }
+    .entry-success-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; background: rgba(80,200,120,0.15); color: #50c878; margin-bottom: 0.5rem; }
     .tool-result-truncated { position: relative; max-height: 120px; overflow: hidden; }
     .truncated-mask { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent, var(--pico-card-background-color)); pointer-events: none; }
     .expand-button { margin-top: 0.5rem; font-size: 0.75rem; padding: 0.25rem 0.75rem; }
@@ -370,19 +372,19 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
         switch (entry.type) {
           case 'header':
             typeClass = 'entry-header-card';
-            badgeText = '系统';
+            badgeText = 'ℹ️ 系统';
             break;
           case 'user':
             typeClass = 'entry-user-card';
-            badgeText = '用户';
+            badgeText = '👤 用户';
             break;
           case 'assistant':
             typeClass = 'entry-assistant-card';
-            badgeText = 'AI';
+            badgeText = '🤖 AI';
             break;
           case 'toolResult':
             typeClass = 'entry-tool-result-card';
-            badgeText = '工具结果';
+            badgeText = '🛠️ 工具结果';
             break;
           case 'compact_boundary':
             typeClass = 'entry-compact-card';
@@ -437,9 +439,11 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
           var text = getEntryText(entry.content);
           var isLong = text.length > 500;
           var displayText = isLong ? text.substring(0, 500) : text;
-          var html = '<div style="font-weight:600;margin-bottom:0.5rem;">工具: ' + escapeHtml(entry.toolName) + '</div>';
+          var html = '<div style="font-weight:600;margin-bottom:0.5rem;">🔧 工具: ' + escapeHtml(entry.toolName) + '</div>';
           if (entry.isError) {
-            html += '<div style="color:var(--pico-color-red-500);margin-bottom:0.5rem;">❌ 执行出错</div>';
+            html += '<span class="entry-error-badge">❌ 执行出错</span>';
+          } else {
+            html += '<span class="entry-success-badge">✅ 完成</span>';
           }
           html += '<div class="' + (isLong ? 'tool-result-truncated' : '') + '">';
           html += escapeHtml(displayText);
@@ -461,12 +465,12 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
                 html += '<div>' + escapeHtml(item.text) + '</div>';
               } else if (item.type === 'thinking') {
                 html += '<details>';
-                html += '<summary>思考过程</summary>';
+                html += '<summary>🧠 思考过程</summary>';
                 html += '<p>' + escapeHtml(item.thinking) + '</p>';
                 html += '</details>';
               } else if (item.type === 'toolCall') {
                 html += '<div class="tool-call-block">';
-                html += '<div class="tool-call-name">工具: ' + escapeHtml(item.name) + '</div>';
+                html += '<div class="tool-call-name">🔧 工具: ' + escapeHtml(item.name) + '</div>';
                 html += '<pre class="tool-call-args">' + escapeHtml(JSON.stringify(item.arguments, null, 2)) + '</pre>';
                 html += '</div>';
               }
