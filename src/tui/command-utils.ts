@@ -20,6 +20,13 @@ export function dispatchCommandResult(
   // 显示用户输入
   appendUserMessage(text);
 
+  if (result.compact) {
+    if (result.textResult) {
+      appendSystemMessage(result.textResult);
+    }
+    return true;
+  }
+
   // 处理 meta 消息 - 使用 prompt 数组在同一 turn 发送
   const promptOptions = result.model ? { model: result.model } : undefined;
   if (result.metaMessages && result.metaMessages.length > 0) {
