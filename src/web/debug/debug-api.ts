@@ -6,6 +6,16 @@ import { getDebugAgentSession } from "./debug-context.js";
 import { getUserContext, prependUserContext } from "../../agent/context/user-context.js";
 
 /**
+ * 带调试标记的 LLM 消息
+ */
+type DebugLlmMessage = Message & {
+  _debug?: {
+    /** 消息来源分类 */
+    source: "meta" | "attachment" | "original";
+  };
+};
+
+/**
  * Debug 上下文响应结构
  */
 export interface DebugContextResponse {
@@ -21,14 +31,32 @@ export interface DebugContextResponse {
   messageCount: number;
   /** 原始消息列表 */
   messages: AgentMessage[];
-  /** 转换后的 LLM 消息 */
-  llmMessages: Message[];
+  /** 转换后的 LLM 消息（带调试标记） */
+  llmMessages: DebugLlmMessage[];
   /** 系统提示词 */
   systemPrompt: string;
   /** 工具名称列表 */
   toolNames: string[];
   /** 数据生成时间戳 */
   timestamp: number;
+}
+
+/**
+ * 给 LLM 消息打上调试来源标记
+ */
+function annotateDebugSource(msg: Message): DebugLlmMessage {
+  if (msg.role === "user") {
+    if (msg.isMeta === true) {
+      return { ...msg, _debug: { source: "meta" } };
+    }
+    if (
+      typeof msg.content === "string" &&
+      msg.content.includes("<system-reminder>")
+    ) {
+      return { ...msg, _debug: { source: "attachment" } };
+    }
+  }
+  return { ...msg, _debug: { source: "original" } };
 }
 
 /**
@@ -45,7 +73,7 @@ export async function buildDebugContext(): Promise<DebugContextResponse | null> 
   // 动态注入 userContext（对齐实际 API 调用逻辑）
   const userContext = await getUserContext({ cwd: process.cwd() });
   normalized = prependUserContext(normalized, userContext);
-  const llmMessages = await session.convertToLlm(normalized);  // 正确的 LLM payload
+  const llmMessages = (await session.convertToLlm(normalized)).map(annotateDebugSource);  // 正确的 LLM payload
 
   return {
     sessionId: session.sessionId,
