@@ -171,6 +171,16 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       word-break: break-word;
       margin: 0;
     }
+    .llm-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    .llm-badge.meta { background: rgba(128,128,128,0.15); color: #888; }
+    .llm-badge.attach { background: rgba(74,144,226,0.15); color: #4a90e2; }
   </style>
 </head>
 <body>
@@ -261,9 +271,15 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         const role = msg.role || msg.type || 'unknown';
         if (plain) {
           const summary = getMessageSummary(msg);
+          let badge = '';
+          if (msg._debug && msg._debug.source === 'meta') {
+            badge = '<span class="llm-badge meta">📝 Meta</span>';
+          } else if (msg._debug && msg._debug.source === 'attachment') {
+            badge = '<span class="llm-badge attach">📎 Attach</span>';
+          }
           return '<div class="message-item ' + role + '">' +
             '<div class="message-header">' +
-              '<span class="message-role">' + role + '</span>' +
+              '<span class="message-role">' + role + '</span>' + badge +
               '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
             '</div>' +
             '<div class="message-body" style="display:none">' +
