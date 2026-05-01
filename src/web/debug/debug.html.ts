@@ -112,6 +112,65 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       border-bottom-color: var(--pico-primary);
     }
     .tab-btn:hover { color: var(--pico-primary); }
+    .message-role-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(128,128,128,0.15);
+    }
+    .message-item.user .message-role-badge { background: rgba(74,144,226,0.15); color: #4a90e2; }
+    .message-item.assistant .message-role-badge { background: rgba(80,200,120,0.15); color: #50c878; }
+    .message-item.tool .message-role-badge { background: rgba(255,165,0,0.15); color: #ffa500; }
+    .message-tool-status {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    .message-tool-status.success { background: rgba(80,200,120,0.15); color: #50c878; }
+    .message-tool-status.error { background: rgba(220,53,69,0.15); color: #dc3545; }
+    .message-item.tool.error { border-left-color: #dc3545; }
+    .message-timestamp {
+      font-size: 0.75rem;
+      color: var(--pico-muted-color);
+      margin-left: 0.5rem;
+    }
+    .thinking-block {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background-color: rgba(128,128,128,0.1);
+      border-radius: 0.25rem;
+    }
+    .thinking-block details summary {
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tool-call-block {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background-color: rgba(255,165,0,0.1);
+      border-radius: 0.25rem;
+    }
+    .tool-call-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .tool-call-args {
+      font-family: monospace;
+      font-size: 0.75rem;
+      background-color: rgba(128,128,128,0.15);
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -192,7 +251,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       return JSON.stringify(msg.content).slice(0, 60);
     }
 
-    function renderMessageList(messages, containerId) {
+    function renderMessageList(messages, containerId, plain) {
       const container = document.getElementById(containerId);
       if (!messages || messages.length === 0) {
         container.innerHTML = '<p class="empty-state">无消息</p>';
@@ -200,17 +259,113 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       }
       container.innerHTML = messages.map((msg, i) => {
         const role = msg.role || msg.type || 'unknown';
+        if (plain) {
+          const summary = getMessageSummary(msg);
+          return '<div class="message-item ' + role + '">' +
+            '<div class="message-header">' +
+              '<span class="message-role">' + role + '</span>' +
+              '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
+            '</div>' +
+            '<div class="message-body" style="display:none">' +
+              '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
+            '</div>' +
+          '</div>';
+        }
+        if (role === 'user') return renderUserMessage(msg);
+        if (role === 'toolResult') return renderToolResultMessage(msg);
+        if (role === 'assistant') return renderAssistantMessage(msg);
+        // fallback for unknown roles
         const summary = getMessageSummary(msg);
         return '<div class="message-item ' + role + '">' +
           '<div class="message-header">' +
             '<span class="message-role">' + role + '</span>' +
-            '<span class="message-summary">' + summary + '</span>' +
+            '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
           '</div>' +
           '<div class="message-body" style="display:none">' +
-            '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+            '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
           '</div>' +
         '</div>';
       }).join('');
+    }
+
+    function renderUserMessage(msg) {
+      const summary = getMessageSummary(msg);
+      const time = formatTime(msg.timestamp);
+      return '<div class="message-item user">' +
+        '<div class="message-header">' +
+          '<span><span class="message-role-badge">👤 用户</span><span class="message-timestamp">' + time + '</span></span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
+        '</div>' +
+        '<div class="message-body" style="display:none">' +
+          '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderToolResultMessage(msg) {
+      const summary = getMessageSummary(msg);
+      const time = formatTime(msg.timestamp);
+      const isError = msg.isError;
+      const toolName = msg.toolName || 'unknown';
+      const statusBadge = isError
+        ? '<span class="message-tool-status error">❌ Error</span>'
+        : '<span class="message-tool-status success">✅ OK</span>';
+      const errorClass = isError ? 'error' : '';
+      return '<div class="message-item tool ' + errorClass + '">' +
+        '<div class="message-header">' +
+          '<span><span class="message-role-badge">🛠️ ' + escapeHtml(toolName) + '</span>' + statusBadge + '<span class="message-timestamp">' + time + '</span></span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
+        '</div>' +
+        '<div class="message-body" style="display:none">' +
+          '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderAssistantMessage(msg) {
+      const summary = getMessageSummary(msg);
+      const time = formatTime(msg.timestamp);
+      let bodyHtml = '';
+      if (Array.isArray(msg.content) && msg.content.length > 0) {
+        bodyHtml = msg.content.map(function(item) {
+          if (item.type === 'thinking') {
+            return '<div class="thinking-block">' +
+              '<details>' +
+                '<summary>🧠 Thinking</summary>' +
+                '<div>' + escapeHtml(item.thinking || '') + '</div>' +
+              '</details>' +
+            '</div>';
+          }
+          if (item.type === 'toolCall') {
+            return '<div class="tool-call-block">' +
+              '<div class="tool-call-name">🔧 Tool: ' + escapeHtml(item.name || 'unknown') + '</div>' +
+              '<pre class="tool-call-args">' + escapeHtml(JSON.stringify(item.arguments || {}, null, 2)) + '</pre>' +
+            '</div>';
+          }
+          if (item.type === 'text') {
+            return '<div>💬 ' + escapeHtml(item.text || '') + '</div>';
+          }
+          return '<div>Unknown: ' + escapeHtml(JSON.stringify(item)) + '</div>';
+        }).join('');
+      } else {
+        bodyHtml = '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>';
+      }
+      return '<div class="message-item assistant">' +
+        '<div class="message-header">' +
+          '<span><span class="message-role-badge">🤖 Assistant</span><span class="message-timestamp">' + time + '</span></span>' +
+          '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
+        '</div>' +
+        '<div class="message-body" style="display:none">' +
+          bodyHtml +
+        '</div>' +
+      '</div>';
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
 
     function setupMessageToggle(containerId) {
@@ -269,7 +424,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
 
         // 渲染标签页
         renderMessageList(data.messages, 'tab-messages');
-        renderMessageList(data.llmMessages, 'tab-llm');
+        renderMessageList(data.llmMessages, 'tab-llm', true);
         document.getElementById('tab-system').innerHTML = '<pre><code>' + (data.systemPrompt || '无') + '</code></pre>';
         renderTools(data.toolNames);
 
