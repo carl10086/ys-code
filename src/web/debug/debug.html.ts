@@ -268,7 +268,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         return;
       }
       container.innerHTML = messages.map((msg, i) => {
-        const role = msg.role || msg.type || 'unknown';
+        const role = escapeHtml(msg.role || msg.type || 'unknown');
         if (plain) {
           const summary = getMessageSummary(msg);
           let badge = '';
