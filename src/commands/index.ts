@@ -16,6 +16,7 @@ import help from "./help/index.js";
 import system from "./system/index.js";
 import skills from "./skills/index.js";
 import debug from "./debug/index.js";
+import compact from "./compact/index.js";
 import { loadSkillsFromSkillsDir } from "../skills/loadSkillsDir.js";
 import { loadCommandsFromDir, getProjectCommandDirs } from "./loadCommandsDir.js";
 
@@ -24,6 +25,7 @@ export const BUILTIN_COMMANDS: Command[] = [
   exit,
   clear,
   debug,
+  compact,
   tools,
   help,
   system,

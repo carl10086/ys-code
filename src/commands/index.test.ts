@@ -88,6 +88,14 @@ describe("commands/index integration", () => {
     expect(cmd!.description).toBe("Project Only");
   });
 
+  it("findCommand 应能找到内置 compact 命令", async () => {
+    const cmd = await findCommand("compact");
+
+    expect(cmd).toBeDefined();
+    expect(cmd!.type).toBe("local");
+    expect(cmd!.name).toBe("compact");
+  });
+
   it("executeCommand 应正确传递 cwd 以解析项目级命令", async () => {
     const fakeHome = join(tempDir, "home");
     const fakeProject = join(tempDir, "project");
@@ -217,5 +225,31 @@ describe("commands/index integration", () => {
     } finally {
       BUILTIN_COMMANDS.pop();
     }
+  });
+
+  it("executeCommand 应执行内置 compact 命令并传递 custom instructions", async () => {
+    let compactOptions: any;
+    const result = await executeCommand(
+      "/compact 只关注代码修改",
+      {
+        session: {
+          compact: async (options: any) => {
+            compactOptions = options;
+            return { displayText: "Compacted conversation" };
+          },
+        } as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.compact).toBe(true);
+    expect(result.textResult).toBe("Compacted conversation");
+    expect(compactOptions).toEqual({
+      commandText: "/compact 只关注代码修改",
+      instructions: "只关注代码修改",
+    });
   });
 });
