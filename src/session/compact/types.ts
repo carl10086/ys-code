@@ -25,6 +25,17 @@ export interface CompactMessageBuildInput {
   attachments: AgentMessage[];
 }
 
+export interface CompactionResult extends CompactMessageBuildInput {
+  postCompactMessages: AgentMessage[];
+  displayText: string;
+  metrics: {
+    preCompactTokens: number;
+    postCompactTokens?: number;
+    microcompactTokensSaved: number;
+    clearedToolCallIds: string[];
+  };
+}
+
 declare module "../../agent/types.js" {
   interface CustomAgentMessages {
     compactBoundary: CompactBoundaryMessage;

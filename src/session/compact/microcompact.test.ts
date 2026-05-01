@@ -66,6 +66,17 @@ describe("microcompactMessages", () => {
     expect((messages[0] as any).content).toEqual([{ type: "text", text: "old read output" }]);
   });
 
+  it("clears all compactable results when keepRecent is zero", () => {
+    const messages = [
+      toolResult("read-1", "Read", "old read output", 1),
+    ];
+
+    const result = microcompactMessages(messages, { keepRecent: 0 });
+
+    expect(result.clearedToolCallIds).toEqual(["read-1"]);
+    expect(result.keptToolCallIds).toEqual([]);
+  });
+
   it("exports the compactable tool whitelist", () => {
     expect(COMPACTABLE_TOOLS).toContain("Read");
     expect(COMPACTABLE_TOOLS).toContain("Bash");

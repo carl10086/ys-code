@@ -24,8 +24,17 @@ export {
   createPostCompactFileAttachments,
   createSkillRestoreAttachments,
 } from "./attachments.js";
+export {
+  compactConversation,
+  isPromptTooLongError,
+} from "./conversation.js";
 export type { CompactConfig } from "./trigger.js";
 export type { PostCompactFileAttachmentOptions } from "./attachments.js";
+export type {
+  CompactConversationOptions,
+  CompactSummaryRunner,
+  CompactSummaryRunnerInput,
+} from "./conversation.js";
 export type {
   MicrocompactOptions,
   MicrocompactResult,
@@ -34,5 +43,6 @@ export type {
   CompactBoundaryMessage,
   CompactMessageBuildInput,
   CompactMetadata,
+  CompactionResult,
   CompactTriggerReason,
 } from "./types.js";

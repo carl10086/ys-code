@@ -41,7 +41,9 @@ export function microcompactMessages(
       isToolResultMessage(message) && compactableTools.has(message.toolName)
     )
     .map(({ index }) => index);
-  const indexesToKeep = new Set(compactableToolResultIndexes.slice(-keepRecent));
+  const indexesToKeep = new Set(
+    keepRecent === 0 ? [] : compactableToolResultIndexes.slice(-keepRecent),
+  );
 
   let tokensSaved = 0;
   const clearedToolCallIds: string[] = [];
