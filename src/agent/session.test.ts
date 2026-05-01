@@ -308,6 +308,47 @@ describe("AgentSession", () => {
     expect(lastTurnEnd!.timeMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("compact should replace messages with compact result and command records", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    const result = await session.compact({
+      commandText: "/compact 只关注代码修改",
+      instructions: "只关注代码修改",
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+    });
+
+    expect(session.messages).toEqual(result.postCompactMessages);
+    expect(session.messages[0].role).toBe("compact_boundary");
+    expect(session.messages[1].role).toBe("user");
+    expect((session.messages[2] as any).content[0].text).toBe("/compact 只关注代码修改");
+    expect((session.messages[3] as any).isMeta).toBe(true);
+    expect((session.messages[3] as any).content[0].text).toContain("<local-command-stdout>");
+    expect(JSON.stringify(session.messages)).not.toContain("old history");
+  });
+
+  it("compact should keep messages unchanged when summary generation fails", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const originalMessages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+    (session as any).agent.state.messages = originalMessages;
+
+    await expect(session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => {
+        throw new Error("summary failed");
+      },
+    })).rejects.toThrow("summary failed");
+
+    expect(session.messages).toEqual(originalMessages);
+  });
+
   it("should accept AgentMessage array in prompt()", async () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
     const session = new AgentSession({
