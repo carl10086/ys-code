@@ -13,7 +13,16 @@ export {
   NO_TOOLS_PREAMBLE,
   NO_TOOLS_TRAILER,
 } from "./prompt.js";
+export {
+  COMPACTABLE_TOOLS,
+  MICROCOMPACT_CLEARED_MESSAGE,
+  microcompactMessages,
+} from "./microcompact.js";
 export type { CompactConfig } from "./trigger.js";
+export type {
+  MicrocompactOptions,
+  MicrocompactResult,
+} from "./microcompact.js";
 export type {
   CompactBoundaryMessage,
   CompactMessageBuildInput,
