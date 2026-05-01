@@ -343,7 +343,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
             '</div>';
           }
           if (item.type === 'text') {
-            return '<div class="text-block">💬 ' + escapeHtml(item.text || '') + '</div>';
+            return '<div>💬 ' + escapeHtml(item.text || '') + '</div>';
           }
           return '<div>Unknown: ' + escapeHtml(JSON.stringify(item)) + '</div>';
         }).join('');

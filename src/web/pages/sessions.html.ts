@@ -471,7 +471,7 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
               } else if (item.type === 'thinking') {
                 html += '<details>';
                 html += '<summary>🧠 思考过程</summary>';
-                html += '<p>' + escapeHtml(item.thinking) + '</p>';
+                html += '<div style="white-space:pre-wrap">' + escapeHtml(item.thinking) + '</div>';
                 html += '</details>';
               } else if (item.type === 'toolCall') {
                 html += '<div class="tool-call-block">';
