@@ -139,6 +139,38 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       color: var(--pico-muted-color);
       margin-left: 0.5rem;
     }
+    .thinking-block {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background-color: rgba(128,128,128,0.1);
+      border-radius: 0.25rem;
+    }
+    .thinking-block details summary {
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tool-call-block {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background-color: rgba(255,165,0,0.1);
+      border-radius: 0.25rem;
+    }
+    .tool-call-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .tool-call-args {
+      font-family: monospace;
+      font-size: 0.75rem;
+      background-color: rgba(128,128,128,0.15);
+      padding: 0.5rem;
+      border-radius: 0.25rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -281,13 +313,38 @@ export const DEBUG_HTML = `<!DOCTYPE html>
     function renderAssistantMessage(msg) {
       const summary = getMessageSummary(msg);
       const time = formatTime(msg.timestamp);
+      let bodyHtml = '';
+      if (Array.isArray(msg.content) && msg.content.length > 0) {
+        bodyHtml = msg.content.map(function(item) {
+          if (item.type === 'thinking') {
+            return '<div class="thinking-block">' +
+              '<details>' +
+                '<summary>🧠 Thinking</summary>' +
+                '<div>' + escapeHtml(item.thinking || '') + '</div>' +
+              '</details>' +
+            '</div>';
+          }
+          if (item.type === 'toolCall') {
+            return '<div class="tool-call-block">' +
+              '<div class="tool-call-name">🔧 Tool: ' + escapeHtml(item.name || 'unknown') + '</div>' +
+              '<pre class="tool-call-args">' + escapeHtml(JSON.stringify(item.arguments || {}, null, 2)) + '</pre>' +
+            '</div>';
+          }
+          if (item.type === 'text') {
+            return '<div class="text-block">💬 ' + escapeHtml(item.text || '') + '</div>';
+          }
+          return '<div>Unknown: ' + escapeHtml(JSON.stringify(item)) + '</div>';
+        }).join('');
+      } else {
+        bodyHtml = '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>';
+      }
       return '<div class="message-item assistant">' +
         '<div class="message-header">' +
           '<span><span class="message-role-badge">🤖 Assistant</span><span class="message-timestamp">' + time + '</span></span>' +
           '<span class="message-summary">' + summary + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
-          '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+          bodyHtml +
         '</div>' +
       '</div>';
     }
