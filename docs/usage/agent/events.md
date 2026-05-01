@@ -5,7 +5,7 @@
 ```typescript
 type AgentEvent =
   | { type: "agent_start" }
-  | { type: "agent_end"; messages: AgentMessage[] }
+  | { type: "agent_end" }
   | { type: "turn_start" }
   | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }
   | { type: "message_start"; message: AgentMessage }
@@ -31,7 +31,7 @@ Agent 开始运行：
 Agent 结束运行：
 
 ```typescript
-{ type: "agent_end"; messages: AgentMessage[] }
+{ type: "agent_end" }
 ```
 
 ## Turn 事件
@@ -113,7 +113,7 @@ agent.subscribe((event, signal) => {
       console.log("Agent 开始");
       break;
     case "agent_end":
-      console.log("Agent 结束，共", event.messages.length, "条消息");
+      console.log("Agent 结束");
       break;
     case "turn_start":
       console.log("Turn 开始");

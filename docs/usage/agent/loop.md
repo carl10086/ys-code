@@ -12,20 +12,21 @@
 
 ```typescript
 import { runAgentLoop, type AgentEventSink } from "../../src/agent/index.js";
+import { asSystemPrompt, getModel } from "../../src/core/ai/index.js";
 
 const emit: AgentEventSink = async (event) => {
   console.log("Event:", event.type);
 };
 
-const result = await runAgentLoop(
+await runAgentLoop(
   [{ role: "user", content: [{ type: "text", text: "Hello" }], timestamp: Date.now() }],
   {
-    systemPrompt: "You are a helpful assistant.",
     messages: [],
     tools: [/* your tools */],
   },
   {
     model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a helpful assistant."]),
     reasoning: "off",
     convertToLlm: (msgs) => msgs.filter(m => ["user", "assistant", "toolResult"].includes(m.role)),
     getApiKey: () => process.env.MINIMAX_API_KEY,
@@ -36,24 +37,27 @@ const result = await runAgentLoop(
 );
 ```
 
+`runAgentLoop` 不返回本轮新增消息。需要消费消息时，请在 `emit` 中监听 `message_end` / `turn_end` 事件，或在外层维护自己的消息状态。
+
 ### runAgentLoopContinue
 
 继续现有对话：
 
 ```typescript
 const existingContext = {
-  systemPrompt: "You are a helpful assistant.",
   messages: [
     { role: "user", content: [{ type: "text", text: "What is 2 + 2?" }], timestamp: Date.now() },
     { role: "assistant", content: [{ type: "text", text: "4" }], timestamp: Date.now() },
+    { role: "user", content: [{ type: "text", text: "Please explain why." }], timestamp: Date.now() },
   ],
   tools: [/* your tools */],
 };
 
-const result = await runAgentLoopContinue(
+await runAgentLoopContinue(
   existingContext,
   {
     model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a helpful assistant."]),
     reasoning: "off",
     convertToLlm: (msgs) => msgs.filter(m => ["user", "assistant", "toolResult"].includes(m.role)),
     getApiKey: () => process.env.MINIMAX_API_KEY,
@@ -64,19 +68,21 @@ const result = await runAgentLoopContinue(
 );
 ```
 
+`runAgentLoopContinue` 同样只通过事件输出执行过程，不通过返回值输出 assistant 消息。
+
 ### AgentLoopConfig 速查表
 
 ```typescript
 interface AgentLoopConfig extends SimpleStreamOptions {
+  systemPrompt?: SystemPrompt;
   model: Model<any>;
   convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-  transformContext?: (messages: AgentMessage[], signal?: AbortSignal) => Promise<AgentMessage[]>;
-  getApiKey?: (provider: string) => string | undefined;
+  getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   getSteeringMessages?: () => Promise<AgentMessage[]>;
   getFollowUpMessages?: () => Promise<AgentMessage[]>;
   toolExecution?: ToolExecutionMode;
-  beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
-  afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
+  disableUserContext?: boolean;
+  fileStateCache: FileStateCache;
 }
 ```
 
@@ -100,20 +106,19 @@ interface AgentLoopConfig extends SimpleStreamOptions {
 
 ```typescript
 import { runAgentLoop, type AgentEventSink } from "../../src/agent/index.js";
-import { getModel } from "../../src/core/ai/index.js";
+import { asSystemPrompt, getModel } from "../../src/core/ai/index.js";
 import { Type } from "@sinclair/typebox";
 
 const addTool = {
   name: "add",
   description: "Add two numbers",
   parameters: Type.Object({ a: Type.Number(), b: Type.Number() }),
+  outputSchema: Type.Object({ result: Type.Number() }),
   label: "Add",
   async execute(id, params) {
-    return {
-      content: [{ type: "text", text: `${params.a} + ${params.b} = ${params.a + params.b}` }],
-      details: { result: params.a + params.b },
-    };
+    return { result: params.a + params.b };
   },
+  formatResult: (output) => [{ type: "text", text: String(output.result) }],
 };
 
 const emit: AgentEventSink = async (event) => {
@@ -123,12 +128,12 @@ const emit: AgentEventSink = async (event) => {
 await runAgentLoop(
   [{ role: "user", content: [{ type: "text", text: "What is 5 + 3?" }], timestamp: Date.now() }],
   {
-    systemPrompt: "You are a math assistant. Use tools for calculations.",
     messages: [],
     tools: [addTool],
   },
   {
     model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a math assistant. Use tools for calculations."]),
     reasoning: "off",
     convertToLlm: (msgs) => msgs.filter((m) =>
       ["user", "assistant", "toolResult"].includes(m.role)

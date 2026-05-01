@@ -238,7 +238,7 @@ describe("AgentSession", () => {
     const signal = new AbortController().signal;
     agent.listeners.forEach((listener: any) => {
       listener({ type: "agent_start" }, signal);
-      listener({ type: "agent_end", messages: [] }, signal);
+      listener({ type: "agent_end" }, signal);
     });
 
     expect(events).toHaveLength(0);

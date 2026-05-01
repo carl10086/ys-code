@@ -15,7 +15,6 @@ import type {
  * 执行单次 turn：注入 pendingMessages、请求 assistant 回复、执行工具调用并发射 turn_end。
  *
  * @param currentContext - 当前 agent 上下文
- * @param newMessages - 本轮 agent 产生的新消息集合
  * @param pendingMessages - 待注入的 steering / follow-up 消息数组（会被清空）
  * @param config - agent 循环配置
  * @param signal - 可选的取消信号
@@ -25,7 +24,6 @@ import type {
  */
 async function runTurnOnce(
   currentContext: AgentContext,
-  newMessages: AgentMessage[],
   pendingMessages: AgentMessage[],
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
@@ -55,13 +53,11 @@ async function runTurnOnce(
         await emit({ type: "message_start", message });
         await emit({ type: "message_end", message });
         currentContext.messages.push(message);
-        newMessages.push(message);
       }
       pendingMessages.length = 0;
     }
 
     const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
-    newMessages.push(message);
 
     const toolCalls = message.content.filter((c) => c.type === "toolCall");
     const hasMoreToolCalls = toolCalls.length > 0;
@@ -72,7 +68,6 @@ async function runTurnOnce(
 
       for (const result of toolResults) {
         currentContext.messages.push(result);
-        newMessages.push(result);
       }
     }
 
@@ -91,7 +86,6 @@ async function runTurnOnce(
  * 核心循环逻辑：反复执行 turn，直到没有更多工具调用、steering 消息或 follow-up 消息为止。
  *
  * @param currentContext - 当前 agent 上下文
- * @param newMessages - 本轮 agent 产生的新消息集合
  * @param config - agent 循环配置
  * @param signal - 可选的取消信号
  * @param emit - 事件发射器
@@ -99,7 +93,6 @@ async function runTurnOnce(
  */
 async function runLoop(
   currentContext: AgentContext,
-  newMessages: AgentMessage[],
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
@@ -119,7 +112,6 @@ async function runLoop(
 
       const { assistantMessage: message } = await runTurnOnce(
         currentContext,
-        newMessages,
         pendingMessages,
         config,
         signal,
@@ -134,7 +126,7 @@ async function runLoop(
       });
 
       if (message.stopReason === "error" || message.stopReason === "aborted") {
-        await emit({ type: "agent_end", messages: newMessages });
+        await emit({ type: "agent_end" });
         return;
       }
 
@@ -161,7 +153,7 @@ async function runLoop(
     break;
   }
 
-  await emit({ type: "agent_end", messages: newMessages });
+  await emit({ type: "agent_end" });
 }
 
 /**
@@ -176,7 +168,6 @@ async function runLoop(
  * @param emit - 事件发射器
  * @param signal - 可选的取消信号
  * @param streamFn - 可选的流式请求函数
- * @returns 本轮产生的新消息数组（包含 prompts 和 assistant 回复）
  */
 export async function runAgentLoop(
   prompts: AgentMessage[],
@@ -185,8 +176,7 @@ export async function runAgentLoop(
   emit: AgentEventSink,
   signal?: AbortSignal,
   streamFn?: StreamFn,
-): Promise<AgentMessage[]> {
-  const newMessages: AgentMessage[] = [...prompts];
+): Promise<void> {
   const currentContext: AgentContext = {
     ...context,
     messages: [...context.messages, ...prompts],
@@ -199,8 +189,7 @@ export async function runAgentLoop(
     await emit({ type: "message_end", message: prompt });
   }
 
-  await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
-  return newMessages;
+  await runLoop(currentContext, config, signal, emit, streamFn);
 }
 
 /**
@@ -213,7 +202,6 @@ export async function runAgentLoop(
  * @param emit - 事件发射器
  * @param signal - 可选的取消信号
  * @param streamFn - 可选的流式请求函数
- * @returns 本轮产生的新消息数组
  */
 export async function runAgentLoopContinue(
   context: AgentContext,
@@ -221,7 +209,7 @@ export async function runAgentLoopContinue(
   emit: AgentEventSink,
   signal?: AbortSignal,
   streamFn?: StreamFn,
-): Promise<AgentMessage[]> {
+): Promise<void> {
   if (context.messages.length === 0) {
     throw new Error("Cannot continue: no messages in context");
   }
@@ -230,12 +218,10 @@ export async function runAgentLoopContinue(
     throw new Error("Cannot continue from message role: assistant");
   }
 
-  const newMessages: AgentMessage[] = [];
   const currentContext: AgentContext = { ...context };
 
   await emit({ type: "agent_start" });
   await emit({ type: "turn_start" });
 
-  await runLoop(currentContext, newMessages, config, signal, emit, streamFn);
-  return newMessages;
+  await runLoop(currentContext, config, signal, emit, streamFn);
 }

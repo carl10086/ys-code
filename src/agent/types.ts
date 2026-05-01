@@ -196,7 +196,7 @@ export interface AgentState {
 /** Agent 事件类型 */
 export type AgentEvent =
   | { type: "agent_start" }   // Agent 开始
-  | { type: "agent_end"; messages: AgentMessage[] }   // Agent 结束
+  | { type: "agent_end" }   // Agent 结束
   | { type: "turn_start" }   // 轮次开始
   | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[] }   // 轮次结束
   | { type: "message_start"; message: AgentMessage }   // 消息开始
