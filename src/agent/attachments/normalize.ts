@@ -69,6 +69,10 @@ export function normalizeMessages(messages: AgentMessage[]): Message[] {
   const result: Message[] = [];
 
   for (const msg of messages) {
+    if (msg.role === "compact_boundary") {
+      continue;
+    }
+
     if (msg.role !== "attachment") {
       // 非 attachment 直接推入，但创建浅拷贝避免修改原对象
       result.push({ ...msg });

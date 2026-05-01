@@ -195,6 +195,31 @@ describe("normalizeMessages purity", () => {
     expect(result[0].role).toBe("user");
     expect(result[1].role).toBe("assistant");
   });
+
+  it("should skip compact boundary messages", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "Before", timestamp: 1000 },
+      {
+        role: "compact_boundary",
+        uuid: "compact-1",
+        timestamp: 2000,
+        compactMetadata: {
+          trigger: "manual",
+          preTokens: 100,
+        },
+      },
+      { role: "user", content: "After", timestamp: 3000 },
+    ] as AgentMessage[];
+
+    const result = normalizeMessages(messages);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((message) => message.role)).toEqual(["user", "user"]);
+    expect(result.map((message) => (message.role === "user" ? message.content : ""))).toEqual([
+      "Before",
+      "After",
+    ]);
+  });
 });
 
 describe("normalizeMessages", () => {

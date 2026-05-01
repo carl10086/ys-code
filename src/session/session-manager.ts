@@ -1,6 +1,6 @@
 import { SessionStorage } from "./session-storage.js";
 import { SessionLoader } from "./session-loader.js";
-import { CompactTrigger } from "./compact.js";
+import { CompactTrigger } from "./compact/trigger.js";
 import type { AgentMessage } from "../agent/types.js";
 import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, AttachmentEntry } from "./entry-types.js";
 

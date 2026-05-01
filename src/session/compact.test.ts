@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { CompactTrigger } from "./compact.js";
+import { CompactTrigger } from "./compact/trigger.js";
 import type { AgentMessage } from "../agent/types.js";
 
 describe("CompactTrigger", () => {
