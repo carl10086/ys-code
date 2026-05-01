@@ -17,6 +17,11 @@ export interface FileReadRecord {
   isPartialView?: boolean;
 }
 
+export interface FileStateSnapshotEntry {
+  path: string;
+  record: FileReadRecord;
+}
+
 /**
  * 文件状态缓存
  * 基于 LRUCache 实现内存受限的文件读取状态管理
@@ -95,6 +100,14 @@ export class FileStateCache {
   /** 获取记录 */
   get(path: string): FileReadRecord | undefined {
     return this.cache.get(normalize(path));
+  }
+
+  /** 导出当前文件读取状态快照 */
+  snapshot(): FileStateSnapshotEntry[] {
+    return Array.from(this.cache.entries()).map(([path, record]) => ({
+      path,
+      record: { ...record },
+    }));
   }
 
   /** 清除所有记录 */

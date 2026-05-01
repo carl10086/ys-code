@@ -18,7 +18,14 @@ export {
   MICROCOMPACT_CLEARED_MESSAGE,
   microcompactMessages,
 } from "./microcompact.js";
+export {
+  createBackgroundTaskRestoreAttachments,
+  createPlanRestoreAttachments,
+  createPostCompactFileAttachments,
+  createSkillRestoreAttachments,
+} from "./attachments.js";
 export type { CompactConfig } from "./trigger.js";
+export type { PostCompactFileAttachmentOptions } from "./attachments.js";
 export type {
   MicrocompactOptions,
   MicrocompactResult,
