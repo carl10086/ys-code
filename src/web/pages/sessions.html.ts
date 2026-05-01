@@ -148,6 +148,11 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
         return div.innerHTML;
       }
 
+      function escapeAttr(text) {
+        if (!text) return '';
+        return String(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
       function renderSidebar() {
         var hash = window.location.hash;
         var isDetail = hash.length > 2 && hash.startsWith('#/');
@@ -450,7 +455,7 @@ export const SESSIONS_HTML = `<!DOCTYPE html>
           if (isLong) {
             html += '<div class="truncated-mask"></div>';
             html += '</div>';
-            html += '<button class="expand-button secondary" data-full-text="' + escapeHtml(text) + '">展开全部 (' + text.length + ' 字符)</button>';
+            html += '<button class="expand-button secondary" data-full-text="' + escapeAttr(text) + '">展开全部 (' + text.length + ' 字符)</button>';
           } else {
             html += '</div>';
           }

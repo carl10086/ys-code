@@ -267,7 +267,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
               '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
             '</div>' +
             '<div class="message-body" style="display:none">' +
-              '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+              '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
             '</div>' +
           '</div>';
         }
@@ -282,7 +282,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
             '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
           '</div>' +
           '<div class="message-body" style="display:none">' +
-            '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+            '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -297,7 +297,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
           '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
-          '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+          '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
         '</div>' +
       '</div>';
     }
@@ -317,7 +317,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
           '<span class="message-summary">' + escapeHtml(summary) + '</span>' +
         '</div>' +
         '<div class="message-body" style="display:none">' +
-          '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>' +
+          '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>' +
         '</div>' +
       '</div>';
     }
@@ -348,7 +348,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
           return '<div>Unknown: ' + escapeHtml(JSON.stringify(item)) + '</div>';
         }).join('');
       } else {
-        bodyHtml = '<pre><code>' + JSON.stringify(msg, null, 2) + '</code></pre>';
+        bodyHtml = '<pre><code>' + escapeHtml(JSON.stringify(msg, null, 2)) + '</code></pre>';
       }
       return '<div class="message-item assistant">' +
         '<div class="message-header">' +
