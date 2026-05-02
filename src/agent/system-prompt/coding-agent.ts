@@ -23,7 +23,7 @@ function dynamicSection(name: string, compute: (context: SystemPromptContext) =>
   return { name, compute };
 }
 
-const sections: SystemPromptSection[] = [
+export const sections: SystemPromptSection[] = [
   staticSection("intro", intro.compute),
   staticSection("system", system.compute),
   staticSection("doing-tasks", doingTasks.compute),

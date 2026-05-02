@@ -162,4 +162,46 @@ describe("Debug API buildDebugContext", () => {
     // 空消息时 prependUserContext 仍可能注入 currentDate meta message
     expect(context!.llmMessages.length).toBeGreaterThanOrEqual(0);
   });
+
+  it("should include systemPromptSections with correct structure", async () => {
+    const mockSession = {
+      messages: [],
+      convertToLlm: (msgs: AgentMessage[]) => msgs,
+      sessionId: "test-session",
+      model: { name: "test", provider: "test", id: "test-model", api: "anthropic-messages", baseUrl: "http://test" },
+      isStreaming: false,
+      pendingToolCalls: new Set(),
+      tools: [],
+      getSystemPrompt: () => "test system prompt",
+    };
+
+    setDebugAgentSession(mockSession as any);
+
+    const context = await buildDebugContext();
+
+    expect(context).not.toBeNull();
+    expect(context!.systemPromptSections).toBeDefined();
+    expect(context!.systemPromptSections.length).toBeGreaterThan(0);
+
+    // 验证每个 section 的结构
+    for (const section of context!.systemPromptSections) {
+      expect(section.name).toBeString();
+      expect(section.type).toMatch(/^(static|dynamic)$/);
+      expect(section.description).toBeString();
+      expect(section.content).toBeString();
+    }
+
+    // 验证 static 在 dynamic 之前
+    let foundDynamic = false;
+    for (const section of context!.systemPromptSections) {
+      if (section.type === "dynamic") {
+        foundDynamic = true;
+      } else if (foundDynamic) {
+        throw new Error("Static section found after dynamic section");
+      }
+    }
+
+    // systemPrompt 保持兼容
+    expect(context!.systemPrompt).toBe("test system prompt");
+  });
 });
