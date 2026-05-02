@@ -44,6 +44,37 @@ describe("SessionLoader", () => {
     expect((messages[2] as any).content).toBe("After compact");
   });
 
+  it("新版 compact_boundary 应从 boundary 开始恢复 active context", () => {
+    const entries: Entry[] = [
+      { type: "header", uuid: "hdr-1", parentUuid: null, timestamp: 1000, version: 1, sessionId: "s1", cwd: "/tmp" },
+      { type: "user", uuid: "msg-1", parentUuid: "hdr-1", timestamp: 1001, content: "Old history" },
+      {
+        type: "compact_boundary",
+        uuid: "compact-1",
+        parentUuid: "msg-1",
+        timestamp: 1002,
+        summary: "",
+        tokensBefore: 100,
+        tokensAfter: 10,
+        compactMetadata: {
+          trigger: "manual",
+          preTokens: 100,
+          clearedToolCallIds: ["tool-1"],
+        },
+      },
+      { type: "user", uuid: "summary-1", parentUuid: "compact-1", timestamp: 1003, content: [{ type: "text", text: "Summary" }], isMeta: true },
+      { type: "user", uuid: "cmd-1", parentUuid: "summary-1", timestamp: 1004, content: [{ type: "text", text: "/compact" }] },
+    ];
+
+    const messages = loader.restoreMessages(entries);
+    expect(messages).toHaveLength(3);
+    expect(messages[0].role).toBe("compact_boundary");
+    expect((messages[0] as any).uuid).toBe("compact-1");
+    expect((messages[0] as any).compactMetadata.clearedToolCallIds).toEqual(["tool-1"]);
+    expect((messages[1] as any).content[0].text).toBe("Summary");
+    expect(JSON.stringify(messages)).not.toContain("Old history");
+  });
+
   it("应从叶子节点回走构建活跃分支", () => {
     const entries: Entry[] = [
       { type: "header", uuid: "hdr-1", parentUuid: null, timestamp: 1000, version: 1, sessionId: "s1", cwd: "/tmp" },

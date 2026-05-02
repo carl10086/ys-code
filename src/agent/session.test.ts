@@ -331,6 +331,27 @@ describe("AgentSession", () => {
     expect(JSON.stringify(session.messages)).not.toContain("old history");
   });
 
+  it("compact should persist compacted messages for session restore", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    await session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+    });
+
+    const restored = (session as any).sessionManager.restoreMessages();
+    expect(restored[0].role).toBe("compact_boundary");
+    expect(restored[1].role).toBe("user");
+    expect((restored[1] as any).isMeta).toBe(true);
+    expect((restored[2] as any).content[0].text).toBe("/compact");
+    expect(JSON.stringify(restored)).not.toContain("old history");
+  });
+
   it("compact should keep messages unchanged when summary generation fails", async () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
     const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
@@ -347,6 +368,126 @@ describe("AgentSession", () => {
     })).rejects.toThrow("summary failed");
 
     expect(session.messages).toEqual(originalMessages);
+  });
+
+  it("compact should fail without replacing messages if messages change while summary is pending", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    let resolveSummary!: (summary: string) => void;
+    const compactPromise = session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => new Promise<string>((resolve) => {
+        resolveSummary = resolve;
+      }),
+    });
+
+    agent.state.messages.push({
+      role: "user",
+      content: [{ type: "text", text: "late message" }],
+      timestamp: 2,
+    });
+    resolveSummary("<summary>1. Primary Request and Intent:\nContinue work.</summary>");
+
+    await expect(compactPromise).rejects.toThrow("changed during compact");
+    expect(JSON.stringify(session.messages)).toContain("late message");
+    expect(session.messages[0].role).toBe("user");
+  });
+
+  it("compact should reject while streaming", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.isStreaming = true;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    await expect(session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "<summary>Summary</summary>",
+    })).rejects.toThrow("streaming");
+
+    expect(session.messages).toHaveLength(1);
+    expect((session.messages[0] as any).content[0].text).toBe("old history");
+  });
+
+  it("compact should reject duplicate compact while one is pending", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    (session as any).agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    let resolveSummary!: (summary: string) => void;
+    const firstCompact = session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => new Promise<string>((resolve) => {
+        resolveSummary = resolve;
+      }),
+    });
+
+    await expect(session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "<summary>second</summary>",
+    })).rejects.toThrow("already in progress");
+
+    resolveSummary("<summary>1. Primary Request and Intent:\nContinue work.</summary>");
+    await firstCompact;
+  });
+
+  it("compact default summary runner should call the model with tools disabled", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    let streamOptions: any;
+    agent.streamFn = async function* (_model: unknown, options: any) {
+      streamOptions = options;
+      yield {
+        type: "done",
+        message: {
+          content: [{ type: "text", text: "<summary>1. Primary Request and Intent:\nContinue work.</summary>" }],
+        },
+      };
+    };
+
+    await session.compact({ commandText: "/compact" });
+
+    expect(streamOptions.tools).toEqual([]);
+  });
+
+  it("restoreSession should restore compacted active context from transcript", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const firstSession = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    (firstSession as any).agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+
+    await firstSession.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+    });
+
+    const restoredSession = new AgentSession({
+      cwd: "/tmp",
+      model,
+      apiKey: "test",
+      systemPrompt: async () => asSystemPrompt([""]),
+      sessionBaseDir: tmpDir,
+      restoreSession: true,
+    });
+
+    expect(restoredSession.messages[0].role).toBe("compact_boundary");
+    expect(JSON.stringify(restoredSession.messages)).toContain("Continue work");
+    expect(JSON.stringify(restoredSession.messages)).not.toContain("old history");
   });
 
   it("should accept AgentMessage array in prompt()", async () => {

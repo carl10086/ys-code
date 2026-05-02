@@ -57,6 +57,8 @@ describe("compactConversation", () => {
       attachment,
     ]);
     expect(result.metrics.clearedToolCallIds).toEqual(["read-1"]);
+    expect((result.boundaryMessage as any).compactMetadata.postTokens).toBe(result.metrics.postCompactTokens);
+    expect(result.metrics.postCompactTokens).toBeGreaterThan(0);
     expect(result.displayText).toContain("Compacted");
   });
 

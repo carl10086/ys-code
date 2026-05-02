@@ -20,7 +20,7 @@ export function dispatchCommandResult(
   // 显示用户输入
   appendUserMessage(text);
 
-  if (result.compact) {
+  if (result.compact || result.skipPrompt) {
     if (result.textResult) {
       appendSystemMessage(result.textResult);
     }

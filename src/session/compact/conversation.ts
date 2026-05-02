@@ -110,6 +110,7 @@ export async function compactConversation(
     attachments,
   });
   const postCompactTokens = estimator.estimate(postCompactMessages);
+  boundaryMessage.compactMetadata.postTokens = postCompactTokens;
 
   return {
     boundaryMessage,

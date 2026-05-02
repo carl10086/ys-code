@@ -97,6 +97,7 @@ export class AgentSession {
   private currentSystemPromptText = "";
   // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
   private skillToolInitPromise: Promise<void> | null = null;
+  private compactInProgress = false;
 
   /** 生成新 session ID */
   regenerateSessionId(): void {
@@ -224,6 +225,17 @@ export class AgentSession {
   }
 
   async compact(options: CompactOptions = {}): Promise<CompactionResult> {
+    if (this.isStreaming) {
+      throw new Error("Cannot compact while a model response is streaming");
+    }
+    if (this.compactInProgress) {
+      throw new Error("Compact is already in progress");
+    }
+
+    this.compactInProgress = true;
+    const messagesAtStart = this.agent.state.messages;
+    const messageSnapshot = messagesAtStart.slice();
+
     const commandMessage = options.commandText
       ? {
           role: "user" as const,
@@ -232,44 +244,66 @@ export class AgentSession {
         }
       : undefined;
 
-    const result = await compactConversation({
-      messages: this.agent.state.messages,
-      instructions: options.instructions,
-      summaryRunner: options.summaryRunner ?? this.createCompactSummaryRunner(),
-      messagesToKeep: commandMessage ? [commandMessage] : [],
-      fileStateCache: this.agent.getFileStateCache(),
-      cwd: this.cwd,
-    });
+    try {
+      const result = await compactConversation({
+        messages: messagesAtStart,
+        instructions: options.instructions,
+        summaryRunner: options.summaryRunner ?? this.createCompactSummaryRunner(),
+        messagesToKeep: commandMessage ? [commandMessage] : [],
+        fileStateCache: this.agent.getFileStateCache(),
+        cwd: this.cwd,
+      });
 
-    const stdoutMessage = commandMessage
-      ? {
-          role: "user" as const,
-          isMeta: true,
-          content: [{
-            type: "text" as const,
-            text: `<local-command-stdout>${result.displayText}</local-command-stdout>`,
-          }],
-          timestamp: Date.now(),
-        }
-      : undefined;
+      if (!this.messagesUnchangedSinceCompactStarted(messagesAtStart, messageSnapshot)) {
+        throw new Error("Messages changed during compact; retry /compact.");
+      }
 
-    const messagesToKeep = stdoutMessage
-      ? [...result.messagesToKeep, stdoutMessage]
-      : result.messagesToKeep;
-    const postCompactMessages = [
-      result.boundaryMessage,
-      result.summaryMessage,
-      ...messagesToKeep,
-      ...result.attachments,
-    ];
-    const finalResult: CompactionResult = {
-      ...result,
-      messagesToKeep,
-      postCompactMessages,
-    };
+      const stdoutMessage = commandMessage
+        ? {
+            role: "user" as const,
+            isMeta: true,
+            content: [{
+              type: "text" as const,
+              text: `<local-command-stdout>${result.displayText}</local-command-stdout>`,
+            }],
+            timestamp: Date.now(),
+          }
+        : undefined;
 
-    this.agent.replaceMessages(postCompactMessages);
-    return finalResult;
+      const messagesToKeep = stdoutMessage
+        ? [...result.messagesToKeep, stdoutMessage]
+        : result.messagesToKeep;
+      const postCompactMessages = [
+        result.boundaryMessage,
+        result.summaryMessage,
+        ...messagesToKeep,
+        ...result.attachments,
+      ];
+      const finalResult: CompactionResult = {
+        ...result,
+        messagesToKeep,
+        postCompactMessages,
+      };
+
+      this.sessionManager.replaceMessages(postCompactMessages);
+      this.agent.replaceMessages(postCompactMessages);
+      return finalResult;
+    } finally {
+      this.compactInProgress = false;
+    }
+  }
+
+  private messagesUnchangedSinceCompactStarted(
+    messagesAtStart: AgentMessage[],
+    messageSnapshot: AgentMessage[],
+  ): boolean {
+    if (this.agent.state.messages !== messagesAtStart) {
+      return false;
+    }
+    if (messagesAtStart.length !== messageSnapshot.length) {
+      return false;
+    }
+    return messageSnapshot.every((message, index) => messagesAtStart[index] === message);
   }
 
   private createCompactSummaryRunner(): CompactSummaryRunner {

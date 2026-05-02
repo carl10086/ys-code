@@ -33,6 +33,31 @@ describe("SessionStorage", () => {
     expect(header.version).toBe(1);
   });
 
+  it("应使用私有权限创建 session 目录和文件", () => {
+    const filePath = storage.createSession("private-session", "/tmp/cwd");
+
+    expect(fs.statSync(tmpDir).mode & 0o777).toBe(0o700);
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+
+  it("应收紧已有 session 目录和文件权限", () => {
+    fs.chmodSync(tmpDir, 0o755);
+    storage = new SessionStorage(tmpDir);
+    expect(fs.statSync(tmpDir).mode & 0o777).toBe(0o700);
+
+    const filePath = storage.createSession("drift-session", "/tmp/cwd");
+    fs.chmodSync(filePath, 0o644);
+    storage.appendEntry(filePath, {
+      type: "user",
+      uuid: "msg-1",
+      parentUuid: "hdr-1",
+      timestamp: 1000,
+      content: "Hello",
+    } as UserEntry);
+
+    expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
+  });
+
   it("应追加条目到会话文件", () => {
     const sessionId = "test-session";
     const filePath = storage.createSession(sessionId, "/tmp/cwd");
@@ -70,7 +95,7 @@ describe("SessionStorage", () => {
   it("损坏的行应被跳过", () => {
     const sessionId = "test-session";
     const filePath = storage.createSession(sessionId, "/tmp/cwd");
-    fs.appendFileSync(filePath, "this is not json\n", { encoding: "utf-8" });
+    fs.appendFileSync(filePath, "secret-token-this-is-not-json\n", { encoding: "utf-8" });
     storage.appendEntry(filePath, { type: "user", uuid: "msg-1", parentUuid: "hdr-1", timestamp: 1000, content: "Hello" } as UserEntry);
 
     const entries = storage.readAllEntries(filePath);

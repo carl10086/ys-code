@@ -32,6 +32,12 @@ export const BUILTIN_COMMANDS: Command[] = [
   skills,
 ];
 
+const RESERVED_BUILTIN_COMMAND_NAMES = new Set(["compact"]);
+
+function canOverrideCommand(commandName: string): boolean {
+  return !RESERVED_BUILTIN_COMMAND_NAMES.has(commandName);
+}
+
 /**
  * 获取完整命令列表（包含内置命令、skills、用户级和项目级 commands）
  * @param skillsBasePath skills 目录路径
@@ -54,6 +60,7 @@ export async function getCommands(
     try {
       const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
       for (const cmd of loadedSkills) {
+        if (!canOverrideCommand(cmd.name)) continue;
         commandMap.set(cmd.name, cmd);
       }
     } catch {
@@ -69,6 +76,7 @@ export async function getCommands(
       "userSettings"
     );
     for (const cmd of userCmds) {
+      if (!canOverrideCommand(cmd.name)) continue;
       commandMap.set(cmd.name, cmd);
     }
   } catch {
@@ -81,6 +89,7 @@ export async function getCommands(
     for (const dir of projectDirs) {
       const projectCmds = await loadCommandsFromDir(dir, "projectSettings");
       for (const cmd of projectCmds) {
+        if (!canOverrideCommand(cmd.name)) continue;
         commandMap.set(cmd.name, cmd);
       }
     }
@@ -137,6 +146,8 @@ export interface ExecuteCommandResult {
   handled: boolean;
   /** 是否为 compact 命令结果（本轮不应继续 query 主模型） */
   compact?: true;
+  /** 命令已在本地处理，本轮不应继续 query 主模型 */
+  skipPrompt?: true;
   /** 若为 local-jsx 命令，返回待渲染的 JSX */
   jsx?: React.ReactNode;
   /** 若为 local 命令，返回文本结果 */
@@ -185,9 +196,11 @@ export async function executeCommand(
       if (result.type === "compact") {
         return { handled: true, compact: true, textResult: result.displayText };
       }
-      return { handled: true };
-    } catch {
-      return { handled: false };
+      return { handled: true, skipPrompt: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn("Local command failed", { commandName, error: message });
+      return { handled: true, skipPrompt: true, textResult: "Command failed. See logs for details." };
     }
   }
 
