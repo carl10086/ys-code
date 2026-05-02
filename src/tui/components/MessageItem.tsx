@@ -2,6 +2,7 @@
 import { Box, Text } from "ink";
 import React from "react";
 import type { UIMessage } from "../types.js";
+import type { ToolRenderResult } from "../../agent/types.js";
 import { Markdown } from "./Markdown.js";
 import { DiffRenderer } from "./DiffRenderer.js";
 
@@ -83,6 +84,21 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
             </Box>
           );
         }
+        if (message.renderData.type === "search_result") {
+          const { summary, details } = formatSearchResult(message.renderData);
+          return (
+            <Box flexDirection="column">
+              <Text color={color}>
+                {status} {message.toolName} {"->"} {summary} {timeSec}s
+              </Text>
+              {details ? (
+                <Box paddingLeft={2}>
+                  <Text>{details}</Text>
+                </Box>
+              ) : null}
+            </Box>
+          );
+        }
       }
 
       return (
@@ -105,6 +121,34 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       );
     }
   }
+}
+
+function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return count === 1 ? singular : pluralForm;
+}
+
+function formatSearchResult(renderData: Extract<ToolRenderResult, { type: "search_result" }>): { summary: string; details: string } {
+  if (renderData.mode === "content") {
+    const count = renderData.numLines ?? 0;
+    return {
+      summary: `Found ${count} ${plural(count, "line")}`,
+      details: renderData.content ?? "",
+    };
+  }
+
+  if (renderData.mode === "count") {
+    const matches = renderData.numMatches ?? 0;
+    const files = renderData.numFiles;
+    return {
+      summary: `Found ${matches} ${plural(matches, "match", "matches")} across ${files} ${plural(files, "file")}`,
+      details: renderData.content ?? "",
+    };
+  }
+
+  return {
+    summary: `Found ${renderData.numFiles} ${plural(renderData.numFiles, "file")}`,
+    details: renderData.filenames.join("\n"),
+  };
 }
 
 function formatToolArgs(args: unknown): string {
