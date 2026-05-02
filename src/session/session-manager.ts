@@ -1,8 +1,8 @@
 import { SessionStorage } from "./session-storage.js";
 import { SessionLoader } from "./session-loader.js";
-import { CompactTrigger } from "./compact.js";
+import { CompactTrigger } from "./compact/trigger.js";
 import type { AgentMessage } from "../agent/types.js";
-import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, AttachmentEntry } from "./entry-types.js";
+import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, CompactBoundaryEntry } from "./entry-types.js";
 
 /** SessionManager 配置 */
 export interface SessionManagerConfig {
@@ -61,6 +61,19 @@ export class SessionManager {
     this._lastUuid = entry.uuid;
   }
 
+  /** 追加 compact 后的消息，并让 restore 从最新 compact boundary 开始恢复 active context */
+  replaceMessages(messages: AgentMessage[]): void {
+    let parentUuid = this._lastUuid;
+    for (const message of messages) {
+      if (message.role === "attachment") continue;
+
+      const entry = this.messageToEntry(message, parentUuid);
+      this.storage.appendEntry(this._filePath, entry);
+      parentUuid = entry.uuid;
+    }
+    this._lastUuid = parentUuid;
+  }
+
   /** 恢复消息（从磁盘加载活跃分支） */
   restoreMessages(): AgentMessage[] {
     const entries = this.storage.readAllEntries(this._filePath);
@@ -97,12 +110,25 @@ export class SessionManager {
   }
 
   /** 将 AgentMessage 转换为 Entry */
-  private messageToEntry(message: AgentMessage): Entry {
-    const uuid = crypto.randomUUID();
-    const parentUuid = this._lastUuid;
+  private messageToEntry(message: AgentMessage, parentUuid: string | null = this._lastUuid): Entry {
+    const uuid = (message as { uuid?: string }).uuid ?? crypto.randomUUID();
     const timestamp = message.timestamp ?? Date.now();
 
     switch (message.role) {
+      case "compact_boundary": {
+        const metadata = message.compactMetadata;
+        return {
+          type: "compact_boundary",
+          uuid,
+          parentUuid,
+          timestamp,
+          summary: "",
+          tokensBefore: metadata.preTokens,
+          tokensAfter: metadata.postTokens ?? 0,
+          compactMetadata: metadata,
+        } as CompactBoundaryEntry;
+      }
+
       case "user":
         return {
           type: "user",

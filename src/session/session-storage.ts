@@ -6,7 +6,15 @@ import { logger } from "../utils/logger.js";
 export class SessionStorage {
   constructor(private readonly baseDir: string) {
     if (!fs.existsSync(baseDir)) {
-      fs.mkdirSync(baseDir, { recursive: true });
+      fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 });
+    }
+    try {
+      fs.chmodSync(baseDir, 0o700);
+    } catch (error) {
+      logger.warn("Unable to enforce private session directory permissions", {
+        baseDir,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -24,13 +32,15 @@ export class SessionStorage {
       cwd,
     };
 
-    fs.writeFileSync(filePath, JSON.stringify(header) + "\n", { encoding: "utf-8" });
+    fs.writeFileSync(filePath, JSON.stringify(header) + "\n", { encoding: "utf-8", mode: 0o600 });
+    fs.chmodSync(filePath, 0o600);
     return filePath;
   }
 
   appendEntry(filePath: string, entry: Entry): void {
     const line = JSON.stringify(entry) + "\n";
     fs.appendFileSync(filePath, line, { encoding: "utf-8" });
+    fs.chmodSync(filePath, 0o600);
   }
 
   readAllEntries(filePath: string): Entry[] {
@@ -38,13 +48,17 @@ export class SessionStorage {
     const lines = content.split("\n");
     const entries: Entry[] = [];
 
-    for (const line of lines) {
+    for (const [index, line] of lines.entries()) {
       if (!line.trim()) continue;
       try {
         const entry = JSON.parse(line) as Entry;
         entries.push(entry);
       } catch {
-        logger.warn("Skipping corrupted line in session file", { filePath, line: line.slice(0, 100) });
+        logger.warn("Skipping corrupted line in session file", {
+          filePath,
+          lineIndex: index,
+          byteLength: Buffer.byteLength(line),
+        });
       }
     }
 

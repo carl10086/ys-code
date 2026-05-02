@@ -89,6 +89,52 @@ describe("dispatchCommandResult", () => {
     expect(systemMessage).toBe("Done");
   });
 
+  it("当 result.compact 为 true 时不发送 prompt，只显示命令和系统提示", () => {
+    let promptCalled = false;
+    let userMessage = "";
+    let systemMessage = "";
+    const session = { prompt: () => { promptCalled = true; } } as any;
+    const appendUserMessage = (text: string) => { userMessage = text; };
+    const appendSystemMessage = (text: string) => { systemMessage = text; };
+
+    const result = { handled: true, compact: true as const, textResult: "Compacted" };
+    const handled = dispatchCommandResult(
+      result,
+      "/compact 只关注代码修改",
+      session,
+      appendUserMessage,
+      appendSystemMessage,
+    );
+
+    expect(handled).toBe(true);
+    expect(promptCalled).toBe(false);
+    expect(userMessage).toBe("/compact 只关注代码修改");
+    expect(systemMessage).toBe("Compacted");
+  });
+
+  it("当 result.skipPrompt 为 true 时不发送 prompt，只显示命令和系统提示", () => {
+    let promptCalled = false;
+    let userMessage = "";
+    let systemMessage = "";
+    const session = { prompt: () => { promptCalled = true; } } as any;
+    const appendUserMessage = (text: string) => { userMessage = text; };
+    const appendSystemMessage = (text: string) => { systemMessage = text; };
+
+    const result = { handled: true, skipPrompt: true as const, textResult: "Command failed" };
+    const handled = dispatchCommandResult(
+      result,
+      "/compact",
+      session,
+      appendUserMessage,
+      appendSystemMessage,
+    );
+
+    expect(handled).toBe(true);
+    expect(promptCalled).toBe(false);
+    expect(userMessage).toBe("/compact");
+    expect(systemMessage).toBe("Command failed");
+  });
+
   it("当 result.model 存在时传递给 session.prompt", () => {
     let promptArgs: unknown[] = [];
     let userMessage = "";

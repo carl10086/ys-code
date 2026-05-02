@@ -6,12 +6,29 @@ export class SessionLoader {
     if (entries.length === 0) return [];
 
     const activeBranch = this.findActiveBranch(entries);
+    const lastStructuredCompactIndex = activeBranch.findLastIndex(
+      (entry) => entry.type === "compact_boundary" && entry.compactMetadata !== undefined,
+    );
+    const entriesToRestore = lastStructuredCompactIndex === -1
+      ? activeBranch
+      : activeBranch.slice(lastStructuredCompactIndex);
 
     const messages: AgentMessage[] = [];
-    for (const entry of activeBranch) {
+    for (const entry of entriesToRestore) {
       if (entry.type === "header") continue;
 
       if (entry.type === "compact_boundary") {
+        if (entry.compactMetadata) {
+          messages.push({
+            role: "compact_boundary",
+            uuid: entry.uuid,
+            parentUuid: entry.parentUuid,
+            timestamp: entry.timestamp,
+            compactMetadata: entry.compactMetadata,
+          } as unknown as AgentMessage);
+          continue;
+        }
+
         messages.push({
           role: "system",
           content: [{ type: "text", text: entry.summary }],

@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { getCommands, findCommand, executeCommand, BUILTIN_COMMANDS } from "./index.js";
+import type { Command } from "./types.js";
 
 describe("commands/index", () => {
   it("getCommands() 不传参数时至少返回内置命令（向后兼容）", async () => {
@@ -86,6 +87,59 @@ describe("commands/index integration", () => {
     expect(cmd!.name).toBe("projcmd");
     expect(cmd!.description).toBe("Project Only");
   });
+
+  it("findCommand 应能找到内置 compact 命令", async () => {
+    const cmd = await findCommand("compact");
+
+    expect(cmd).toBeDefined();
+    expect(cmd!.type).toBe("local");
+    expect(cmd!.name).toBe("compact");
+  });
+
+  it("project 级 compact 命令不应覆盖内置 local compact", async () => {
+    const fakeHome = join(tempDir, "home");
+    const fakeProject = join(tempDir, "project");
+    const projCmdsDir = join(fakeProject, ".claude", "commands");
+
+    mkdirSync(projCmdsDir, { recursive: true });
+    mkdirSync(join(fakeProject, ".git"), { recursive: true });
+    writeFileSync(
+      join(projCmdsDir, "compact.md"),
+      "---\ndescription: Project Compact\n---\n# Project Compact"
+    );
+
+    mock.module("os", () => ({
+      homedir: () => fakeHome,
+    }));
+
+    const cmd = await findCommand("compact", undefined, fakeProject);
+    expect(cmd).toBeDefined();
+    expect(cmd!.type).toBe("local");
+    expect(cmd!.description).not.toBe("Project Compact");
+  });
+
+  it("user 级 compact 命令不应覆盖内置 local compact", async () => {
+    const fakeHome = join(tempDir, "home");
+    const fakeProject = join(tempDir, "project");
+    const userCmdsDir = join(fakeHome, ".claude", "commands");
+
+    mkdirSync(userCmdsDir, { recursive: true });
+    mkdirSync(join(fakeProject, ".git"), { recursive: true });
+    writeFileSync(
+      join(userCmdsDir, "compact.md"),
+      "---\ndescription: User Compact\n---\n# User Compact"
+    );
+
+    mock.module("os", () => ({
+      homedir: () => fakeHome,
+    }));
+
+    const cmd = await findCommand("compact", undefined, fakeProject);
+    expect(cmd).toBeDefined();
+    expect(cmd!.type).toBe("local");
+    expect(cmd!.description).not.toBe("User Compact");
+  });
+
 
   it("executeCommand 应正确传递 cwd 以解析项目级命令", async () => {
     const fakeHome = join(tempDir, "home");
@@ -183,5 +237,126 @@ describe("commands/index integration", () => {
     expect(result.handled).toBe(true);
     expect(result.metaMessages).toBeDefined();
     expect(result.metaMessages![0]).toContain("# User Cmd");
+  });
+
+  it("executeCommand 应将 compact local command 标记为不继续 query 的结果", async () => {
+    const compactCommand = {
+      type: "local",
+      name: "fakecompact",
+      description: "Fake compact command",
+      load: async () => ({
+        call: async () => ({
+          type: "compact",
+          displayText: "Compacted",
+        }),
+      }),
+    } satisfies Command;
+    BUILTIN_COMMANDS.push(compactCommand);
+
+    try {
+      const result = await executeCommand(
+        "/fakecompact",
+        {
+          session: {} as any,
+          appendUserMessage: () => {},
+          appendSystemMessage: () => {},
+          resetSession: () => {},
+        },
+      );
+
+      expect(result.handled).toBe(true);
+      expect(result.compact).toBe(true);
+      expect(result.textResult).toBe("Compacted");
+    } finally {
+      BUILTIN_COMMANDS.pop();
+    }
+  });
+
+  it("executeCommand 应将 local command 执行错误标记为不继续 query 的结果", async () => {
+    const failingCommand = {
+      type: "local",
+      name: "failcmd",
+      description: "Failing command",
+      load: async () => ({
+        call: async () => {
+          throw new Error("boom");
+        },
+      }),
+    } satisfies Command;
+    BUILTIN_COMMANDS.push(failingCommand);
+
+    try {
+      const result = await executeCommand(
+        "/failcmd",
+        {
+          session: {} as any,
+          appendUserMessage: () => {},
+          appendSystemMessage: () => {},
+          resetSession: () => {},
+        },
+      );
+
+      expect(result.handled).toBe(true);
+      expect(result.skipPrompt).toBe(true);
+      expect(result.textResult).toContain("Command failed");
+    } finally {
+      BUILTIN_COMMANDS.pop();
+    }
+  });
+
+  it("executeCommand 应将 local command load 错误标记为不继续 query 的结果", async () => {
+    const failingCommand = {
+      type: "local",
+      name: "loadfail",
+      description: "Load failing command",
+      load: async () => {
+        throw new Error("load boom");
+      },
+    } satisfies Command;
+    BUILTIN_COMMANDS.push(failingCommand);
+
+    try {
+      const result = await executeCommand(
+        "/loadfail",
+        {
+          session: {} as any,
+          appendUserMessage: () => {},
+          appendSystemMessage: () => {},
+          resetSession: () => {},
+        },
+      );
+
+      expect(result.handled).toBe(true);
+      expect(result.skipPrompt).toBe(true);
+      expect(result.textResult).toContain("Command failed");
+    } finally {
+      BUILTIN_COMMANDS.pop();
+    }
+  });
+
+  it("executeCommand 应执行内置 compact 命令并传递 custom instructions", async () => {
+    let compactOptions: any;
+    const result = await executeCommand(
+      "/compact 只关注代码修改",
+      {
+        session: {
+          compact: async (options: any) => {
+            compactOptions = options;
+            return { displayText: "Compacted conversation" };
+          },
+        } as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.compact).toBe(true);
+    expect(result.textResult).toBe("Compacted conversation");
+    expect(compactOptions).toEqual({
+      commandText: "/compact 只关注代码修改",
+      instructions: "只关注代码修改",
+    });
   });
 });

@@ -16,6 +16,7 @@ import help from "./help/index.js";
 import system from "./system/index.js";
 import skills from "./skills/index.js";
 import debug from "./debug/index.js";
+import compact from "./compact/index.js";
 import { loadSkillsFromSkillsDir } from "../skills/loadSkillsDir.js";
 import { loadCommandsFromDir, getProjectCommandDirs } from "./loadCommandsDir.js";
 
@@ -24,11 +25,18 @@ export const BUILTIN_COMMANDS: Command[] = [
   exit,
   clear,
   debug,
+  compact,
   tools,
   help,
   system,
   skills,
 ];
+
+const RESERVED_BUILTIN_COMMAND_NAMES = new Set(["compact"]);
+
+function canOverrideCommand(commandName: string): boolean {
+  return !RESERVED_BUILTIN_COMMAND_NAMES.has(commandName);
+}
 
 /**
  * 获取完整命令列表（包含内置命令、skills、用户级和项目级 commands）
@@ -52,6 +60,7 @@ export async function getCommands(
     try {
       const loadedSkills = await loadSkillsFromSkillsDir(skillsBasePath, "bundled");
       for (const cmd of loadedSkills) {
+        if (!canOverrideCommand(cmd.name)) continue;
         commandMap.set(cmd.name, cmd);
       }
     } catch {
@@ -67,6 +76,7 @@ export async function getCommands(
       "userSettings"
     );
     for (const cmd of userCmds) {
+      if (!canOverrideCommand(cmd.name)) continue;
       commandMap.set(cmd.name, cmd);
     }
   } catch {
@@ -79,6 +89,7 @@ export async function getCommands(
     for (const dir of projectDirs) {
       const projectCmds = await loadCommandsFromDir(dir, "projectSettings");
       for (const cmd of projectCmds) {
+        if (!canOverrideCommand(cmd.name)) continue;
         commandMap.set(cmd.name, cmd);
       }
     }
@@ -133,6 +144,10 @@ export const COMMANDS: Command[] = BUILTIN_COMMANDS;
 export interface ExecuteCommandResult {
   /** 是否匹配并执行了命令 */
   handled: boolean;
+  /** 是否为 compact 命令结果（本轮不应继续 query 主模型） */
+  compact?: true;
+  /** 命令已在本地处理，本轮不应继续 query 主模型 */
+  skipPrompt?: true;
   /** 若为 local-jsx 命令，返回待渲染的 JSX */
   jsx?: React.ReactNode;
   /** 若为 local 命令，返回文本结果 */
@@ -178,9 +193,14 @@ export async function executeCommand(
       if (result.type === "text") {
         return { handled: true, textResult: result.value };
       }
-      return { handled: true };
-    } catch {
-      return { handled: false };
+      if (result.type === "compact") {
+        return { handled: true, compact: true, textResult: result.displayText };
+      }
+      return { handled: true, skipPrompt: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn("Local command failed", { commandName, error: message });
+      return { handled: true, skipPrompt: true, textResult: "Command failed. See logs for details." };
     }
   }
 

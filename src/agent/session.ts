@@ -14,10 +14,21 @@ import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 import { SessionManager } from "../session/index.js";
+import {
+  compactConversation,
+  type CompactSummaryRunner,
+  type CompactionResult,
+} from "../session/compact/index.js";
 
 export interface PromptOptions {
   /** 临时覆盖当前 turn 的模型 */
   model?: string;
+}
+
+export interface CompactOptions {
+  instructions?: string;
+  commandText?: string;
+  summaryRunner?: CompactSummaryRunner;
 }
 
 /** AgentSession 向 UI 层发出的事件 */
@@ -86,6 +97,7 @@ export class AgentSession {
   private currentSystemPromptText = "";
   // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
   private skillToolInitPromise: Promise<void> | null = null;
+  private compactInProgress = false;
 
   /** 生成新 session ID */
   regenerateSessionId(): void {
@@ -210,6 +222,119 @@ export class AgentSession {
   /** 当前待执行的工具调用 ID 集合（只读） */
   get pendingToolCalls(): ReadonlySet<string> {
     return this.agent.state.pendingToolCalls;
+  }
+
+  async compact(options: CompactOptions = {}): Promise<CompactionResult> {
+    if (this.isStreaming) {
+      throw new Error("Cannot compact while a model response is streaming");
+    }
+    if (this.compactInProgress) {
+      throw new Error("Compact is already in progress");
+    }
+
+    this.compactInProgress = true;
+    const messagesAtStart = this.agent.state.messages;
+    const messageSnapshot = messagesAtStart.slice();
+
+    const commandMessage = options.commandText
+      ? {
+          role: "user" as const,
+          content: [{ type: "text" as const, text: options.commandText }],
+          timestamp: Date.now(),
+        }
+      : undefined;
+
+    try {
+      const result = await compactConversation({
+        messages: messagesAtStart,
+        instructions: options.instructions,
+        summaryRunner: options.summaryRunner ?? this.createCompactSummaryRunner(),
+        messagesToKeep: commandMessage ? [commandMessage] : [],
+        fileStateCache: this.agent.getFileStateCache(),
+        cwd: this.cwd,
+      });
+
+      if (!this.messagesUnchangedSinceCompactStarted(messagesAtStart, messageSnapshot)) {
+        throw new Error("Messages changed during compact; retry /compact.");
+      }
+
+      const stdoutMessage = commandMessage
+        ? {
+            role: "user" as const,
+            isMeta: true,
+            content: [{
+              type: "text" as const,
+              text: `<local-command-stdout>${result.displayText}</local-command-stdout>`,
+            }],
+            timestamp: Date.now(),
+          }
+        : undefined;
+
+      const messagesToKeep = stdoutMessage
+        ? [...result.messagesToKeep, stdoutMessage]
+        : result.messagesToKeep;
+      const postCompactMessages = [
+        result.boundaryMessage,
+        result.summaryMessage,
+        ...messagesToKeep,
+        ...result.attachments,
+      ];
+      const finalResult: CompactionResult = {
+        ...result,
+        messagesToKeep,
+        postCompactMessages,
+      };
+
+      this.sessionManager.replaceMessages(postCompactMessages);
+      this.agent.replaceMessages(postCompactMessages);
+      return finalResult;
+    } finally {
+      this.compactInProgress = false;
+    }
+  }
+
+  private messagesUnchangedSinceCompactStarted(
+    messagesAtStart: AgentMessage[],
+    messageSnapshot: AgentMessage[],
+  ): boolean {
+    if (this.agent.state.messages !== messagesAtStart) {
+      return false;
+    }
+    if (messagesAtStart.length !== messageSnapshot.length) {
+      return false;
+    }
+    return messageSnapshot.every((message, index) => messagesAtStart[index] === message);
+  }
+
+  private createCompactSummaryRunner(): CompactSummaryRunner {
+    return async ({ prompt, messages }) => {
+      const llmMessages = await this.agent.convertToLlm(messages);
+      const resolvedApiKey =
+        (this.agent.getApiKey
+          ? await this.agent.getApiKey(this.agent.state.model.provider)
+          : undefined) ?? undefined;
+      const stream = await this.agent.streamFn(this.agent.state.model, {
+        systemPrompt: asSystemPrompt([prompt]),
+        messages: llmMessages,
+        tools: [],
+      }, {
+        apiKey: resolvedApiKey,
+      });
+
+      for await (const event of stream) {
+        if (event.type === "done") {
+          return event.message.content
+            .filter((content): content is { type: "text"; text: string } => content.type === "text")
+            .map((content) => content.text)
+            .join("");
+        }
+        if (event.type === "error") {
+          throw new Error(event.error.errorMessage ?? "Compact summary generation failed");
+        }
+      }
+
+      throw new Error("Compact summary generation produced no final message");
+    };
   }
 
   /** 发送用户消息（消息数组，用于 meta message 注入） */

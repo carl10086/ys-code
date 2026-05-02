@@ -1,8 +1,7 @@
-import { TokenEstimator } from "./token-estimator.js";
-import type { CompactBoundaryEntry } from "./entry-types.js";
-import type { AgentMessage } from "../agent/types.js";
+import { TokenEstimator } from "../token-estimator.js";
+import type { AgentMessage } from "../../agent/types.js";
+import type { CompactBoundaryEntry } from "../entry-types.js";
 
-/** Compact 配置 */
 export interface CompactConfig {
   /** 触发阈值（token 数） */
   threshold: number;
@@ -33,7 +32,7 @@ export class CompactTrigger {
     for (let i = 0; i < Math.min(3, messages.length); i++) {
       const msg = messages[i];
       let text = "";
-      if (msg.role === "user" || msg.role === "assistant") {
+      if ((msg.role === "user" || msg.role === "assistant") && "content" in msg) {
         if (typeof msg.content === "string") {
           text = msg.content;
         } else if (Array.isArray(msg.content)) {
@@ -50,7 +49,7 @@ export class CompactTrigger {
 
     const summary = summaryParts.join("\n") || "Previous conversation summary";
     const tokensAfter = this.estimator.estimate([
-      { role: "system", content: [{ type: "text", text: summary }], timestamp: Date.now() } as unknown as AgentMessage,
+      { role: "user", content: [{ type: "text", text: summary }], timestamp: Date.now() } as AgentMessage,
     ]);
 
     return {

@@ -81,6 +81,14 @@ export interface CompactBoundaryEntry extends SessionEntry {
   tokensBefore: number;
   /** 压缩后的 token 数 */
   tokensAfter: number;
+  /** 新版 compact boundary 结构化元数据 */
+  compactMetadata?: {
+    trigger: "manual" | "auto";
+    preTokens: number;
+    postTokens?: number;
+    tokensSavedByMicrocompact?: number;
+    clearedToolCallIds?: string[];
+  };
 }
 
 /** Attachment 条目 */

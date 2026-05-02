@@ -338,6 +338,16 @@ export class Agent {
     this.clearSteeringQueue();
   }
 
+  /** 原子替换当前 active messages */
+  replaceMessages(messages: AgentMessage[]): void {
+    this._state.messages = messages.slice();
+  }
+
+  /** 暴露文件读取状态供 compact attachment restore 使用 */
+  getFileStateCache(): FileStateCache {
+    return this.fileStateCache;
+  }
+
   /**
    * 从文本、单个消息或消息批次开始新 prompt
    * @param input 字符串或消息
