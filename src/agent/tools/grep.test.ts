@@ -220,4 +220,21 @@ describe("GrepTool", () => {
       expect(output.numLines).toBeGreaterThan(0);
     });
   });
+
+  it("returns search_result render data for TUI rendering", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+      const output = await tool.execute("grep-13", { pattern: "target" }, mockContext());
+
+      expect(tool.renderResult).toBeDefined();
+      const renderData = tool.renderResult!(output, "grep-13");
+
+      expect(renderData).toEqual({
+        type: "search_result",
+        mode: "files_with_matches",
+        numFiles: 2,
+        filenames: ["alpha.ts", "beta.md"],
+      });
+    });
+  });
 });

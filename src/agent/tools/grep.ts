@@ -344,5 +344,17 @@ Usage:
 
       return `Found ${output.numFiles} ${output.numFiles === 1 ? "file" : "files"}\n${output.filenames.join("\n")}`;
     },
+
+    renderResult(output) {
+      return {
+        type: "search_result",
+        mode: output.mode,
+        numFiles: output.numFiles,
+        filenames: output.filenames,
+        ...(output.content !== undefined && { content: output.content }),
+        ...(output.numLines !== undefined && { numLines: output.numLines }),
+        ...(output.numMatches !== undefined && { numMatches: output.numMatches }),
+      };
+    },
   });
 }

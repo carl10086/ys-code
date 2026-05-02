@@ -88,6 +88,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
               isError: event.isError,
               summary: event.summary,
               timeMs: event.timeMs,
+              renderData: event.renderData,
             });
             break;
           }
