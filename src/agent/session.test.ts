@@ -118,7 +118,10 @@ describe("AgentSession", () => {
         type: "tool_execution_end",
         toolCallId: "tc1",
         toolName: "bash",
-        result: { content: [{ type: "text", text: "hi" }] },
+        result: {
+          content: [{ type: "text", text: "hi" }],
+          renderData: { type: "plain", text: "rendered hi" },
+        },
         isError: false,
       }, signal);
     });
@@ -137,6 +140,7 @@ describe("AgentSession", () => {
       toolName: "bash",
       isError: false,
       summary: "hi",
+      renderData: { type: "plain", text: "rendered hi" },
     });
     expect(typeof events[1].timeMs).toBe("number");
   });

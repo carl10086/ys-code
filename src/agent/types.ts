@@ -52,6 +52,10 @@ export type ToolRenderResult =
       content?: string;
       numLines?: number;
       numMatches?: number;
+      appliedLimit?: number;
+      appliedOffset?: number;
+      truncated?: boolean;
+      truncatedReason?: "line_limit" | "byte_limit" | "timeout";
     };
 
 /** 工具执行结果

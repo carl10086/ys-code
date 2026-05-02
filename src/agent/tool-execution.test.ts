@@ -3,6 +3,10 @@ import { executeToolCalls } from "./tool-execution.js";
 import type { AgentContext, AgentEvent, AgentLoopConfig, AgentTool } from "./types.js";
 import type { AssistantMessage } from "../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
+import { createGrepTool } from "./tools/grep.js";
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
 
 function createMockContext(tools: AgentTool<any, any>[] = []): AgentContext {
   return {
@@ -183,6 +187,75 @@ describe("executeToolCalls", () => {
 
     expect(results[0].content).toEqual([{ type: "text", text: "formatted" }]);
     expect(results[0].details).toEqual({ raw: "orig" });
+  });
+
+  it("includes renderData from tool renderResult in tool_execution_end events", async () => {
+    const tool: AgentTool = {
+      name: "renderable",
+      description: "renderable",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({ text: Type.String() }),
+      label: "test",
+      execute: async () => ({ text: "done" }),
+      formatResult: (output) => [{ type: "text", text: (output as any).text }],
+      renderResult: () => ({ type: "plain", text: "rendered" }),
+    };
+
+    const context = createMockContext([tool]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-render", name: "renderable", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    const endEvent = events.find((event) => event.type === "tool_execution_end") as any;
+    expect(endEvent.result.renderData).toEqual({ type: "plain", text: "rendered" });
+  });
+
+  it("includes real Grep renderData in tool_execution_end events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ys-grep-tool-execution-"));
+    try {
+      await writeFile(join(dir, "alpha.ts"), "target\n", "utf-8");
+      const grep = createGrepTool(dir);
+      const context = createMockContext([grep]);
+      const assistantMessage = createMockAssistantMessage([
+        { type: "toolCall", id: "call-real-grep", name: "Grep", arguments: { pattern: "target", output_mode: "content" } },
+      ]);
+      const config: AgentLoopConfig = {} as any;
+      const events: AgentEvent[] = [];
+      const emit = async (e: AgentEvent) => { events.push(e); };
+
+      await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+      const endEvent = events.find((event) => event.type === "tool_execution_end") as any;
+      expect(endEvent.result.renderData).toMatchObject({
+        type: "search_result",
+        mode: "content",
+        content: "alpha.ts:1:target",
+        numLines: 1,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects invalid Grep schema arguments before execution", async () => {
+    const grep = createGrepTool("/tmp");
+    const context = createMockContext([grep]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-invalid-grep", name: "Grep", arguments: { pattern: "target", output_mode: "bad" } },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(results[0].isError).toBe(true);
+    expect((results[0].content[0] as any).text).toContain("Validation failed for tool \"Grep\"");
   });
 
   it("工具 execute 抛出异常时被捕获并转为错误结果", async () => {

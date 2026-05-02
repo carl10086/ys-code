@@ -5,6 +5,7 @@ import type { UIMessage } from "../types.js";
 import type { ToolRenderResult } from "../../agent/types.js";
 import { Markdown } from "./Markdown.js";
 import { DiffRenderer } from "./DiffRenderer.js";
+import { sanitizeTerminalText } from "../utils/sanitize-terminal-text.js";
 
 export interface MessageItemProps {
   /** 要渲染的 UI 消息 */
@@ -53,7 +54,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
     case "tool_start":
       return (
         <Box flexDirection="column">
-          <Text color="yellow">{"-> "}{message.toolName} {formatToolArgs(message.args)}</Text>
+          <Text color="yellow">{"-> "}{sanitizeTerminalText(message.toolName)} {sanitizeTerminalText(formatToolArgs(message.args))}</Text>
         </Box>
       );
     case "tool_end": {
@@ -66,7 +67,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
           return (
             <Box flexDirection="column">
               <Text color={color}>
-                {status} {message.toolName} {"->"} {timeSec}s
+                {status} {sanitizeTerminalText(message.toolName)} {"->"} {timeSec}s
               </Text>
               <DiffRenderer
                 filePath={message.renderData.filePath}
@@ -79,7 +80,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
           return (
             <Box flexDirection="column">
               <Text color={color}>
-                {status} {message.toolName} {"->"} {message.renderData.text} {timeSec}s
+                {status} {sanitizeTerminalText(message.toolName)} {"->"} {sanitizeTerminalText(message.renderData.text)} {timeSec}s
               </Text>
             </Box>
           );
@@ -89,11 +90,11 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
           return (
             <Box flexDirection="column">
               <Text color={color}>
-                {status} {message.toolName} {"->"} {summary} {timeSec}s
+                {status} {sanitizeTerminalText(message.toolName)} {"->"} {summary} {timeSec}s
               </Text>
               {details ? (
                 <Box paddingLeft={2}>
-                  <Text>{details}</Text>
+                  <Text>{sanitizeTerminalText(details)}</Text>
                 </Box>
               ) : null}
             </Box>
@@ -104,7 +105,7 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
       return (
         <Box flexDirection="column">
           <Text color={color}>
-            {status} {message.toolName} {"->"} {message.summary} {timeSec}s
+            {status} {sanitizeTerminalText(message.toolName)} {"->"} {sanitizeTerminalText(message.summary)} {timeSec}s
           </Text>
         </Box>
       );
@@ -128,10 +129,11 @@ function plural(count: number, singular: string, pluralForm = `${singular}s`): s
 }
 
 function formatSearchResult(renderData: Extract<ToolRenderResult, { type: "search_result" }>): { summary: string; details: string } {
+  const limitInfo = formatRenderLimitInfo(renderData);
   if (renderData.mode === "content") {
     const count = renderData.numLines ?? 0;
     return {
-      summary: `Found ${count} ${plural(count, "line")}`,
+      summary: `Found ${count} ${plural(count, "line")}${limitInfo}`,
       details: renderData.content ?? "",
     };
   }
@@ -140,15 +142,29 @@ function formatSearchResult(renderData: Extract<ToolRenderResult, { type: "searc
     const matches = renderData.numMatches ?? 0;
     const files = renderData.numFiles;
     return {
-      summary: `Found ${matches} ${plural(matches, "match", "matches")} across ${files} ${plural(files, "file")}`,
+      summary: `Found ${matches} ${plural(matches, "match", "matches")} across ${files} ${plural(files, "file")}${limitInfo}`,
       details: renderData.content ?? "",
     };
   }
 
   return {
-    summary: `Found ${renderData.numFiles} ${plural(renderData.numFiles, "file")}`,
+    summary: `Found ${renderData.numFiles} ${plural(renderData.numFiles, "file")}${limitInfo}`,
     details: renderData.filenames.join("\n"),
   };
+}
+
+function formatRenderLimitInfo(renderData: Extract<ToolRenderResult, { type: "search_result" }>): string {
+  const parts: string[] = [];
+  if (typeof renderData.appliedLimit === "number") {
+    parts.push(`limit ${renderData.appliedLimit}`);
+  }
+  if (typeof renderData.appliedOffset === "number") {
+    parts.push(`offset ${renderData.appliedOffset}`);
+  }
+  if (renderData.truncated) {
+    parts.push(`truncated${renderData.truncatedReason ? `: ${renderData.truncatedReason}` : ""}`);
+  }
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
 function formatToolArgs(args: unknown): string {
@@ -156,10 +172,18 @@ function formatToolArgs(args: unknown): string {
     return "()";
   }
   const entries = Object.entries(args).slice(0, 2);
-  const pairs = entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ");
+  const pairs = entries.map(([k, v]) => `${k}: ${formatArgValue(v)}`).join(", ");
   const full = `(${pairs})`;
   if (full.length > 40) {
     return full.slice(0, 37) + "...";
   }
   return full;
+}
+
+function formatArgValue(value: unknown): string {
+  const raw = JSON.stringify(typeof value === "string" ? sanitizeTerminalText(value) : value);
+  if (!raw) {
+    return String(value);
+  }
+  return raw.length > 80 ? `${raw.slice(0, 77)}...` : raw;
 }
