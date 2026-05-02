@@ -19,6 +19,16 @@ const grepSchema = Type.Object({
   ], {
     description: 'Output mode. Defaults to "files_with_matches".',
   })),
+  "-B": Type.Optional(Type.Number({ description: 'Number of lines to show before each match in "content" mode.' })),
+  "-A": Type.Optional(Type.Number({ description: 'Number of lines to show after each match in "content" mode.' })),
+  "-C": Type.Optional(Type.Number({ description: 'Number of lines to show before and after each match in "content" mode.' })),
+  context: Type.Optional(Type.Number({ description: 'Alias for "-C" that takes precedence.' })),
+  "-n": Type.Optional(Type.Boolean({ description: 'Show line numbers in "content" mode. Defaults to true.' })),
+  "-i": Type.Optional(Type.Boolean({ description: "Case insensitive search." })),
+  type: Type.Optional(Type.String({ description: "File type to search, e.g. ts, js, rust." })),
+  head_limit: Type.Optional(Type.Number({ description: "Limit output entries. 0 means unlimited." })),
+  offset: Type.Optional(Type.Number({ description: "Skip N entries before applying head_limit." })),
+  multiline: Type.Optional(Type.Boolean({ description: "Enable multiline matching." })),
 });
 
 const grepOutputSchema = Type.Object({
@@ -32,6 +42,8 @@ const grepOutputSchema = Type.Object({
   content: Type.Optional(Type.String()),
   numLines: Type.Optional(Type.Number()),
   numMatches: Type.Optional(Type.Number()),
+  appliedLimit: Type.Optional(Type.Number()),
+  appliedOffset: Type.Optional(Type.Number()),
 });
 
 type GrepInput = Static<typeof grepSchema>;
@@ -121,12 +133,37 @@ function createBaseArgs(params: GrepInput): string[] {
   const mode = params.output_mode ?? "files_with_matches";
   const args = ["--hidden", "--max-columns", "500"];
 
+  if (params.multiline) {
+    args.push("-U", "--multiline-dotall");
+  }
+
+  if (params["-i"]) {
+    args.push("-i");
+  }
+
   if (mode === "files_with_matches") {
     args.push("-l");
   } else if (mode === "count") {
     args.push("-c");
   } else {
-    args.push("-n");
+    if (params["-n"] !== false) {
+      args.push("-n");
+    }
+    const contextLines = params.context ?? params["-C"];
+    if (contextLines !== undefined) {
+      args.push("-C", String(contextLines));
+    } else {
+      if (params["-B"] !== undefined) {
+        args.push("-B", String(params["-B"]));
+      }
+      if (params["-A"] !== undefined) {
+        args.push("-A", String(params["-A"]));
+      }
+    }
+  }
+
+  if (params.type) {
+    args.push("--type", params.type);
   }
 
   if (params.pattern.startsWith("-")) {
@@ -158,6 +195,33 @@ function formatLimitInfo(output: GrepOutput): string {
     parts.push(`offset: ${output.appliedOffset}`);
   }
   return parts.join(", ");
+}
+
+function applyHeadLimit<T>(
+  items: T[],
+  limit: number | undefined,
+  offset = 0,
+): { items: T[]; appliedLimit?: number; appliedOffset?: number } {
+  const start = Math.max(0, offset);
+  if (limit === 0) {
+    return {
+      items: items.slice(start),
+      ...(start > 0 && { appliedOffset: start }),
+    };
+  }
+
+  if (limit === undefined) {
+    return {
+      items: items.slice(start),
+      ...(start > 0 && { appliedOffset: start }),
+    };
+  }
+
+  return {
+    items: items.slice(start, start + limit),
+    appliedLimit: limit,
+    ...(start > 0 && { appliedOffset: start }),
+  };
 }
 
 export function createGrepTool(cwd: string): AgentTool<typeof grepSchema, GrepOutput> {
@@ -201,18 +265,22 @@ Usage:
       const lines = await runRipgrep(createBaseArgs(params), cwd);
 
       if (mode === "content") {
-        const finalLines = lines.map((line) => relativizeContentLine(cwd, line));
+        const limited = applyHeadLimit(lines, params.head_limit, params.offset);
+        const finalLines = limited.items.map((line) => relativizeContentLine(cwd, line));
         return {
           mode,
           numFiles: 0,
           filenames: [],
           content: finalLines.join("\n"),
           numLines: finalLines.length,
+          ...(limited.appliedLimit !== undefined && { appliedLimit: limited.appliedLimit }),
+          ...(limited.appliedOffset !== undefined && { appliedOffset: limited.appliedOffset }),
         };
       }
 
       if (mode === "count") {
-        const countLines = lines.map((line) => {
+        const limited = applyHeadLimit(lines, params.head_limit, params.offset);
+        const countLines = limited.items.map((line) => {
           const colonIndex = line.lastIndexOf(":");
           if (colonIndex <= 0) {
             return line;
@@ -237,15 +305,20 @@ Usage:
           filenames: [],
           content: countLines.join("\n"),
           numMatches,
+          ...(limited.appliedLimit !== undefined && { appliedLimit: limited.appliedLimit }),
+          ...(limited.appliedOffset !== undefined && { appliedOffset: limited.appliedOffset }),
         };
       }
 
       const relativeMatches = lines.map((line) => toRelative(cwd, line));
-      const filenames = await sortFilesByModifiedTime(cwd, relativeMatches);
+      const sortedMatches = await sortFilesByModifiedTime(cwd, relativeMatches);
+      const limited = applyHeadLimit(sortedMatches, params.head_limit, params.offset);
       return {
         mode,
-        numFiles: filenames.length,
-        filenames,
+        numFiles: limited.items.length,
+        filenames: limited.items,
+        ...(limited.appliedLimit !== undefined && { appliedLimit: limited.appliedLimit }),
+        ...(limited.appliedOffset !== undefined && { appliedOffset: limited.appliedOffset }),
       };
     },
 

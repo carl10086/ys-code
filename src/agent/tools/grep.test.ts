@@ -19,6 +19,10 @@ async function withFixture<T>(fn: (dir: string) => Promise<T>): Promise<T> {
     await writeFile(join(dir, "alpha.ts"), "export const target = 1;\n", "utf-8");
     await writeFile(join(dir, "beta.md"), "target in markdown\n", "utf-8");
     await writeFile(join(dir, "gamma.ts"), "nothing here\n", "utf-8");
+    await writeFile(join(dir, "case.ts"), "TARGET uppercase\n", "utf-8");
+    await writeFile(join(dir, "dash.txt"), "-flag-like-pattern\n", "utf-8");
+    await writeFile(join(dir, "context.txt"), "before\nneedle\nafter\n", "utf-8");
+    await writeFile(join(dir, "multi.ts"), "const value = {\n  field: true\n};\n", "utf-8");
     await mkdir(join(dir, "node_modules"), { recursive: true });
     await writeFile(join(dir, "node_modules", "ignored.ts"), "target should not appear\n", "utf-8");
     await mkdir(join(dir, "dist"), { recursive: true });
@@ -124,6 +128,96 @@ describe("GrepTool", () => {
       if (!validation.ok) {
         expect(validation.message).toContain("Path does not exist");
       }
+    });
+  });
+
+  it("supports case-insensitive search", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-7", {
+        pattern: "target uppercase",
+        "-i": true,
+      } as any, mockContext());
+
+      expect(output.filenames).toEqual(["case.ts"]);
+    });
+  });
+
+  it("filters by ripgrep type", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-8", {
+        pattern: "target",
+        type: "ts",
+      } as any, mockContext());
+
+      expect(output.filenames).toEqual(["alpha.ts"]);
+    });
+  });
+
+  it("supports head_limit and offset pagination", async () => {
+    await withFixture(async (dir) => {
+      await writeFile(join(dir, "delta.ts"), "target extra\n", "utf-8");
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-9", {
+        pattern: "target",
+        glob: "*.ts",
+        head_limit: 1,
+        offset: 1,
+      } as any, mockContext());
+
+      expect(output.filenames).toEqual(["delta.ts"]);
+      expect((output as any).appliedLimit).toBe(1);
+      expect((output as any).appliedOffset).toBe(1);
+    });
+  });
+
+  it("supports content context lines with context taking precedence", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-10", {
+        pattern: "needle",
+        path: "context.txt",
+        output_mode: "content",
+        "-A": 0,
+        "-B": 0,
+        context: 1,
+      } as any, mockContext());
+
+      expect(output.content).toContain("before");
+      expect(output.content).toContain("needle");
+      expect(output.content).toContain("after");
+    });
+  });
+
+  it("supports patterns that start with a dash", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-11", {
+        pattern: "-flag-like-pattern",
+      } as any, mockContext());
+
+      expect(output.filenames).toEqual(["dash.txt"]);
+    });
+  });
+
+  it("supports multiline matching", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGrepTool(dir);
+
+      const output = await tool.execute("grep-12", {
+        pattern: "value = \\{\\n  field",
+        multiline: true,
+        output_mode: "content",
+      } as any, mockContext());
+
+      expect(output.content).toContain("multi.ts:");
+      expect(output.numLines).toBeGreaterThan(0);
     });
   });
 });
