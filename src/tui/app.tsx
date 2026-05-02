@@ -16,7 +16,11 @@ import { setDebugAgentSession } from "../web/debug/debug-context.js";
 const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
 const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
 
-export function App(): React.ReactElement {
+export interface AppProps {
+  webUrl?: string;
+}
+
+export function App({ webUrl }: AppProps): React.ReactElement {
   const [commands, setCommands] = useState<Command[]>([]);
 
   useEffect(() => {
@@ -32,7 +36,7 @@ export function App(): React.ReactElement {
     return unsubscribe;
   }, []);
 
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, totalTokens } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, lastUsage } = useAgent({
     model,
     apiKey,
   });
@@ -113,8 +117,9 @@ export function App(): React.ReactElement {
         modelName={session.model.name}
         cwd={process.cwd()}
         gitBranch={gitBranch}
-        totalTokens={totalTokens}
+        lastUsage={lastUsage}
         contextWindow={session.model.contextWindow}
+        webUrl={webUrl}
       />
     </Box>
   );

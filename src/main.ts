@@ -33,7 +33,7 @@ async function main() {
     stopWebServer();
   });
 
-  await startTUI();
+  await startTUI({ webUrl: webServer?.url });
 }
 
 main().catch((err) => {

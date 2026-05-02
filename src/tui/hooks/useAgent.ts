@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
-import type { Model } from "../../core/ai/index.js";
+import type { AgentMessage } from "../../agent/types.js";
+import type { Model, Usage } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
+
+// 对齐 cc utils/tokens.ts:getCurrentUsage —— 取消息列表中最后一条 assistant 的 usage（不累加）
+export function findLastUsage(messages: readonly AgentMessage[]): Usage | null {
+  const last = messages.findLast((m) => m.role === "assistant");
+  return last ? last.usage : null;
+}
 
 export interface UseAgentOptions {
   /** 使用的模型 */
@@ -26,8 +33,8 @@ export interface UseAgentResult {
   appendSystemMessage: (text: string) => void;
   /** 重置 session，创建新实例并清空消息 */
   resetSession: () => void;
-  /** 累计 token 总数 */
-  totalTokens: number;
+  /** 最近一次 API 响应的 usage（对齐 cc StatusLine 的 getCurrentUsage） */
+  lastUsage: Usage | null;
   /** 累计费用（美元） */
   cost: number;
 }
@@ -45,7 +52,9 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
 
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
-  const [totalTokens, setTotalTokens] = useState(0);
+  const [lastUsage, setLastUsage] = useState<Usage | null>(() =>
+    findLastUsage(sessionRef.current.messages)
+  );
   const [cost, setCost] = useState(0);
   const unsubscribeRef = useRef<() => void>(null);
 
@@ -99,13 +108,19 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
               cost: event.cost,
               timeMs: event.timeMs,
             });
-            setTotalTokens((prev) => prev + event.tokens);
-            setCost((prev) => prev + event.cost);
             break;
           }
         }
         return next;
       });
+      // turn_end 副作用：updater 必须 pure，setState 调用挪到主体
+      // 依赖 AgentSession 在 emit turn_end 之前已 push assistant message。
+      // 若契约改变（emit 在 push 之前），需要改为从 event payload 直接读 usage。
+      if (event.type === "turn_end") {
+        // 对齐 cc utils/tokens.ts:getCurrentUsage —— 最近一次 API usage，不累加
+        setLastUsage(findLastUsage(sessionRef.current.messages));
+        setCost((prev) => prev + event.cost);
+      }
       setShouldScrollToBottom(true);
     });
   }, []);
@@ -129,7 +144,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     // 更新 sessionState 触发重渲染，确保 App 中的 session 引用是最新的
     setSessionState(sessionRef.current);
     setMessages([]);
-    setTotalTokens(0);
+    setLastUsage(null);
     setCost(0);
   }, [options.model, options.apiKey, subscribeToSession]);
 
@@ -147,7 +162,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       // 不自动滚动 system 消息，避免长文本被推出可视区域
     },
     resetSession,
-    totalTokens,
+    lastUsage,
     cost,
   };
 }
