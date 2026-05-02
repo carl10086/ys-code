@@ -4,9 +4,13 @@ import React from "react";
 import { App } from "./app.js";
 import { logger } from "../utils/logger.js";
 
-export async function startTUI(): Promise<void> {
+export interface StartTUIOptions {
+  webUrl?: string;
+}
+
+export async function startTUI(options?: StartTUIOptions): Promise<void> {
   try {
-    const instance = await render(<App />);
+    const instance = await render(<App webUrl={options?.webUrl} />);
     logger.info("TUI started");
     process.on("SIGINT", async () => {
       logger.info("TUI exiting (SIGINT)");

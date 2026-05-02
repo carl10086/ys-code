@@ -43,7 +43,20 @@ export type AgentMessage = Message | CustomAgentMessages[keyof CustomAgentMessag
 /** 工具 TUI 渲染数据 */
 export type ToolRenderResult =
   | { type: "structured_diff"; filePath: string; hunks: StructuredPatchHunk[] }
-  | { type: "plain"; text: string };
+  | { type: "plain"; text: string }
+  | {
+      type: "search_result";
+      mode: "content" | "files_with_matches" | "count";
+      numFiles: number;
+      filenames: string[];
+      content?: string;
+      numLines?: number;
+      numMatches?: number;
+      appliedLimit?: number;
+      appliedOffset?: number;
+      truncated?: boolean;
+      truncatedReason?: "line_limit" | "byte_limit" | "timeout";
+    };
 
 /** 工具执行结果
  * @template T 详细信息类型

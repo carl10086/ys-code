@@ -24,7 +24,8 @@ describe("AgentSession", () => {
     expect(session.isStreaming).toBe(false);
     expect(session.messages).toEqual([]);
     expect(session.model).toBe(model);
-    expect(session.tools).toHaveLength(7); // 6 个默认工具 + SkillTool
+    expect(session.tools.map((tool) => tool.name)).toContain("Grep");
+    expect(session.tools).toHaveLength(8); // 7 个默认工具 + SkillTool
   });
 
   it("should emit turn_start when agent emits turn_start", () => {
@@ -117,7 +118,10 @@ describe("AgentSession", () => {
         type: "tool_execution_end",
         toolCallId: "tc1",
         toolName: "bash",
-        result: { content: [{ type: "text", text: "hi" }] },
+        result: {
+          content: [{ type: "text", text: "hi" }],
+          renderData: { type: "plain", text: "rendered hi" },
+        },
         isError: false,
       }, signal);
     });
@@ -136,6 +140,7 @@ describe("AgentSession", () => {
       toolName: "bash",
       isError: false,
       summary: "hi",
+      renderData: { type: "plain", text: "rendered hi" },
     });
     expect(typeof events[1].timeMs).toBe("number");
   });
