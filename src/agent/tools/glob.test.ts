@@ -79,6 +79,25 @@ describe("GlobTool", () => {
     });
   });
 
+  it("does not format truncated empty results as no files found", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const text = formatText(tool.formatResult!({
+        durationMs: 1,
+        numFiles: 0,
+        filenames: [],
+        truncated: true,
+        truncatedReason: "timeout",
+        appliedLimit: 100,
+      }, "glob-truncated"));
+
+      expect(text).toContain("Search was truncated");
+      expect(text).toContain("timeout");
+      expect(text).not.toBe("No files found");
+    });
+  });
+
   it("limits searches to the provided path", async () => {
     await withFixture(async (dir) => {
       const tool = createGlobTool(dir);
@@ -361,6 +380,27 @@ describe("GlobTool", () => {
         filenames: ["beta.md"],
         appliedLimit: 100,
         truncated: false,
+      });
+    });
+  });
+
+  it("passes truncation reasons through renderData", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const renderData = tool.renderResult!({
+        durationMs: 1,
+        numFiles: 0,
+        filenames: [],
+        truncated: true,
+        truncatedReason: "byte_limit",
+        appliedLimit: 100,
+      }, "glob-render-truncated");
+
+      expect(renderData).toMatchObject({
+        type: "search_result",
+        truncated: true,
+        truncatedReason: "byte_limit",
       });
     });
   });

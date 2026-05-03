@@ -18,11 +18,17 @@ const globOutputSchema = Type.Object({
   numFiles: Type.Number({ description: "Total number of files found" }),
   filenames: Type.Array(Type.String(), { description: "Array of file paths that match the pattern" }),
   truncated: Type.Boolean({ description: "Whether results were truncated (limited to 100 files)" }),
+  truncatedReason: Type.Optional(Type.Union([
+    Type.Literal("line_limit"),
+    Type.Literal("byte_limit"),
+    Type.Literal("timeout"),
+  ], { description: "Why results were truncated, if known" })),
   appliedLimit: Type.Number({ description: "Maximum number of files returned" }),
 });
 
 type GlobInput = Static<typeof globSchema>;
 type GlobOutput = Static<typeof globOutputSchema>;
+type TruncatedReason = NonNullable<GlobOutput["truncatedReason"]>;
 
 const MAX_RESULTS = 100;
 const MAX_INPUT_LENGTH = 1000;
@@ -105,7 +111,20 @@ async function resolveSearchInput(params: GlobInput, cwd: string): Promise<
   let realSearchRoot = realCwd;
 
   if (params.path) {
-    const stats = await stat(searchRoot);
+    let stats;
+    try {
+      stats = await stat(searchRoot);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return {
+          ok: false,
+          message: `Directory does not exist: ${params.path}`,
+          errorCode: 1,
+        };
+      }
+      throw error;
+    }
+
     if (!stats.isDirectory()) {
       return {
         ok: false,
@@ -177,7 +196,7 @@ async function readLimitedLines(
   outputCwd: string,
   cwd: string,
   signal?: AbortSignal,
-): Promise<{ filenames: string[]; truncated: boolean }> {
+): Promise<{ filenames: string[]; truncated: boolean; truncatedReason?: TruncatedReason }> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   const filenames: string[] = [];
@@ -206,7 +225,7 @@ async function readLimitedLines(
     if (bytesRead > MAX_OUTPUT_BYTES) {
       proc.kill();
       await reader.cancel();
-      return { filenames, truncated: true };
+      return { filenames, truncated: true, truncatedReason: "byte_limit" };
     }
 
     pending += decoder.decode(value, { stream: true });
@@ -216,7 +235,7 @@ async function readLimitedLines(
       pending = pending.slice(newlineIndex + 1);
       if (pushLine(line)) {
         await reader.cancel();
-        return { filenames, truncated: true };
+        return { filenames, truncated: true, truncatedReason: "line_limit" };
       }
       newlineIndex = pending.indexOf("\n");
     }
@@ -224,7 +243,7 @@ async function readLimitedLines(
 
   pending += decoder.decode();
   if (pending && pushLine(pending)) {
-    return { filenames, truncated: true };
+    return { filenames, truncated: true, truncatedReason: "line_limit" };
   }
 
   return { filenames, truncated: false };
@@ -263,7 +282,7 @@ async function runRipgrep(
   cwd: string,
   outputCwd: string,
   signal?: AbortSignal,
-): Promise<{ filenames: string[]; truncated: boolean }> {
+): Promise<{ filenames: string[]; truncated: boolean; truncatedReason?: TruncatedReason }> {
   throwIfAborted(signal);
   const args = [
     "--files",
@@ -303,7 +322,7 @@ async function runRipgrep(
       abort();
     }
     const stderrPromise = readLimitedText(proc.stderr);
-    const { filenames, truncated } = await readLimitedLines(proc.stdout, proc, outputCwd, cwd, signal);
+    const { filenames, truncated, truncatedReason } = await readLimitedLines(proc.stdout, proc, outputCwd, cwd, signal);
     const exitCode = await proc.exited;
     const stderr = await stderrPromise;
 
@@ -311,10 +330,10 @@ async function runRipgrep(
       throw new Error("Glob search aborted");
     }
     if (timedOut) {
-      return { filenames, truncated: true };
+      return { filenames, truncated: true, truncatedReason: "timeout" };
     }
     if (truncated) {
-      return { filenames, truncated };
+      return { filenames, truncated, truncatedReason };
     }
     if (exitCode !== 0) {
       if (exitCode === 1 && !stderr.trim()) {
@@ -355,28 +374,12 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
         }
       }
 
-      if (params.path) {
-        if (params.path === "undefined" || params.path === "null") {
-          return {
-            ok: false,
-            message: "Omit path to use the current working directory instead of passing a string placeholder.",
-            errorCode: 1,
-          };
-        }
-
-        const fullPath = resolve(cwd, params.path);
-        try {
-          await stat(fullPath);
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === "ENOENT") {
-            return {
-              ok: false,
-              message: `Directory does not exist: ${params.path}`,
-              errorCode: 1,
-            };
-          }
-          throw e;
-        }
+      if (params.path === "undefined" || params.path === "null") {
+        return {
+          ok: false,
+          message: "Omit path to use the current working directory instead of passing a string placeholder.",
+          errorCode: 1,
+        };
       }
 
       const resolved = await resolveSearchInput(params, cwd);
@@ -393,7 +396,7 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
       }
       const start = Date.now();
 
-      const { filenames, truncated } = await runRipgrep(
+      const { filenames, truncated, truncatedReason } = await runRipgrep(
         resolved.searchPattern,
         resolved.searchDir,
         resolved.outputCwd,
@@ -405,11 +408,20 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
         numFiles: filenames.length,
         filenames,
         truncated,
+        ...(truncatedReason ? { truncatedReason } : {}),
         appliedLimit: MAX_RESULTS,
       };
     },
 
     formatResult(output, _toolCallId) {
+      if (output.truncated && output.filenames.length === 0) {
+        const reason = output.truncatedReason ? ` (${output.truncatedReason})` : "";
+        return [{
+          type: "text" as const,
+          text: `Search was truncated before any files were returned${reason}. Consider using a more specific path or pattern.`,
+        }];
+      }
+
       if (output.filenames.length === 0) {
         return [{
           type: "text" as const,
@@ -436,6 +448,7 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
         filenames: output.filenames,
         appliedLimit: output.appliedLimit,
         truncated: output.truncated,
+        ...(output.truncatedReason ? { truncatedReason: output.truncatedReason } : {}),
       };
     },
   });
