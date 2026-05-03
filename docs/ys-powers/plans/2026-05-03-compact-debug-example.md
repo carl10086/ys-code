@@ -45,15 +45,15 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 测试覆盖默认参数：无参数时 instructions 使用 spec 中默认值或脚本默认值。
-- [ ] 测试覆盖 `--instructions <text>` 能正确解析包含空格的中文指令。
-- [ ] 测试覆盖 message summary 能标记 `role` 和 `isMeta`。
-- [ ] 测试覆盖 transcript tail 读取只返回最后 N 条 entry type，且损坏行不会使 helper 崩溃。
+- [x] 测试覆盖默认参数：无参数时 instructions 使用 spec 中默认值或脚本默认值。
+- [x] 测试覆盖 `--instructions <text>` 能正确解析包含空格的中文指令。
+- [x] 测试覆盖 message summary 能标记 `role` 和 `isMeta`。
+- [x] 测试覆盖 transcript tail 读取只返回最后 N 条 entry type，且损坏行不会使 helper 崩溃。
 
 **Verification:**
 
-- [ ] RED 阶段：`bun test examples/debug-compact.test.ts` 因 helper 不存在失败。
-- [ ] GREEN 阶段：`bun test examples/debug-compact.test.ts` 通过。
+- [x] RED 阶段：`bun test examples/debug-compact.test.ts` 因 helper 不存在失败。
+- [x] GREEN 阶段：`bun test examples/debug-compact.test.ts` 通过。
 
 **Dependencies:** None
 
