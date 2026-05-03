@@ -18,6 +18,7 @@ const globOutputSchema = Type.Object({
   numFiles: Type.Number({ description: "Total number of files found" }),
   filenames: Type.Array(Type.String(), { description: "Array of file paths that match the pattern" }),
   truncated: Type.Boolean({ description: "Whether results were truncated (limited to 100 files)" }),
+  appliedLimit: Type.Number({ description: "Maximum number of files returned" }),
 });
 
 type GlobInput = Static<typeof globSchema>;
@@ -404,6 +405,7 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
         numFiles: filenames.length,
         filenames,
         truncated,
+        appliedLimit: MAX_RESULTS,
       };
     },
 
@@ -424,6 +426,17 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
         type: "text" as const,
         text: lines.join("\n"),
       }];
+    },
+
+    renderResult(output) {
+      return {
+        type: "search_result",
+        mode: "files_with_matches",
+        numFiles: output.numFiles,
+        filenames: output.filenames,
+        appliedLimit: output.appliedLimit,
+        truncated: output.truncated,
+      };
     },
   });
 }

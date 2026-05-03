@@ -346,4 +346,22 @@ describe("GlobTool", () => {
       expect(output.filenames).not.toContain(".ssh/id_ed25519");
     });
   });
+
+  it("renders search_result data for the TUI", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-11", { pattern: "*.md" }, mockContext());
+      const renderData = tool.renderResult!(output, "glob-11");
+
+      expect(renderData).toMatchObject({
+        type: "search_result",
+        mode: "files_with_matches",
+        numFiles: 1,
+        filenames: ["beta.md"],
+        appliedLimit: 100,
+        truncated: false,
+      });
+    });
+  });
 });
