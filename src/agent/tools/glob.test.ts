@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { createGlobTool } from "./glob.js";
@@ -123,6 +123,88 @@ describe("GlobTool", () => {
           expect(validation.errorCode).toBe(1);
           expect(validation.message).toContain("Omit path");
         }
+      }
+    });
+  });
+
+  it("rejects overly long pattern and path values", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const longPattern = await tool.validateInput!(
+        { pattern: "a".repeat(1001) },
+        mockContext(),
+      );
+      expect(longPattern.ok).toBe(false);
+      if (!longPattern.ok) {
+        expect(longPattern.message).toContain("pattern must be at most 1000 characters");
+      }
+
+      const longPath = await tool.validateInput!(
+        { pattern: "*.ts", path: "a".repeat(1001) },
+        mockContext(),
+      );
+      expect(longPath.ok).toBe(false);
+      if (!longPath.ok) {
+        expect(longPath.message).toContain("path must be at most 1000 characters");
+      }
+    });
+  });
+
+  it("allows absolute paths inside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const validation = await tool.validateInput!(
+        { pattern: "*.ts", path: join(dir, "src") },
+        mockContext(),
+      );
+
+      expect(validation.ok).toBe(true);
+    });
+  });
+
+  it("rejects paths outside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const outside = await mkdtemp(join(tmpdir(), "ys-glob-outside-"));
+      try {
+        const tool = createGlobTool(dir);
+
+        const validation = await tool.validateInput!(
+          { pattern: "*.ts", path: outside },
+          mockContext(),
+        );
+
+        expect(validation.ok).toBe(false);
+        if (!validation.ok) {
+          expect(validation.errorCode).toBe(1);
+          expect(validation.message).toContain("outside the workspace");
+        }
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("rejects symlinked directories that resolve outside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const outside = await mkdtemp(join(tmpdir(), "ys-glob-symlink-target-"));
+      try {
+        await symlink(outside, join(dir, "outside-link"));
+        const tool = createGlobTool(dir);
+
+        const validation = await tool.validateInput!(
+          { pattern: "*.ts", path: "outside-link" },
+          mockContext(),
+        );
+
+        expect(validation.ok).toBe(false);
+        if (!validation.ok) {
+          expect(validation.errorCode).toBe(1);
+          expect(validation.message).toContain("outside the workspace");
+        }
+      } finally {
+        await rm(outside, { recursive: true, force: true });
       }
     });
   });

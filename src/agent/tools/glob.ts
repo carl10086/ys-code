@@ -1,13 +1,14 @@
 // src/agent/tools/glob.ts
 import { Type, type Static } from "@sinclair/typebox";
-import { stat } from "fs/promises";
-import { relative, resolve } from "path";
+import { realpath, stat } from "fs/promises";
+import { isAbsolute, relative, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
 const globSchema = Type.Object({
-  pattern: Type.String({ description: "The glob pattern to match files against" }),
+  pattern: Type.String({ maxLength: 1000, description: "The glob pattern to match files against" }),
   path: Type.Optional(Type.String({
+    maxLength: 1000,
     description: "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.",
   })),
 });
@@ -23,6 +24,19 @@ type GlobInput = Static<typeof globSchema>;
 type GlobOutput = Static<typeof globOutputSchema>;
 
 const MAX_RESULTS = 100;
+const MAX_INPUT_LENGTH = 1000;
+
+function validateMaxLength(value: string | undefined, name: string): string | null {
+  if (value !== undefined && value.length > MAX_INPUT_LENGTH) {
+    return `${name} must be at most ${MAX_INPUT_LENGTH} characters`;
+  }
+  return null;
+}
+
+function isInsideDirectory(root: string, target: string): boolean {
+  const relativePath = relative(root, target);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
 
 async function runRipgrep(pattern: string, cwd: string): Promise<{ filenames: string[]; truncated: boolean }> {
   const args = [
@@ -73,6 +87,16 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
     isConcurrencySafe: true,
 
     validateInput: async (params: GlobInput) => {
+      for (const [name, value] of [
+        ["pattern", params.pattern],
+        ["path", params.path],
+      ] as const) {
+        const message = validateMaxLength(value, name);
+        if (message) {
+          return { ok: false, message, errorCode: 1 };
+        }
+      }
+
       if (params.path) {
         if (params.path === "undefined" || params.path === "null") {
           return {
@@ -90,6 +114,14 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
               ok: false,
               message: `Path is not a directory: ${params.path}`,
               errorCode: 2,
+            };
+          }
+          const [realCwd, realTarget] = await Promise.all([realpath(cwd), realpath(fullPath)]);
+          if (!isInsideDirectory(realCwd, realTarget)) {
+            return {
+              ok: false,
+              message: `Path is outside the workspace: ${params.path}`,
+              errorCode: 1,
             };
           }
         } catch (e) {
