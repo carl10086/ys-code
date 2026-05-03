@@ -1,7 +1,7 @@
 // src/agent/tools/glob.ts
 import { Type, type Static } from "@sinclair/typebox";
 import { realpath, stat } from "fs/promises";
-import { isAbsolute, relative, resolve } from "path";
+import { basename, dirname, isAbsolute, relative, resolve } from "path";
 import { defineAgentTool } from "../define-agent-tool.js";
 import type { AgentTool } from "../types.js";
 
@@ -38,7 +38,99 @@ function isInsideDirectory(root: string, target: string): boolean {
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
 
-async function runRipgrep(pattern: string, cwd: string): Promise<{ filenames: string[]; truncated: boolean }> {
+function extractGlobBaseDirectory(pattern: string): { baseDir: string; relativePattern: string } {
+  const match = pattern.match(/[*?[{]/);
+  if (!match || match.index === undefined) {
+    return { baseDir: dirname(pattern), relativePattern: basename(pattern) };
+  }
+
+  const staticPrefix = pattern.slice(0, match.index);
+  const lastSeparatorIndex = staticPrefix.lastIndexOf("/");
+  if (lastSeparatorIndex === -1) {
+    return { baseDir: "", relativePattern: pattern };
+  }
+
+  const baseDir = lastSeparatorIndex === 0 ? "/" : staticPrefix.slice(0, lastSeparatorIndex);
+  const relativePattern = pattern.slice(lastSeparatorIndex + 1);
+  return { baseDir, relativePattern };
+}
+
+async function resolveSearchInput(params: GlobInput, cwd: string): Promise<
+  | { ok: true; searchDir: string; searchPattern: string; outputCwd: string }
+  | { ok: false; message: string; errorCode?: number }
+> {
+  const realCwd = await realpath(cwd);
+  const searchRoot = params.path ? resolve(cwd, params.path) : cwd;
+  let realSearchRoot = realCwd;
+
+  if (params.path) {
+    const stats = await stat(searchRoot);
+    if (!stats.isDirectory()) {
+      return {
+        ok: false,
+        message: `Path is not a directory: ${params.path}`,
+        errorCode: 2,
+      };
+    }
+
+    realSearchRoot = await realpath(searchRoot);
+    if (!isInsideDirectory(realCwd, realSearchRoot)) {
+      return {
+        ok: false,
+        message: `Path is outside the workspace: ${params.path}`,
+        errorCode: 1,
+      };
+    }
+  }
+
+  if (!isAbsolute(params.pattern)) {
+    return { ok: true, searchDir: realSearchRoot, searchPattern: params.pattern, outputCwd: realCwd };
+  }
+
+  const { baseDir, relativePattern } = extractGlobBaseDirectory(params.pattern);
+  const absoluteBaseDir = resolve(baseDir);
+  let baseStats;
+  try {
+    baseStats = await stat(absoluteBaseDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {
+        ok: false,
+        message: `Directory does not exist: ${baseDir}`,
+        errorCode: 1,
+      };
+    }
+    throw error;
+  }
+
+  if (!baseStats.isDirectory()) {
+    return {
+      ok: false,
+      message: `Path is not a directory: ${baseDir}`,
+      errorCode: 2,
+    };
+  }
+
+  const realPatternBase = await realpath(absoluteBaseDir);
+  if (!isInsideDirectory(realCwd, realPatternBase)) {
+    return {
+      ok: false,
+      message: `Pattern is outside the workspace: ${params.pattern}`,
+      errorCode: 1,
+    };
+  }
+  if (!isInsideDirectory(realSearchRoot, realPatternBase)) {
+    return {
+      ok: false,
+      message: `Pattern is outside the search path: ${params.pattern}`,
+      errorCode: 1,
+    };
+  }
+
+  return { ok: true, searchDir: realPatternBase, searchPattern: relativePattern, outputCwd: realCwd };
+}
+
+async function runRipgrep(pattern: string, cwd: string, outputCwd: string): Promise<{ filenames: string[]; truncated: boolean }> {
   const args = [
     "--files",
     "--glob", pattern,
@@ -67,7 +159,7 @@ async function runRipgrep(pattern: string, cwd: string): Promise<{ filenames: st
 
   const lines = stdout.split("\n").filter((line) => line.trim());
   const truncated = lines.length > MAX_RESULTS;
-  const filenames = lines.slice(0, MAX_RESULTS).map((p) => relative(cwd, resolve(cwd, p)));
+  const filenames = lines.slice(0, MAX_RESULTS).map((p) => relative(outputCwd, resolve(cwd, p)));
 
   return { filenames, truncated };
 }
@@ -108,22 +200,7 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
 
         const fullPath = resolve(cwd, params.path);
         try {
-          const stats = await stat(fullPath);
-          if (!stats.isDirectory()) {
-            return {
-              ok: false,
-              message: `Path is not a directory: ${params.path}`,
-              errorCode: 2,
-            };
-          }
-          const [realCwd, realTarget] = await Promise.all([realpath(cwd), realpath(fullPath)]);
-          if (!isInsideDirectory(realCwd, realTarget)) {
-            return {
-              ok: false,
-              message: `Path is outside the workspace: ${params.path}`,
-              errorCode: 1,
-            };
-          }
+          await stat(fullPath);
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code === "ENOENT") {
             return {
@@ -135,14 +212,22 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
           throw e;
         }
       }
+
+      const resolved = await resolveSearchInput(params, cwd);
+      if (!resolved.ok) {
+        return { ok: false, message: resolved.message, errorCode: resolved.errorCode };
+      }
       return { ok: true };
     },
 
     async execute(_toolCallId, params, _context) {
-      const searchDir = params.path ? resolve(cwd, params.path) : cwd;
+      const resolved = await resolveSearchInput(params, cwd);
+      if (!resolved.ok) {
+        throw new Error(resolved.message);
+      }
       const start = Date.now();
 
-      const { filenames, truncated } = await runRipgrep(params.pattern, searchDir);
+      const { filenames, truncated } = await runRipgrep(resolved.searchPattern, resolved.searchDir, resolved.outputCwd);
 
       return {
         durationMs: Date.now() - start,

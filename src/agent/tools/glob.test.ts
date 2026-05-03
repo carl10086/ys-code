@@ -70,7 +70,7 @@ describe("GlobTool", () => {
 
       const output = await tool.execute("glob-4", { pattern: "*.ts", path: "src" }, mockContext());
 
-      expect(output.filenames).toEqual(["nested.ts"]);
+      expect(output.filenames).toEqual(["src/nested.ts"]);
     });
   });
 
@@ -205,6 +205,65 @@ describe("GlobTool", () => {
         }
       } finally {
         await rm(outside, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("supports absolute glob patterns inside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-5", { pattern: join(dir, "src", "*.ts") }, mockContext());
+
+      expect(output.filenames).toEqual(["src/nested.ts"]);
+      expect(output.filenames.every((filename) => !filename.startsWith(dir))).toBe(true);
+    });
+  });
+
+  it("supports absolute literal file patterns inside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-6", { pattern: join(dir, "alpha.ts") }, mockContext());
+
+      expect(output.filenames).toEqual(["alpha.ts"]);
+    });
+  });
+
+  it("rejects absolute glob patterns outside the workspace", async () => {
+    await withFixture(async (dir) => {
+      const outside = await mkdtemp(join(tmpdir(), "ys-glob-pattern-outside-"));
+      try {
+        await writeFile(join(outside, "outside.ts"), "export const outside = 1;\n", "utf-8");
+        const tool = createGlobTool(dir);
+
+        const validation = await tool.validateInput!(
+          { pattern: join(outside, "*.ts") },
+          mockContext(),
+        );
+
+        expect(validation.ok).toBe(false);
+        if (!validation.ok) {
+          expect(validation.message).toContain("outside the workspace");
+        }
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("rejects absolute glob patterns outside the provided path", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const validation = await tool.validateInput!(
+        { pattern: join(dir, "alpha.ts"), path: "src" },
+        mockContext(),
+      );
+
+      expect(validation.ok).toBe(false);
+      if (!validation.ok) {
+        expect(validation.message).toContain("outside the search path");
       }
     });
   });
