@@ -70,15 +70,15 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] `bun run examples/debug-compact.ts --help` 或无 API key 前的早期输出能显示 debug root/workspace/session 路径。
-- [ ] 临时 workspace 中包含 `compact-target.ts` 和 `notes.md`。
-- [ ] 默认不删除临时目录。
-- [ ] 不写入默认 `~/.ys-code/sessions`。
+- [x] `bun run examples/debug-compact.ts --help` 或无 API key 前的早期输出能显示 debug root/workspace/session 路径。
+- [x] 临时 workspace 中包含 `compact-target.ts` 和 `notes.md`。
+- [x] 默认不删除临时目录。
+- [x] 不写入默认 `~/.ys-code/sessions`。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] Manual check: `bun run examples/debug-compact.ts` 在缺少 API key 时仍打印 debug 路径和清晰错误。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] Manual check: `bun run examples/debug-compact.ts` 在缺少 API key 时仍打印 debug 路径和清晰错误。
 
 **Dependencies:** Task 1
 

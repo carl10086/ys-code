@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   DEFAULT_COMPACT_INSTRUCTIONS,
+  createDebugWorkspace,
   formatMessageSummary,
   parseDebugCompactArgs,
   readTranscriptTailEntryTypes,
@@ -79,6 +80,22 @@ describe("debug-compact helpers", () => {
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("creates an isolated workspace with debug fixture files", () => {
+    const debugWorkspace = createDebugWorkspace();
+
+    try {
+      expect(debugWorkspace.root).toContain("ys-code-compact-debug-");
+      expect(debugWorkspace.workspace).toBe(join(debugWorkspace.root, "workspace"));
+      expect(debugWorkspace.sessionBaseDir).toBe(join(debugWorkspace.root, "sessions"));
+      expect(existsSync(join(debugWorkspace.workspace, "compact-target.ts"))).toBe(true);
+      expect(existsSync(join(debugWorkspace.workspace, "notes.md"))).toBe(true);
+      expect(readFileSync(join(debugWorkspace.workspace, "compact-target.ts"), "utf-8"))
+        .toContain("export function describeCompactTarget");
+    } finally {
+      rmSync(debugWorkspace.root, { recursive: true, force: true });
     }
   });
 });
