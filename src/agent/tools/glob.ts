@@ -28,6 +28,37 @@ const MAX_INPUT_LENGTH = 1000;
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_EXCLUDE_DIRS = [
+  ".git",
+  ".svn",
+  ".hg",
+  ".bzr",
+  ".jj",
+  ".sl",
+  "node_modules",
+  "dist",
+  "build",
+];
+const DEFAULT_EXCLUDE_FILES = [
+  ".env",
+  ".env.*",
+  ".npmrc",
+  ".pypirc",
+  ".netrc",
+  ".yarnrc",
+  ".aws/**",
+  ".ssh/**",
+  "id_rsa",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*credentials*",
+  "*secret*",
+];
 
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -240,6 +271,12 @@ async function runRipgrep(
     "--no-ignore",
     "--hidden",
   ];
+  for (const dir of DEFAULT_EXCLUDE_DIRS) {
+    args.push("--glob", `!${dir}/**`, "--glob", `!**/${dir}/**`);
+  }
+  for (const file of DEFAULT_EXCLUDE_FILES) {
+    args.push("--glob", `!${file}`, "--glob", `!**/${file}`);
+  }
 
   const proc = Bun.spawn(["rg", ...args], {
     cwd,

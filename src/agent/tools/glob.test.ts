@@ -22,6 +22,21 @@ async function withFixture<T>(fn: (dir: string) => Promise<T>): Promise<T> {
     await writeFile(join(dir, "gamma.ts"), "export const gamma = 1;\n", "utf-8");
     await mkdir(join(dir, "src"), { recursive: true });
     await writeFile(join(dir, "src", "nested.ts"), "export const nested = 1;\n", "utf-8");
+    await writeFile(join(dir, ".env"), "SECRET=value\n", "utf-8");
+    await writeFile(join(dir, ".npmrc"), "//registry.example.test/:_authToken=value\n", "utf-8");
+    await writeFile(join(dir, "private.pem"), "secret\n", "utf-8");
+    await mkdir(join(dir, ".git"), { recursive: true });
+    await writeFile(join(dir, ".git", "config"), "secret\n", "utf-8");
+    await mkdir(join(dir, "node_modules"), { recursive: true });
+    await writeFile(join(dir, "node_modules", "ignored.ts"), "export {}\n", "utf-8");
+    await mkdir(join(dir, "src", "node_modules"), { recursive: true });
+    await writeFile(join(dir, "src", "node_modules", "nested-ignored.ts"), "export {}\n", "utf-8");
+    await mkdir(join(dir, "dist"), { recursive: true });
+    await writeFile(join(dir, "dist", "ignored.ts"), "export {}\n", "utf-8");
+    await mkdir(join(dir, "build"), { recursive: true });
+    await writeFile(join(dir, "build", "ignored.ts"), "export {}\n", "utf-8");
+    await mkdir(join(dir, ".ssh"), { recursive: true });
+    await writeFile(join(dir, ".ssh", "id_ed25519"), "secret\n", "utf-8");
     return await fn(dir);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -309,6 +324,26 @@ describe("GlobTool", () => {
       await expect(
         tool.execute("glob-9", { pattern: "*.ts" }, { ...mockContext(), abortSignal: controller.signal }),
       ).rejects.toThrow("aborted");
+    });
+  });
+
+  it("excludes VCS directories, dependency directories, build outputs, and common secrets by default", async () => {
+    await withFixture(async (dir) => {
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-10", { pattern: "**/*" }, mockContext());
+
+      expect(output.filenames).toContain("alpha.ts");
+      expect(output.filenames).toContain("src/nested.ts");
+      expect(output.filenames).not.toContain(".env");
+      expect(output.filenames).not.toContain(".npmrc");
+      expect(output.filenames).not.toContain("private.pem");
+      expect(output.filenames).not.toContain(".git/config");
+      expect(output.filenames).not.toContain("node_modules/ignored.ts");
+      expect(output.filenames).not.toContain("src/node_modules/nested-ignored.ts");
+      expect(output.filenames).not.toContain("dist/ignored.ts");
+      expect(output.filenames).not.toContain("build/ignored.ts");
+      expect(output.filenames).not.toContain(".ssh/id_ed25519");
     });
   });
 });
