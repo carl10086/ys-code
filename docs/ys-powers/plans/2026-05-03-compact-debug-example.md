@@ -103,16 +103,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 缺少 API key 时给出清晰错误，说明需要 `MINIMAX_API_KEY` 或 provider 对应 key。
-- [ ] 有 API key 时创建 `AgentSession({ cwd: debugWorkspace, sessionBaseDir })`。
-- [ ] 第一轮 prompt 使用真实模型执行，并要求模型读取或分析 `compact-target.ts`。
-- [ ] 第一轮结束后打印 compact 前 message count 和 role summary。
+- [x] 缺少 API key 时给出清晰错误，说明需要 `MINIMAX_API_KEY` 或 provider 对应 key。
+- [x] 有 API key 时创建 `AgentSession({ cwd: debugWorkspace, sessionBaseDir })`。
+- [x] 第一轮 prompt 使用真实模型执行，并要求模型读取或分析 `compact-target.ts`。
+- [x] 第一轮结束后打印 compact 前 message count 和 role summary。
 
 **Verification:**
 
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: `bun run examples/debug-compact.ts`
-- [ ] Manual check: 输出中出现真实 model turn events 和 `[BEFORE COMPACT]` message summary。
+- [x] `bun run typecheck`
+- [x] Manual check with API key: `bun run examples/debug-compact.ts`
+- [x] Manual check: 输出中出现真实 model turn events 和 `[BEFORE COMPACT]` message summary。
 
 **Dependencies:** Task 2
 

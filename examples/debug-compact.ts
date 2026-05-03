@@ -1,7 +1,21 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AgentSession } from "../src/agent/index.js";
+import {
+  formatAICardEnd,
+  formatAICardStart,
+  formatAnswerPrefix,
+  formatTextDelta,
+  formatThinkingDelta,
+  formatThinkingPrefix,
+  formatToolEnd,
+  formatToolStart,
+  formatToolsPrefix,
+  formatUserMessage,
+} from "../src/cli/format.js";
 import { getEnvApiKey, getModel } from "../src/core/ai/index.js";
+import type { AgentSessionEvent } from "../src/agent/session.js";
 import type { AgentMessage } from "../src/agent/types.js";
 
 export const DEFAULT_COMPACT_INSTRUCTIONS = "只保留当前任务、文件路径、错误和下一步";
@@ -66,6 +80,14 @@ export function createDebugWorkspace(): DebugWorkspace {
   return { root, workspace, sessionBaseDir };
 }
 
+export function buildSeedPrompt(): string {
+  return [
+    "请使用 Read 工具读取当前工作目录下的 compact-target.ts。",
+    "然后用 3 条 bullet 总结这个文件的作用、后续 compact 时应该保留的上下文，以及下一步调试动作。",
+    "不要修改文件。",
+  ].join("\n");
+}
+
 export function formatMessageSummary(
   label: string,
   messages: readonly AgentMessage[],
@@ -115,6 +137,58 @@ Runs the compact debug example through the real slash command path.
 `);
 }
 
+function subscribeToSessionEvents(session: AgentSession): void {
+  session.subscribe((event) => {
+    writeSessionEvent(event);
+  });
+}
+
+function writeSessionEvent(event: AgentSessionEvent): void {
+  switch (event.type) {
+    case "turn_start": {
+      process.stdout.write(formatAICardStart(event.modelName));
+      break;
+    }
+    case "thinking_delta": {
+      if (event.isFirst) {
+        process.stdout.write(formatThinkingPrefix());
+      }
+      process.stdout.write(formatThinkingDelta(event.text));
+      break;
+    }
+    case "answer_delta": {
+      if (event.isFirst) {
+        process.stdout.write(formatAnswerPrefix());
+      }
+      process.stdout.write(formatTextDelta(event.text));
+      break;
+    }
+    case "tool_start": {
+      if (event.isFirst) {
+        process.stdout.write(formatToolsPrefix());
+      }
+      process.stdout.write(formatToolStart(event.toolName, event.args));
+      break;
+    }
+    case "tool_end": {
+      process.stdout.write(formatToolEnd(event.toolName, event.isError, event.summary, event.timeMs));
+      break;
+    }
+    case "turn_end": {
+      process.stdout.write(formatAICardEnd(event.tokens, event.cost, event.timeMs));
+      break;
+    }
+  }
+}
+
+async function seedConversation(session: AgentSession): Promise<void> {
+  const seedPrompt = buildSeedPrompt();
+  console.log("\n[SETUP] running one real model turn to prepare compact context");
+  process.stdout.write(formatUserMessage(seedPrompt));
+  session.steer(seedPrompt);
+  await session.prompt("");
+}
+
 async function main(): Promise<void> {
   const args = parseDebugCompactArgs(process.argv.slice(2));
   if (args.help) {
@@ -136,11 +210,26 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+
+  const session = new AgentSession({
+    cwd: debugWorkspace.workspace,
+    model,
+    apiKey,
+    sessionBaseDir: debugWorkspace.sessionBaseDir,
+  });
+  subscribeToSessionEvents(session);
+
+  await seedConversation(session);
+  for (const line of formatMessageSummary("BEFORE COMPACT", session.messages)) {
+    console.log(line);
+  }
 }
 
 if (import.meta.main) {
-  main().catch((error) => {
-    console.error("[ERROR]", error instanceof Error ? error.message : String(error));
-    process.exit(1);
-  });
+  main()
+    .then(() => process.exit(process.exitCode ?? 0))
+    .catch((error) => {
+      console.error("[ERROR]", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    });
 }

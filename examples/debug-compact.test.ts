@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  buildSeedPrompt,
   DEFAULT_COMPACT_INSTRUCTIONS,
   createDebugWorkspace,
   formatMessageSummary,
@@ -97,5 +98,13 @@ describe("debug-compact helpers", () => {
     } finally {
       rmSync(debugWorkspace.root, { recursive: true, force: true });
     }
+  });
+
+  it("builds a seed prompt that asks the model to read the fixture file", () => {
+    const prompt = buildSeedPrompt();
+
+    expect(prompt).toContain("compact-target.ts");
+    expect(prompt).toContain("Read");
+    expect(prompt).toContain("不要修改文件");
   });
 });
