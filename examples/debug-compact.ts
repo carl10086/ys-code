@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { AgentSession } from "../src/agent/index.js";
+import type { AgentTool } from "../src/agent/types.js";
 import {
   formatAICardEnd,
   formatAICardStart,
@@ -18,12 +19,16 @@ import { executeCommand, type CommandContext, type ExecuteCommandResult } from "
 import { getEnvApiKey, getModel } from "../src/core/ai/index.js";
 import type { AgentSessionEvent } from "../src/agent/session.js";
 import type { AgentMessage } from "../src/agent/types.js";
+import { createReadTool } from "../src/agent/tools/index.js";
+import { dispatchCommandResult } from "../src/tui/command-utils.js";
+import stripAnsi from "strip-ansi";
 
 // Usage: bun run examples/debug-compact.ts --instructions "只保留当前任务、文件路径、错误和下一步"
 // The script intentionally keeps its temporary directory for transcript inspection.
 export const DEFAULT_COMPACT_INSTRUCTIONS = "只保留当前任务、文件路径、错误和下一步";
 const DEFAULT_MODEL_PROVIDER = "minimax-cn";
 const DEFAULT_MODEL_ID = "MiniMax-M2.7-highspeed";
+const MAX_TRANSCRIPT_DEBUG_BYTES = 1024 * 1024;
 
 export interface DebugWorkspace {
   root: string;
@@ -34,6 +39,11 @@ export interface DebugWorkspace {
 export interface DebugCompactArgs {
   instructions: string;
   help: boolean;
+}
+
+export interface DebugUiEvent {
+  type: "user" | "system";
+  text: string;
 }
 
 export function parseDebugCompactArgs(argv: readonly string[]): DebugCompactArgs {
@@ -52,8 +62,11 @@ export function createDebugWorkspace(): DebugWorkspace {
   const workspace = join(root, "workspace");
   const sessionBaseDir = join(root, "sessions");
 
+  chmodSync(root, 0o700);
   mkdirSync(workspace, { recursive: true });
   mkdirSync(sessionBaseDir, { recursive: true });
+  chmodSync(workspace, 0o700);
+  chmodSync(sessionBaseDir, 0o700);
   writeFileSync(
     join(workspace, "compact-target.ts"),
     [
@@ -68,6 +81,7 @@ export function createDebugWorkspace(): DebugWorkspace {
       "];",
       "",
     ].join("\n"),
+    { mode: 0o600 },
   );
   writeFileSync(
     join(workspace, "notes.md"),
@@ -78,6 +92,7 @@ export function createDebugWorkspace(): DebugWorkspace {
       "- The fixture intentionally avoids token-like or credential-like strings.",
       "",
     ].join("\n"),
+    { mode: 0o600 },
   );
 
   return { root, workspace, sessionBaseDir };
@@ -96,19 +111,94 @@ export function buildCompactCommandInput(instructions: string): string {
   return trimmed ? `/compact ${trimmed}` : "/compact";
 }
 
+export function sanitizeForDebugLog(text: string): string {
+  return stripAnsi(text)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\b(MINIMAX_API_KEY|API_KEY|TOKEN|SECRET|PASSWORD)\s*=\s*[^\s]+/gi, "$1=[REDACTED]")
+    .replace(/\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [REDACTED]")
+    .replace(/\b(sk|xox[baprs]?)-[A-Za-z0-9-]{12,}\b/g, "[REDACTED_TOKEN]");
+}
+
+function isInsideDirectory(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+export function createDebugTools(workspace: string): AgentTool[] {
+  const readTool = createReadTool(workspace);
+  const originalValidateInput = readTool.validateInput;
+
+  return [{
+    ...readTool,
+    description: `${readTool.description}\n\nDebug compact constraint: only read files inside the temporary debug workspace.`,
+    validateInput: async (params, context) => {
+      const filePath = typeof params.file_path === "string"
+        ? params.file_path
+        : "";
+      let resolvedWorkspace: string;
+      let resolvedTarget: string;
+      try {
+        resolvedWorkspace = realpathSync(workspace);
+        resolvedTarget = realpathSync(resolve(workspace, filePath));
+      } catch (error) {
+        return {
+          ok: false,
+          message: error instanceof Error ? error.message : String(error),
+          errorCode: 1,
+        };
+      }
+      if (!isInsideDirectory(resolvedWorkspace, resolvedTarget)) {
+        return {
+          ok: false,
+          message: `Debug compact Read is limited to workspace files: ${workspace}`,
+          errorCode: 403,
+        };
+      }
+
+      return originalValidateInput
+        ? originalValidateInput(params, context)
+        : { ok: true };
+    },
+  }];
+}
+
 export function formatCommandResult(result: ExecuteCommandResult): string[] {
   const lines = [
     `[COMPACT] handled=${result.handled} compact=${result.compact === true} skipPrompt=${result.skipPrompt === true}`,
   ];
 
   if (result.textResult) {
-    lines.push(`[COMPACT] textResult: ${result.textResult}`);
+    lines.push(`[COMPACT] textResult: ${sanitizeForDebugLog(result.textResult)}`);
   }
   if (result.compact === true) {
     lines.push("[COMPACT] command path: local compact result, no normal prompt dispatch");
   }
 
   return lines;
+}
+
+export function assertCompactCommandResult(result: ExecuteCommandResult): void {
+  if (result.handled === true && result.compact === true) {
+    return;
+  }
+
+  const detail = result.textResult ? ` ${result.textResult}` : "";
+  throw new Error(`Expected /compact to return a compact result, got handled=${result.handled} compact=${result.compact === true} skipPrompt=${result.skipPrompt === true}.${detail}`);
+}
+
+export function dispatchDebugCommandResult(
+  result: ExecuteCommandResult,
+  commandInput: string,
+  session: AgentSession,
+  debugUiEvents: DebugUiEvent[],
+): boolean {
+  return dispatchCommandResult(
+    result,
+    commandInput,
+    session,
+    (text) => debugUiEvents.push({ type: "user", text }),
+    (text) => debugUiEvents.push({ type: "system", text }),
+  );
 }
 
 export function formatPostCompactDetails(
@@ -127,7 +217,7 @@ export function formatPostCompactDetails(
     message.role === "user" && "isMeta" in message && message.isMeta === true
   );
   if (summary?.role === "user") {
-    lines.push(`[AFTER COMPACT] summary preview: ${summaryPreview(textFromMessage(summary), previewLength)}`);
+    lines.push(`[AFTER COMPACT] summary preview: ${sanitizeForDebugLog(summaryPreview(textFromMessage(summary), previewLength))}`);
   } else {
     lines.push("[AFTER COMPACT] summary preview: not found");
   }
@@ -185,6 +275,11 @@ export function readTranscriptTailEntryTypes(
   filePath: string,
   count: number,
 ): string[] {
+  if (count <= 0) return [];
+  const stats = statSync(filePath);
+  if (stats.size > MAX_TRANSCRIPT_DEBUG_BYTES) {
+    return [`file_too_large:${stats.size}`];
+  }
   const lines = readFileSync(filePath, "utf-8").split("\n");
   const entryTypes: string[] = [];
 
@@ -258,25 +353,25 @@ function writeSessionEvent(event: AgentSessionEvent): void {
       if (event.isFirst) {
         process.stdout.write(formatThinkingPrefix());
       }
-      process.stdout.write(formatThinkingDelta(event.text));
+      process.stdout.write(formatThinkingDelta(sanitizeForDebugLog(event.text)));
       break;
     }
     case "answer_delta": {
       if (event.isFirst) {
         process.stdout.write(formatAnswerPrefix());
       }
-      process.stdout.write(formatTextDelta(event.text));
+      process.stdout.write(formatTextDelta(sanitizeForDebugLog(event.text)));
       break;
     }
     case "tool_start": {
       if (event.isFirst) {
         process.stdout.write(formatToolsPrefix());
       }
-      process.stdout.write(formatToolStart(event.toolName, event.args));
+      process.stdout.write(sanitizeForDebugLog(formatToolStart(event.toolName, event.args)));
       break;
     }
     case "tool_end": {
-      process.stdout.write(formatToolEnd(event.toolName, event.isError, event.summary, event.timeMs));
+      process.stdout.write(sanitizeForDebugLog(formatToolEnd(event.toolName, event.isError, event.summary, event.timeMs)));
       break;
     }
     case "turn_end": {
@@ -299,7 +394,7 @@ async function runCompactCommand(
   instructions: string,
   cwd: string,
 ): Promise<ExecuteCommandResult> {
-  const debugUiEvents: Array<{ type: "user" | "system"; text: string }> = [];
+  const debugUiEvents: DebugUiEvent[] = [];
   const commandContext: CommandContext = {
     session,
     appendUserMessage: (text) => debugUiEvents.push({ type: "user", text }),
@@ -310,7 +405,7 @@ async function runCompactCommand(
   };
 
   const commandInput = buildCompactCommandInput(instructions);
-  console.log(`\n[COMPACT] executing ${commandInput}`);
+  console.log(`\n[COMPACT] executing ${sanitizeForDebugLog(commandInput)}`);
   const result = await executeCommand(
     commandInput,
     commandContext,
@@ -318,6 +413,8 @@ async function runCompactCommand(
     cwd,
   );
 
+  dispatchDebugCommandResult(result, commandInput, session, debugUiEvents);
+  assertCompactCommandResult(result);
   console.log(`[COMPACT] debug UI events captured=${debugUiEvents.length}`);
   return result;
 }
@@ -334,7 +431,8 @@ async function main(): Promise<void> {
   console.log(`[SETUP] debug root: ${debugWorkspace.root}`);
   console.log(`[SETUP] workspace: ${debugWorkspace.workspace}`);
   console.log(`[SETUP] sessionBaseDir: ${debugWorkspace.sessionBaseDir}`);
-  console.log(`[DEBUG] instructions: ${args.instructions}`);
+  console.log(`[DEBUG] instructions: ${sanitizeForDebugLog(args.instructions)}`);
+  console.log("[SECURITY] This debug run keeps a local transcript; inspect it locally and avoid sharing it if prompts contain sensitive context.");
 
   const model = getModel(DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_ID);
   const apiKey = getEnvApiKey(model.provider) || process.env.MINIMAX_API_KEY;
@@ -349,6 +447,7 @@ async function main(): Promise<void> {
     model,
     apiKey,
     sessionBaseDir: debugWorkspace.sessionBaseDir,
+    tools: createDebugTools(debugWorkspace.workspace),
   });
   subscribeToSessionEvents(session);
 

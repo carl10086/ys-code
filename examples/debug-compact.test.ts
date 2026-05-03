@@ -3,10 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  assertCompactCommandResult,
   buildCompactCommandInput,
   buildSeedPrompt,
+  createDebugTools,
   DEFAULT_COMPACT_INSTRUCTIONS,
   createDebugWorkspace,
+  dispatchDebugCommandResult,
   findLatestTranscriptFile,
   formatMessageSummary,
   formatCommandResult,
@@ -14,9 +17,11 @@ import {
   formatTranscriptDetails,
   parseDebugCompactArgs,
   readTranscriptTailEntryTypes,
+  sanitizeForDebugLog,
   summaryPreview,
 } from "./debug-compact.js";
 import type { AgentMessage } from "../src/agent/types.js";
+import type { AgentSession } from "../src/agent/session.js";
 
 describe("debug-compact helpers", () => {
   it("uses default instructions when no arguments are provided", () => {
@@ -130,6 +135,41 @@ describe("debug-compact helpers", () => {
     ]);
   });
 
+  it("dispatches compact results like the TUI without prompting the model", () => {
+    const debugUiEvents: Array<{ type: "user" | "system"; text: string }> = [];
+    const session = {
+      prompt: () => {
+        throw new Error("prompt should not be called for compact results");
+      },
+    } as unknown as AgentSession;
+
+    const handled = dispatchDebugCommandResult(
+      { handled: true, compact: true, textResult: "Compacted conversation." },
+      "/compact",
+      session,
+      debugUiEvents,
+    );
+
+    expect(handled).toBe(true);
+    expect(debugUiEvents).toEqual([
+      { type: "user", text: "/compact" },
+      { type: "system", text: "Compacted conversation." },
+    ]);
+  });
+
+  it("rejects non-compact command results", () => {
+    expect(() => assertCompactCommandResult({
+      handled: true,
+      skipPrompt: true,
+      textResult: "Command failed. See logs for details.",
+    })).toThrow("Expected /compact to return a compact result");
+  });
+
+  it("sanitizes control characters and common token shapes before logging", () => {
+    expect(sanitizeForDebugLog("\u001b[31mTOKEN=secret-value Bearer abc.def.ghi\u001b[0m"))
+      .toBe("TOKEN=[REDACTED] Bearer [REDACTED]");
+  });
+
   it("formats post-compact boundary, summary, and attachment details", () => {
     const messages = [
       {
@@ -174,6 +214,39 @@ describe("debug-compact helpers", () => {
     ]);
   });
 
+  it("formats missing post-compact details explicitly", () => {
+    expect(formatPostCompactDetails([])).toEqual([
+      "[AFTER COMPACT] boundary metadata: not found",
+      "[AFTER COMPACT] summary preview: not found",
+      "[AFTER COMPACT] attachments=0",
+      "  none",
+    ]);
+  });
+
+  it("limits debug tools to read-only workspace access", async () => {
+    const debugWorkspace = createDebugWorkspace();
+
+    try {
+      const tools = createDebugTools(debugWorkspace.workspace);
+      expect(tools.map((tool) => tool.name)).toEqual(["Read"]);
+
+      const readTool = tools[0];
+      const outsideFile = join(debugWorkspace.root, "outside.txt");
+      writeFileSync(outsideFile, "outside");
+      const validation = await readTool.validateInput?.({
+        file_path: outsideFile,
+      }, {} as never);
+
+      expect(validation).toEqual({
+        ok: false,
+        message: `Debug compact Read is limited to workspace files: ${debugWorkspace.workspace}`,
+        errorCode: 403,
+      });
+    } finally {
+      rmSync(debugWorkspace.root, { recursive: true, force: true });
+    }
+  });
+
   it("finds the latest transcript file and formats its tail entry types", () => {
     const dir = mkdtempSync(join(tmpdir(), "ys-code-debug-compact-session-"));
     const older = join(dir, "100_old.jsonl");
@@ -190,6 +263,7 @@ describe("debug-compact helpers", () => {
       ].join("\n"));
 
       expect(findLatestTranscriptFile(dir)).toBe(newer);
+      expect(readTranscriptTailEntryTypes(newer, 0)).toEqual([]);
       expect(formatTranscriptDetails(dir, 3)).toEqual([
         `[TRANSCRIPT] session file: ${newer}`,
         "[TRANSCRIPT] latest entry types: compact_boundary -> user -> user",
