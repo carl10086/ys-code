@@ -9,6 +9,7 @@ import {
   createDebugWorkspace,
   formatMessageSummary,
   formatCommandResult,
+  formatPostCompactDetails,
   parseDebugCompactArgs,
   readTranscriptTailEntryTypes,
   summaryPreview,
@@ -124,6 +125,50 @@ describe("debug-compact helpers", () => {
       "[COMPACT] handled=true compact=true skipPrompt=false",
       "[COMPACT] textResult: Compacted conversation.",
       "[COMPACT] command path: local compact result, no normal prompt dispatch",
+    ]);
+  });
+
+  it("formats post-compact boundary, summary, and attachment details", () => {
+    const messages = [
+      {
+        role: "compact_boundary",
+        uuid: "boundary-1",
+        timestamp: 1,
+        compactMetadata: { trigger: "manual", preTokens: 100, postTokens: 40 },
+      },
+      {
+        role: "user",
+        isMeta: true,
+        content: [{ type: "text", text: "Summary:\nImportant compact summary content." }],
+        timestamp: 2,
+      },
+      {
+        role: "attachment",
+        attachment: {
+          type: "file",
+          timestamp: 3,
+          filePath: "/tmp/compact-target.ts",
+          displayPath: "compact-target.ts",
+          content: {
+            type: "text",
+            file: {
+              filePath: "/tmp/compact-target.ts",
+              content: "line 1\nline 2",
+              numLines: 2,
+              startLine: 1,
+              totalLines: 2,
+            },
+          },
+        },
+        timestamp: 3,
+      },
+    ] as AgentMessage[];
+
+    expect(formatPostCompactDetails(messages, 20)).toEqual([
+      "[AFTER COMPACT] boundary metadata: {\"trigger\":\"manual\",\"preTokens\":100,\"postTokens\":40}",
+      "[AFTER COMPACT] summary preview: Summary:\nImportant c...",
+      "[AFTER COMPACT] attachments=1",
+      "  1. file compact-target.ts lines=2",
     ]);
   });
 });

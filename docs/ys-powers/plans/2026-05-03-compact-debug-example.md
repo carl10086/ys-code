@@ -162,16 +162,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] compact 后打印 message count 和每条 message 的 role/meta 信息。
-- [ ] 如果存在 `compact_boundary`，打印 `compactMetadata` JSON。
-- [ ] 如果存在 summary meta message，打印前 800 字符 preview。
-- [ ] 如果存在 attachments，打印数量、`displayPath` 和行数；没有 attachment 时打印明确提示。
+- [x] compact 后打印 message count 和每条 message 的 role/meta 信息。
+- [x] 如果存在 `compact_boundary`，打印 `compactMetadata` JSON。
+- [x] 如果存在 summary meta message，打印前 800 字符 preview。
+- [x] 如果存在 attachments，打印数量、`displayPath` 和行数；没有 attachment 时打印明确提示。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: 输出中包含 `[AFTER COMPACT]`、`compactMetadata`、`summary preview`。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] `bun run typecheck`
+- [x] Manual check with API key: 输出中包含 `[AFTER COMPACT]`、`compactMetadata`、`summary preview`。
 
 **Dependencies:** Task 4
 

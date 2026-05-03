@@ -109,6 +109,49 @@ export function formatCommandResult(result: ExecuteCommandResult): string[] {
   return lines;
 }
 
+export function formatPostCompactDetails(
+  messages: readonly AgentMessage[],
+  previewLength = 800,
+): string[] {
+  const lines: string[] = [];
+  const boundary = messages.find((message) => message.role === "compact_boundary");
+  if (boundary?.role === "compact_boundary") {
+    lines.push(`[AFTER COMPACT] boundary metadata: ${JSON.stringify(boundary.compactMetadata)}`);
+  } else {
+    lines.push("[AFTER COMPACT] boundary metadata: not found");
+  }
+
+  const summary = messages.find((message) =>
+    message.role === "user" && "isMeta" in message && message.isMeta === true
+  );
+  if (summary?.role === "user") {
+    lines.push(`[AFTER COMPACT] summary preview: ${summaryPreview(textFromMessage(summary), previewLength)}`);
+  } else {
+    lines.push("[AFTER COMPACT] summary preview: not found");
+  }
+
+  const attachments = messages.filter((message) => message.role === "attachment");
+  lines.push(`[AFTER COMPACT] attachments=${attachments.length}`);
+  if (attachments.length === 0) {
+    lines.push("  none");
+  } else {
+    attachments.forEach((message, index) => {
+      if (message.role !== "attachment") return;
+      const attachment = message.attachment;
+      if (attachment.type === "file") {
+        const linesCount = attachment.content.file?.numLines ?? 0;
+        lines.push(`  ${index + 1}. file ${attachment.displayPath} lines=${linesCount}`);
+      } else if (attachment.type === "directory") {
+        lines.push(`  ${index + 1}. directory ${attachment.displayPath}`);
+      } else {
+        lines.push(`  ${index + 1}. ${attachment.type}`);
+      }
+    });
+  }
+
+  return lines;
+}
+
 export function formatMessageSummary(
   label: string,
   messages: readonly AgentMessage[],
@@ -120,6 +163,13 @@ export function formatMessageSummary(
       return `  ${index + 1}. ${message.role}${meta}`;
     }),
   ];
+}
+
+function textFromMessage(message: Extract<AgentMessage, { role: "user" | "assistant" }>): string {
+  return message.content
+    .filter((content): content is { type: "text"; text: string } => content.type === "text")
+    .map((content) => content.text)
+    .join("");
 }
 
 export function summaryPreview(text: string, maxLength = 800): string {
@@ -282,6 +332,12 @@ async function main(): Promise<void> {
     console.log(line);
   }
   console.log(`[COMPACT] first post-compact role: ${session.messages[0]?.role ?? "none"}`);
+  for (const line of formatMessageSummary("AFTER COMPACT", session.messages)) {
+    console.log(line);
+  }
+  for (const line of formatPostCompactDetails(session.messages)) {
+    console.log(line);
+  }
 }
 
 if (import.meta.main) {
