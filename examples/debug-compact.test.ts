@@ -3,10 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  buildCompactCommandInput,
   buildSeedPrompt,
   DEFAULT_COMPACT_INSTRUCTIONS,
   createDebugWorkspace,
   formatMessageSummary,
+  formatCommandResult,
   parseDebugCompactArgs,
   readTranscriptTailEntryTypes,
   summaryPreview,
@@ -106,5 +108,22 @@ describe("debug-compact helpers", () => {
     expect(prompt).toContain("compact-target.ts");
     expect(prompt).toContain("Read");
     expect(prompt).toContain("不要修改文件");
+  });
+
+  it("builds a compact slash command with instructions", () => {
+    expect(buildCompactCommandInput("只保留路径")).toBe("/compact 只保留路径");
+    expect(buildCompactCommandInput("  ")).toBe("/compact");
+  });
+
+  it("formats compact command result and highlights local dispatch", () => {
+    expect(formatCommandResult({
+      handled: true,
+      compact: true,
+      textResult: "Compacted conversation.",
+    })).toEqual([
+      "[COMPACT] handled=true compact=true skipPrompt=false",
+      "[COMPACT] textResult: Compacted conversation.",
+      "[COMPACT] command path: local compact result, no normal prompt dispatch",
+    ]);
   });
 });

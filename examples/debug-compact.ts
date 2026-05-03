@@ -14,6 +14,7 @@ import {
   formatToolsPrefix,
   formatUserMessage,
 } from "../src/cli/format.js";
+import { executeCommand, type CommandContext, type ExecuteCommandResult } from "../src/commands/index.js";
 import { getEnvApiKey, getModel } from "../src/core/ai/index.js";
 import type { AgentSessionEvent } from "../src/agent/session.js";
 import type { AgentMessage } from "../src/agent/types.js";
@@ -86,6 +87,26 @@ export function buildSeedPrompt(): string {
     "然后用 3 条 bullet 总结这个文件的作用、后续 compact 时应该保留的上下文，以及下一步调试动作。",
     "不要修改文件。",
   ].join("\n");
+}
+
+export function buildCompactCommandInput(instructions: string): string {
+  const trimmed = instructions.trim();
+  return trimmed ? `/compact ${trimmed}` : "/compact";
+}
+
+export function formatCommandResult(result: ExecuteCommandResult): string[] {
+  const lines = [
+    `[COMPACT] handled=${result.handled} compact=${result.compact === true} skipPrompt=${result.skipPrompt === true}`,
+  ];
+
+  if (result.textResult) {
+    lines.push(`[COMPACT] textResult: ${result.textResult}`);
+  }
+  if (result.compact === true) {
+    lines.push("[COMPACT] command path: local compact result, no normal prompt dispatch");
+  }
+
+  return lines;
 }
 
 export function formatMessageSummary(
@@ -189,6 +210,34 @@ async function seedConversation(session: AgentSession): Promise<void> {
   await session.prompt("");
 }
 
+async function runCompactCommand(
+  session: AgentSession,
+  instructions: string,
+  cwd: string,
+): Promise<ExecuteCommandResult> {
+  const debugUiEvents: Array<{ type: "user" | "system"; text: string }> = [];
+  const commandContext: CommandContext = {
+    session,
+    appendUserMessage: (text) => debugUiEvents.push({ type: "user", text }),
+    appendSystemMessage: (text) => debugUiEvents.push({ type: "system", text }),
+    resetSession: () => {
+      throw new Error("resetSession is not supported in debug-compact");
+    },
+  };
+
+  const commandInput = buildCompactCommandInput(instructions);
+  console.log(`\n[COMPACT] executing ${commandInput}`);
+  const result = await executeCommand(
+    commandInput,
+    commandContext,
+    join(cwd, ".claude/skills"),
+    cwd,
+  );
+
+  console.log(`[COMPACT] debug UI events captured=${debugUiEvents.length}`);
+  return result;
+}
+
 async function main(): Promise<void> {
   const args = parseDebugCompactArgs(process.argv.slice(2));
   if (args.help) {
@@ -223,6 +272,16 @@ async function main(): Promise<void> {
   for (const line of formatMessageSummary("BEFORE COMPACT", session.messages)) {
     console.log(line);
   }
+
+  const commandResult = await runCompactCommand(
+    session,
+    args.instructions,
+    debugWorkspace.workspace,
+  );
+  for (const line of formatCommandResult(commandResult)) {
+    console.log(line);
+  }
+  console.log(`[COMPACT] first post-compact role: ${session.messages[0]?.role ?? "none"}`);
 }
 
 if (import.meta.main) {

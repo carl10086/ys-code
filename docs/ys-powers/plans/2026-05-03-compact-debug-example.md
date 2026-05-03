@@ -128,16 +128,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] compact 主路径调用 `executeCommand()`。
-- [ ] command result 打印 `handled`、`compact`、`skipPrompt`、`textResult`。
-- [ ] 当 `result.compact === true` 时打印“no normal prompt dispatch”说明。
-- [ ] debug UI events 会记录 appendUserMessage / appendSystemMessage，但不会调用 `session.prompt("/compact")`。
+- [x] compact 主路径调用 `executeCommand()`。
+- [x] command result 打印 `handled`、`compact`、`skipPrompt`、`textResult`。
+- [x] 当 `result.compact === true` 时打印“no normal prompt dispatch”说明。
+- [x] debug UI events 会记录 appendUserMessage / appendSystemMessage，但不会调用 `session.prompt("/compact")`。
 
 **Verification:**
 
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: compact command result 为 `handled: true` 且 `compact: true`。
-- [ ] Manual check: compact 后 `session.messages` 首条为 `compact_boundary`。
+- [x] `bun run typecheck`
+- [x] Manual check with API key: compact command result 为 `handled: true` 且 `compact: true`。
+- [x] Manual check: compact 后 `session.messages` 首条为 `compact_boundary`。
 
 **Dependencies:** Task 3
 
