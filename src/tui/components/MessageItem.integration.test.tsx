@@ -103,6 +103,32 @@ describe("MessageItem integration with Markdown", () => {
     expect(frame).not.toContain("fallback summary");
   });
 
+  it("renders Glob search_result summary and truncation details", () => {
+    const message: UIMessage = {
+      type: "tool_end",
+      toolName: "Glob",
+      isError: false,
+      summary: "fallback summary",
+      timeMs: 123,
+      renderData: {
+        type: "search_result",
+        mode: "files_with_matches",
+        numFiles: 1,
+        filenames: ["src/a.ts"],
+        appliedLimit: 100,
+        truncated: true,
+      },
+    };
+
+    const { lastFrame } = render(<MessageItem message={message} />);
+    const frame = lastFrame()!;
+
+    expect(frame).toContain("Glob");
+    expect(frame).toContain("Found 1 file (limit 100, truncated)");
+    expect(frame).toContain("src/a.ts");
+    expect(frame).not.toContain("fallback summary");
+  });
+
   it("renders search_result content summary and details", () => {
     const message: UIMessage = {
       type: "tool_end",

@@ -4,6 +4,7 @@ import type { AgentContext, AgentEvent, AgentLoopConfig, AgentTool } from "./typ
 import type { AssistantMessage } from "../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
 import { createGrepTool } from "./tools/grep.js";
+import { createGlobTool } from "./tools/glob.js";
 import { mkdtemp, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -236,6 +237,35 @@ describe("executeToolCalls", () => {
         mode: "content",
         content: "alpha.ts:1:target",
         numLines: 1,
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("includes real Glob renderData in tool_execution_end events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ys-glob-tool-execution-"));
+    try {
+      await writeFile(join(dir, "alpha.ts"), "export const alpha = 1;\n", "utf-8");
+      const glob = createGlobTool(dir);
+      const context = createMockContext([glob]);
+      const assistantMessage = createMockAssistantMessage([
+        { type: "toolCall", id: "call-real-glob", name: "Glob", arguments: { pattern: "*.ts" } },
+      ]);
+      const config: AgentLoopConfig = {} as any;
+      const events: AgentEvent[] = [];
+      const emit = async (e: AgentEvent) => { events.push(e); };
+
+      await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+      const endEvent = events.find((event) => event.type === "tool_execution_end") as any;
+      expect(endEvent.result.renderData).toMatchObject({
+        type: "search_result",
+        mode: "files_with_matches",
+        filenames: ["alpha.ts"],
+        numFiles: 1,
+        appliedLimit: 100,
+        truncated: false,
       });
     } finally {
       await rm(dir, { recursive: true, force: true });
