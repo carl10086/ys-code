@@ -267,4 +267,48 @@ describe("GlobTool", () => {
       }
     });
   });
+
+  it("does not mark results truncated when exactly at the result limit", async () => {
+    await withFixture(async (dir) => {
+      const manyDir = join(dir, "many-exact");
+      await mkdir(manyDir, { recursive: true });
+      for (let i = 0; i < 100; i++) {
+        await writeFile(join(manyDir, `${String(i).padStart(3, "0")}.ts`), "export {}\n", "utf-8");
+      }
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-7", { pattern: "*.ts", path: "many-exact" }, mockContext());
+
+      expect(output.filenames).toHaveLength(100);
+      expect(output.truncated).toBe(false);
+    });
+  });
+
+  it("marks results truncated only after reading beyond the result limit", async () => {
+    await withFixture(async (dir) => {
+      const manyDir = join(dir, "many-over");
+      await mkdir(manyDir, { recursive: true });
+      for (let i = 0; i < 101; i++) {
+        await writeFile(join(manyDir, `${String(i).padStart(3, "0")}.ts`), "export {}\n", "utf-8");
+      }
+      const tool = createGlobTool(dir);
+
+      const output = await tool.execute("glob-8", { pattern: "*.ts", path: "many-over" }, mockContext());
+
+      expect(output.filenames).toHaveLength(100);
+      expect(output.truncated).toBe(true);
+    });
+  });
+
+  it("honors an already aborted signal before running ripgrep", async () => {
+    await withFixture(async (dir) => {
+      const controller = new AbortController();
+      controller.abort();
+      const tool = createGlobTool(dir);
+
+      await expect(
+        tool.execute("glob-9", { pattern: "*.ts" }, { ...mockContext(), abortSignal: controller.signal }),
+      ).rejects.toThrow("aborted");
+    });
+  });
 });
