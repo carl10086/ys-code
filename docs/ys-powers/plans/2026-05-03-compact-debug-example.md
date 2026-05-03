@@ -45,15 +45,15 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 测试覆盖默认参数：无参数时 instructions 使用 spec 中默认值或脚本默认值。
-- [ ] 测试覆盖 `--instructions <text>` 能正确解析包含空格的中文指令。
-- [ ] 测试覆盖 message summary 能标记 `role` 和 `isMeta`。
-- [ ] 测试覆盖 transcript tail 读取只返回最后 N 条 entry type，且损坏行不会使 helper 崩溃。
+- [x] 测试覆盖默认参数：无参数时 instructions 使用 spec 中默认值或脚本默认值。
+- [x] 测试覆盖 `--instructions <text>` 能正确解析包含空格的中文指令。
+- [x] 测试覆盖 message summary 能标记 `role` 和 `isMeta`。
+- [x] 测试覆盖 transcript tail 读取只返回最后 N 条 entry type，且损坏行不会使 helper 崩溃。
 
 **Verification:**
 
-- [ ] RED 阶段：`bun test examples/debug-compact.test.ts` 因 helper 不存在失败。
-- [ ] GREEN 阶段：`bun test examples/debug-compact.test.ts` 通过。
+- [x] RED 阶段：`bun test examples/debug-compact.test.ts` 因 helper 不存在失败。
+- [x] GREEN 阶段：`bun test examples/debug-compact.test.ts` 通过。
 
 **Dependencies:** None
 
@@ -70,15 +70,15 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] `bun run examples/debug-compact.ts --help` 或无 API key 前的早期输出能显示 debug root/workspace/session 路径。
-- [ ] 临时 workspace 中包含 `compact-target.ts` 和 `notes.md`。
-- [ ] 默认不删除临时目录。
-- [ ] 不写入默认 `~/.ys-code/sessions`。
+- [x] `bun run examples/debug-compact.ts --help` 或无 API key 前的早期输出能显示 debug root/workspace/session 路径。
+- [x] 临时 workspace 中包含 `compact-target.ts` 和 `notes.md`。
+- [x] 默认不删除临时目录。
+- [x] 不写入默认 `~/.ys-code/sessions`。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] Manual check: `bun run examples/debug-compact.ts` 在缺少 API key 时仍打印 debug 路径和清晰错误。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] Manual check: `bun run examples/debug-compact.ts` 在缺少 API key 时仍打印 debug 路径和清晰错误。
 
 **Dependencies:** Task 1
 
@@ -103,16 +103,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 缺少 API key 时给出清晰错误，说明需要 `MINIMAX_API_KEY` 或 provider 对应 key。
-- [ ] 有 API key 时创建 `AgentSession({ cwd: debugWorkspace, sessionBaseDir })`。
-- [ ] 第一轮 prompt 使用真实模型执行，并要求模型读取或分析 `compact-target.ts`。
-- [ ] 第一轮结束后打印 compact 前 message count 和 role summary。
+- [x] 缺少 API key 时给出清晰错误，说明需要 `MINIMAX_API_KEY` 或 provider 对应 key。
+- [x] 有 API key 时创建 `AgentSession({ cwd: debugWorkspace, sessionBaseDir })`。
+- [x] 第一轮 prompt 使用真实模型执行，并要求模型读取或分析 `compact-target.ts`。
+- [x] 第一轮结束后打印 compact 前 message count 和 role summary。
 
 **Verification:**
 
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: `bun run examples/debug-compact.ts`
-- [ ] Manual check: 输出中出现真实 model turn events 和 `[BEFORE COMPACT]` message summary。
+- [x] `bun run typecheck`
+- [x] Manual check with API key: `bun run examples/debug-compact.ts`
+- [x] Manual check: 输出中出现真实 model turn events 和 `[BEFORE COMPACT]` message summary。
 
 **Dependencies:** Task 2
 
@@ -128,16 +128,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] compact 主路径调用 `executeCommand()`。
-- [ ] command result 打印 `handled`、`compact`、`skipPrompt`、`textResult`。
-- [ ] 当 `result.compact === true` 时打印“no normal prompt dispatch”说明。
-- [ ] debug UI events 会记录 appendUserMessage / appendSystemMessage，但不会调用 `session.prompt("/compact")`。
+- [x] compact 主路径调用 `executeCommand()`。
+- [x] command result 打印 `handled`、`compact`、`skipPrompt`、`textResult`。
+- [x] 当 `result.compact === true` 时打印“no normal prompt dispatch”说明。
+- [x] debug UI events 会记录 appendUserMessage / appendSystemMessage，但不会调用 `session.prompt("/compact")`。
 
 **Verification:**
 
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: compact command result 为 `handled: true` 且 `compact: true`。
-- [ ] Manual check: compact 后 `session.messages` 首条为 `compact_boundary`。
+- [x] `bun run typecheck`
+- [x] Manual check with API key: compact command result 为 `handled: true` 且 `compact: true`。
+- [x] Manual check: compact 后 `session.messages` 首条为 `compact_boundary`。
 
 **Dependencies:** Task 3
 
@@ -162,16 +162,16 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] compact 后打印 message count 和每条 message 的 role/meta 信息。
-- [ ] 如果存在 `compact_boundary`，打印 `compactMetadata` JSON。
-- [ ] 如果存在 summary meta message，打印前 800 字符 preview。
-- [ ] 如果存在 attachments，打印数量、`displayPath` 和行数；没有 attachment 时打印明确提示。
+- [x] compact 后打印 message count 和每条 message 的 role/meta 信息。
+- [x] 如果存在 `compact_boundary`，打印 `compactMetadata` JSON。
+- [x] 如果存在 summary meta message，打印前 800 字符 preview。
+- [x] 如果存在 attachments，打印数量、`displayPath` 和行数；没有 attachment 时打印明确提示。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: 输出中包含 `[AFTER COMPACT]`、`compactMetadata`、`summary preview`。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] `bun run typecheck`
+- [x] Manual check with API key: 输出中包含 `[AFTER COMPACT]`、`compactMetadata`、`summary preview`。
 
 **Dependencies:** Task 4
 
@@ -188,17 +188,17 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 输出 session JSONL 文件路径。
-- [ ] 输出最新 entry types，例如 `compact_boundary -> user -> user`。
-- [ ] transcript tail helper 能跳过损坏行，不泄露整行内容。
-- [ ] 脚本结束时打印 debug root 保留路径。
-- [ ] 不新增 `package.json scripts`。
+- [x] 输出 session JSONL 文件路径。
+- [x] 输出最新 entry types，例如 `compact_boundary -> user -> user`。
+- [x] transcript tail helper 能跳过损坏行，不泄露整行内容。
+- [x] 脚本结束时打印 debug root 保留路径。
+- [x] 不新增 `package.json scripts`。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: 打开打印的 JSONL 路径能看到尾部 compact entries。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] `bun run typecheck`
+- [x] Manual check with API key: 打开打印的 JSONL 路径能看到尾部 compact entries。
 
 **Dependencies:** Task 5
 
@@ -211,11 +211,11 @@ Spec contract
 
 ### Checkpoint: Complete
 
-- [ ] `bun test examples/debug-compact.test.ts` 通过。
-- [ ] `bun run typecheck` 通过。
-- [ ] 手动运行 `bun run examples/debug-compact.ts` 完成真实 compact debug flow。
-- [ ] 输出包含 spec 要求的 before/after、command result、boundary metadata、summary preview、attachments、session JSONL 路径和 transcript tail。
-- [ ] 没有新增依赖、没有新增 package script、没有修改 production compact 逻辑。
+- [x] `bun test examples/debug-compact.test.ts` 通过。
+- [x] `bun run typecheck` 通过。
+- [x] 手动运行 `bun run examples/debug-compact.ts` 完成真实 compact debug flow。
+- [x] 输出包含 spec 要求的 before/after、command result、boundary metadata、summary preview、attachments、session JSONL 路径和 transcript tail。
+- [x] 没有新增依赖、没有新增 package script、没有修改 production compact 逻辑。
 
 ## Risks and Mitigations
 
