@@ -188,17 +188,17 @@ Spec contract
 
 **Acceptance criteria:**
 
-- [ ] 输出 session JSONL 文件路径。
-- [ ] 输出最新 entry types，例如 `compact_boundary -> user -> user`。
-- [ ] transcript tail helper 能跳过损坏行，不泄露整行内容。
-- [ ] 脚本结束时打印 debug root 保留路径。
-- [ ] 不新增 `package.json scripts`。
+- [x] 输出 session JSONL 文件路径。
+- [x] 输出最新 entry types，例如 `compact_boundary -> user -> user`。
+- [x] transcript tail helper 能跳过损坏行，不泄露整行内容。
+- [x] 脚本结束时打印 debug root 保留路径。
+- [x] 不新增 `package.json scripts`。
 
 **Verification:**
 
-- [ ] `bun test examples/debug-compact.test.ts`
-- [ ] `bun run typecheck`
-- [ ] Manual check with API key: 打开打印的 JSONL 路径能看到尾部 compact entries。
+- [x] `bun test examples/debug-compact.test.ts`
+- [x] `bun run typecheck`
+- [x] Manual check with API key: 打开打印的 JSONL 路径能看到尾部 compact entries。
 
 **Dependencies:** Task 5
 
@@ -211,11 +211,11 @@ Spec contract
 
 ### Checkpoint: Complete
 
-- [ ] `bun test examples/debug-compact.test.ts` 通过。
-- [ ] `bun run typecheck` 通过。
-- [ ] 手动运行 `bun run examples/debug-compact.ts` 完成真实 compact debug flow。
-- [ ] 输出包含 spec 要求的 before/after、command result、boundary metadata、summary preview、attachments、session JSONL 路径和 transcript tail。
-- [ ] 没有新增依赖、没有新增 package script、没有修改 production compact 逻辑。
+- [x] `bun test examples/debug-compact.test.ts` 通过。
+- [x] `bun run typecheck` 通过。
+- [x] 手动运行 `bun run examples/debug-compact.ts` 完成真实 compact debug flow。
+- [x] 输出包含 spec 要求的 before/after、command result、boundary metadata、summary preview、attachments、session JSONL 路径和 transcript tail。
+- [x] 没有新增依赖、没有新增 package script、没有修改 production compact 逻辑。
 
 ## Risks and Mitigations
 

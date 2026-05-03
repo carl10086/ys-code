@@ -7,9 +7,11 @@ import {
   buildSeedPrompt,
   DEFAULT_COMPACT_INSTRUCTIONS,
   createDebugWorkspace,
+  findLatestTranscriptFile,
   formatMessageSummary,
   formatCommandResult,
   formatPostCompactDetails,
+  formatTranscriptDetails,
   parseDebugCompactArgs,
   readTranscriptTailEntryTypes,
   summaryPreview,
@@ -170,5 +172,30 @@ describe("debug-compact helpers", () => {
       "[AFTER COMPACT] attachments=1",
       "  1. file compact-target.ts lines=2",
     ]);
+  });
+
+  it("finds the latest transcript file and formats its tail entry types", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ys-code-debug-compact-session-"));
+    const older = join(dir, "100_old.jsonl");
+    const newer = join(dir, "200_new.jsonl");
+
+    try {
+      writeFileSync(older, `${JSON.stringify({ type: "header" })}\n`);
+      writeFileSync(newer, [
+        JSON.stringify({ type: "header" }),
+        JSON.stringify({ type: "compact_boundary" }),
+        JSON.stringify({ type: "user" }),
+        JSON.stringify({ type: "user" }),
+        "",
+      ].join("\n"));
+
+      expect(findLatestTranscriptFile(dir)).toBe(newer);
+      expect(formatTranscriptDetails(dir, 3)).toEqual([
+        `[TRANSCRIPT] session file: ${newer}`,
+        "[TRANSCRIPT] latest entry types: compact_boundary -> user -> user",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

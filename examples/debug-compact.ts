@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentSession } from "../src/agent/index.js";
@@ -19,6 +19,8 @@ import { getEnvApiKey, getModel } from "../src/core/ai/index.js";
 import type { AgentSessionEvent } from "../src/agent/session.js";
 import type { AgentMessage } from "../src/agent/types.js";
 
+// Usage: bun run examples/debug-compact.ts --instructions "只保留当前任务、文件路径、错误和下一步"
+// The script intentionally keeps its temporary directory for transcript inspection.
 export const DEFAULT_COMPACT_INSTRUCTIONS = "只保留当前任务、文件路径、错误和下一步";
 const DEFAULT_MODEL_PROVIDER = "minimax-cn";
 const DEFAULT_MODEL_ID = "MiniMax-M2.7-highspeed";
@@ -201,6 +203,38 @@ export function readTranscriptTailEntryTypes(
   return entryTypes.slice(-count);
 }
 
+export function findLatestTranscriptFile(sessionBaseDir: string): string | null {
+  const files = readdirSync(sessionBaseDir)
+    .filter((fileName) => fileName.endsWith(".jsonl"))
+    .map((fileName) => {
+      const filePath = join(sessionBaseDir, fileName);
+      return {
+        fileName,
+        filePath,
+        mtimeMs: statSync(filePath).mtimeMs,
+      };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs || b.fileName.localeCompare(a.fileName));
+
+  return files[0]?.filePath ?? null;
+}
+
+export function formatTranscriptDetails(
+  sessionBaseDir: string,
+  tailCount = 8,
+): string[] {
+  const sessionFile = findLatestTranscriptFile(sessionBaseDir);
+  if (!sessionFile) {
+    return ["[TRANSCRIPT] session file: not found"];
+  }
+
+  const tailTypes = readTranscriptTailEntryTypes(sessionFile, tailCount);
+  return [
+    `[TRANSCRIPT] session file: ${sessionFile}`,
+    `[TRANSCRIPT] latest entry types: ${tailTypes.join(" -> ") || "none"}`,
+  ];
+}
+
 function printHelp(): void {
   console.log(`Usage: bun run examples/debug-compact.ts [--instructions <text>]
 
@@ -338,6 +372,10 @@ async function main(): Promise<void> {
   for (const line of formatPostCompactDetails(session.messages)) {
     console.log(line);
   }
+  for (const line of formatTranscriptDetails(debugWorkspace.sessionBaseDir)) {
+    console.log(line);
+  }
+  console.log(`[DEBUG] debug root retained: ${debugWorkspace.root}`);
 }
 
 if (import.meta.main) {
