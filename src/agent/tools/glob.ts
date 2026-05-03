@@ -74,6 +74,14 @@ export function createGlobTool(cwd: string): AgentTool<typeof globSchema, GlobOu
 
     validateInput: async (params: GlobInput) => {
       if (params.path) {
+        if (params.path === "undefined" || params.path === "null") {
+          return {
+            ok: false,
+            message: "Omit path to use the current working directory instead of passing a string placeholder.",
+            errorCode: 1,
+          };
+        }
+
         const fullPath = resolve(cwd, params.path);
         try {
           const stats = await stat(fullPath);
