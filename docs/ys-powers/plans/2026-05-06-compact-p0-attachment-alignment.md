@@ -106,15 +106,15 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 给 agent attachment union 增加 `invoked_skills`、`plan_file_reference`、`plan_mode`，并在 `normalizeAttachment()` 中把三类 attachment 转换为 `<system-reminder>` user message。此任务先让类型和 LLM payload contract 可用，不接 compact 生成。
 
 **Acceptance criteria:**
-- [ ] `Attachment` union 包含三类新 attachment。
-- [ ] `normalizeAttachment()` 支持 `invoked_skills`，输出包含 skill name/path/content。
-- [ ] `normalizeAttachment()` 支持 `plan_file_reference` 和 `plan_mode`。
-- [ ] 现有 file/directory/skill_listing normalize 行为不变。
+- [x] `Attachment` union 包含三类新 attachment。
+- [x] `normalizeAttachment()` 支持 `invoked_skills`，输出包含 skill name/path/content。
+- [x] `normalizeAttachment()` 支持 `plan_file_reference` 和 `plan_mode`。
+- [x] 现有 file/directory/skill_listing normalize 行为不变。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/agent/attachments/normalize.test.ts`
-- [ ] 新测试覆盖三类新 attachment 的 `<system-reminder>` 输出。
-- [ ] Type check validates exhaustive switch.
+- [x] Tests pass: `bun test ./src/agent/attachments/normalize.test.ts`
+- [x] 新测试覆盖三类新 attachment 的 `<system-reminder>` 输出。
+- [x] Type check validates exhaustive switch.
 
 **Dependencies:** None
 
@@ -127,9 +127,9 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 
 ### Checkpoint: LLM Payload Contract
 
-- [ ] `bun test ./src/agent/attachments/normalize.test.ts`
-- [ ] `invoked_skills` normalized payload 可被 debug LLM View 后续识别为 attachment 来源。
-- [ ] 新 attachment 类型为 additive change，没有破坏旧测试。
+- [x] `bun test ./src/agent/attachments/normalize.test.ts`
+- [x] `invoked_skills` normalized payload 可被 debug LLM View 后续识别为 attachment 来源。
+- [x] 新 attachment 类型为 additive change，没有破坏旧测试。
 
 ### Phase 3: Restore Generators and Diagnostics
 

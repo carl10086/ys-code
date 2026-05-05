@@ -1,6 +1,12 @@
 import { describe, it, expect } from "bun:test";
 import { normalizeMessages, normalizeAttachment } from "./normalize.js";
-import type { FileAttachment, DirectoryAttachment } from "./types.js";
+import type {
+  DirectoryAttachment,
+  FileAttachment,
+  InvokedSkillsAttachment,
+  PlanFileReferenceAttachment,
+  PlanModeAttachment,
+} from "./types.js";
 import type { AgentMessage } from "../types.js";
 
 describe("normalizeAttachment", () => {
@@ -77,6 +83,69 @@ describe("normalizeAttachment", () => {
     expect(result[0].content).toContain("To use a skill, call the SkillTool with the skill name.");
     expect(result[0].content).toContain("</system-reminder>");
     expect(result[0].timestamp).toBe(4000);
+  });
+
+  it("invoked_skills 应展开为包含 skill 内容的 system-reminder", () => {
+    const att: InvokedSkillsAttachment = {
+      type: "invoked_skills",
+      skills: [
+        {
+          name: "cc-diff",
+          path: ".claude/skills/cc-diff/SKILL.md",
+          content: "Compare CC and YS implementations.",
+        },
+      ],
+      timestamp: 5000,
+    };
+
+    const result = normalizeAttachment(att);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].role).toBe("user");
+    expect(result[0].content).toContain("<system-reminder>");
+    expect(result[0].content).toContain("The following skills were invoked in this session");
+    expect(result[0].content).toContain("### Skill: cc-diff");
+    expect(result[0].content).toContain("Path: .claude/skills/cc-diff/SKILL.md");
+    expect(result[0].content).toContain("Compare CC and YS implementations.");
+    expect(result[0].content).toContain("</system-reminder>");
+    expect(result[0].timestamp).toBe(5000);
+  });
+
+  it("plan_file_reference 应展开为包含 plan 路径和内容的 system-reminder", () => {
+    const att: PlanFileReferenceAttachment = {
+      type: "plan_file_reference",
+      planFilePath: ".ys/plans/current.md",
+      planContent: "- [ ] Implement compact restore",
+      timestamp: 6000,
+    };
+
+    const result = normalizeAttachment(att);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toContain("<system-reminder>");
+    expect(result[0].content).toContain("A plan file exists from plan mode at: .ys/plans/current.md");
+    expect(result[0].content).toContain("- [ ] Implement compact restore");
+    expect(result[0].content).toContain("</system-reminder>");
+    expect(result[0].timestamp).toBe(6000);
+  });
+
+  it("plan_mode 应展开为继续遵守 plan mode 的 system-reminder", () => {
+    const att: PlanModeAttachment = {
+      type: "plan_mode",
+      reminderType: "full",
+      planFilePath: ".ys/plans/current.md",
+      planExists: true,
+      timestamp: 7000,
+    };
+
+    const result = normalizeAttachment(att);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toContain("<system-reminder>");
+    expect(result[0].content).toContain("You are still in plan mode");
+    expect(result[0].content).toContain(".ys/plans/current.md");
+    expect(result[0].content).toContain("</system-reminder>");
+    expect(result[0].timestamp).toBe(7000);
   });
 });
 
