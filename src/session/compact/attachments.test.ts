@@ -6,6 +6,7 @@ import { FileStateCache } from "../../agent/file-state.js";
 import type { InvokedSkillRecord } from "../../agent/types.js";
 import {
   createBackgroundTaskRestoreAttachments,
+  createPlanModeRestoreAttachments,
   createPlanRestoreAttachments,
   createPostCompactFileAttachments,
   createSkillRestoreAttachments,
@@ -342,8 +343,33 @@ describe("compact attachments", () => {
     ]);
   });
 
+  it("records unsupported diagnostics for plan restore", async () => {
+    const result = await createPlanRestoreAttachments();
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.generated).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      {
+        type: "plan_file_reference",
+        reason: "plan restore unsupported: no stable plan state",
+      },
+    ]);
+  });
+
+  it("records unsupported diagnostics for plan mode restore", async () => {
+    const result = await createPlanModeRestoreAttachments();
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.generated).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      {
+        type: "plan_mode",
+        reason: "plan mode restore unsupported: no stable plan mode state",
+      },
+    ]);
+  });
+
   it("provides empty extension points for future restore sources", async () => {
-    await expect(createPlanRestoreAttachments()).resolves.toEqual([]);
     await expect(createBackgroundTaskRestoreAttachments()).resolves.toEqual([]);
   });
 });

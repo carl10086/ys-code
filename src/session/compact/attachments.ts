@@ -224,8 +224,30 @@ function truncateSkillContent(content: string, maxBytes: number): string {
   return content.slice(0, maxBytes) + SKILL_TRUNCATION_MARKER;
 }
 
-export async function createPlanRestoreAttachments(): Promise<AttachmentMessage[]> {
-  return [];
+export async function createPlanRestoreAttachments(): Promise<PostCompactAttachmentResult> {
+  return {
+    attachments: [],
+    diagnostics: {
+      generated: [],
+      skipped: [{
+        type: "plan_file_reference",
+        reason: "plan restore unsupported: no stable plan state",
+      }],
+    },
+  };
+}
+
+export async function createPlanModeRestoreAttachments(): Promise<PostCompactAttachmentResult> {
+  return {
+    attachments: [],
+    diagnostics: {
+      generated: [],
+      skipped: [{
+        type: "plan_mode",
+        reason: "plan mode restore unsupported: no stable plan mode state",
+      }],
+    },
+  };
 }
 
 export async function createBackgroundTaskRestoreAttachments(): Promise<AttachmentMessage[]> {

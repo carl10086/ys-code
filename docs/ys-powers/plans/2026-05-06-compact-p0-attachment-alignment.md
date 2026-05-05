@@ -161,14 +161,14 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 在 compact attachment 层为 plan restore 和 plan mode restore 建立结构化结果。由于当前没有稳定 plan state，本阶段不生成 attachment，只返回明确 unsupported diagnostics。
 
 **Acceptance criteria:**
-- [ ] `createPlanRestoreAttachments()` 返回空 attachments 和 `plan restore unsupported: no stable plan state`。
-- [ ] `createPlanModeRestoreAttachments()` 或等价函数返回空 attachments 和 `plan mode restore unsupported: no stable plan mode state`。
-- [ ] 不读取 plan 文件，不新增 plan state。
-- [ ] diagnostics reason 字符串稳定，可被测试断言。
+- [x] `createPlanRestoreAttachments()` 返回空 attachments 和 `plan restore unsupported: no stable plan state`。
+- [x] `createPlanModeRestoreAttachments()` 或等价函数返回空 attachments 和 `plan mode restore unsupported: no stable plan mode state`。
+- [x] 不读取 plan 文件，不新增 plan state。
+- [x] diagnostics reason 字符串稳定，可被测试断言。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/session/compact/attachments.test.ts`
-- [ ] 新测试覆盖 plan 和 plan_mode unsupported diagnostics。
+- [x] Tests pass: `bun test ./src/session/compact/attachments.test.ts`
+- [x] 新测试覆盖 plan 和 plan_mode unsupported diagnostics。
 
 **Dependencies:** Task 3
 
@@ -180,10 +180,10 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 
 ### Checkpoint: Restore Sources
 
-- [ ] `bun test ./src/session/compact/attachments.test.ts`
-- [ ] `invoked_skills` 具备真实恢复能力。
-- [ ] plan/plan_mode 不再静默空数组。
-- [ ] 未触碰 background task/deferred tools/agent listing/MCP instructions。
+- [x] `bun test ./src/session/compact/attachments.test.ts`
+- [x] `invoked_skills` 具备真实恢复能力。
+- [x] plan/plan_mode 不再静默空数组。
+- [x] 未触碰 background task/deferred tools/agent listing/MCP instructions。
 
 ### Phase 4: Compact Conversation Integration
 
