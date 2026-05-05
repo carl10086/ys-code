@@ -3,8 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { FileStateCache } from "../../agent/file-state.js";
+import type { InvokedSkillRecord } from "../../agent/types.js";
 import {
   createBackgroundTaskRestoreAttachments,
+  createPlanModeRestoreAttachments,
   createPlanRestoreAttachments,
   createPostCompactFileAttachments,
   createSkillRestoreAttachments,
@@ -273,9 +275,101 @@ describe("compact attachments", () => {
     expect(attachments[0].attachment.filePath).toBe(normalFile);
   });
 
+  it("restores invoked skills sorted by latest invocation", async () => {
+    const invokedSkills = new Map<string, InvokedSkillRecord>([
+      ["older", { name: "older", path: "/skills/older/SKILL.md", content: "older content", invokedAt: 1000 }],
+      ["newer", { name: "newer", path: "/skills/newer/SKILL.md", content: "newer content", invokedAt: 2000 }],
+    ]);
+
+    const result = await createSkillRestoreAttachments(invokedSkills);
+
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].attachment.type).toBe("invoked_skills");
+    if (result.attachments[0].attachment.type !== "invoked_skills") {
+      throw new Error("Expected invoked_skills attachment");
+    }
+    expect(result.attachments[0].attachment.skills.map((skill) => skill.name)).toEqual(["newer", "older"]);
+    expect(result.diagnostics.generated).toEqual([
+      { type: "invoked_skills", count: 2 },
+    ]);
+    expect(result.diagnostics.skipped).toEqual([]);
+  });
+
+  it("truncates invoked skill content over the per-skill byte budget", async () => {
+    const invokedSkills = new Map<string, InvokedSkillRecord>([
+      ["large", { name: "large", path: "/skills/large/SKILL.md", content: "abcdef", invokedAt: 1000 }],
+    ]);
+
+    const result = await createSkillRestoreAttachments(invokedSkills, {
+      maxBytesPerSkill: 3,
+      maxTotalBytes: 100,
+    });
+
+    expect(result.attachments[0].attachment.type).toBe("invoked_skills");
+    if (result.attachments[0].attachment.type !== "invoked_skills") {
+      throw new Error("Expected invoked_skills attachment");
+    }
+    expect(result.attachments[0].attachment.skills[0].content).toContain("abc");
+    expect(result.attachments[0].attachment.skills[0].content).toContain("[... skill content truncated for compaction]");
+  });
+
+  it("skips invoked skills that exceed the total restore budget", async () => {
+    const invokedSkills = new Map<string, InvokedSkillRecord>([
+      ["too-large", { name: "too-large", path: "/skills/too-large/SKILL.md", content: "abcdef", invokedAt: 1000 }],
+    ]);
+
+    const result = await createSkillRestoreAttachments(invokedSkills, {
+      maxBytesPerSkill: 100,
+      maxTotalBytes: 3,
+    });
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      {
+        type: "invoked_skills",
+        displayName: "too-large",
+        reason: "invoked skills exceeded restore budget",
+      },
+    ]);
+  });
+
+  it("records a skip reason when there are no invoked skills", async () => {
+    const result = await createSkillRestoreAttachments(new Map());
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.generated).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      { type: "invoked_skills", reason: "no invoked skills" },
+    ]);
+  });
+
+  it("records unsupported diagnostics for plan restore", async () => {
+    const result = await createPlanRestoreAttachments();
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.generated).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      {
+        type: "plan_file_reference",
+        reason: "plan restore unsupported: no stable plan state",
+      },
+    ]);
+  });
+
+  it("records unsupported diagnostics for plan mode restore", async () => {
+    const result = await createPlanModeRestoreAttachments();
+
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.generated).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      {
+        type: "plan_mode",
+        reason: "plan mode restore unsupported: no stable plan mode state",
+      },
+    ]);
+  });
+
   it("provides empty extension points for future restore sources", async () => {
-    await expect(createSkillRestoreAttachments()).resolves.toEqual([]);
-    await expect(createPlanRestoreAttachments()).resolves.toEqual([]);
     await expect(createBackgroundTaskRestoreAttachments()).resolves.toEqual([]);
   });
 });

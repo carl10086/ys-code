@@ -1,6 +1,13 @@
 import type { AgentMessage } from "../../agent/types.js";
 import { TokenEstimator } from "../token-estimator.js";
-import { createPostCompactFileAttachments } from "./attachments.js";
+import {
+  createPlanModeRestoreAttachments,
+  createPlanRestoreAttachments,
+  createPostCompactFileAttachments,
+  createSkillRestoreAttachments,
+  type CompactAttachmentDiagnostics,
+  type PostCompactAttachmentResult,
+} from "./attachments.js";
 import {
   buildPostCompactMessages,
   createCompactBoundaryMessage,
@@ -14,6 +21,7 @@ import {
 } from "./prompt.js";
 import { microcompactMessages } from "./microcompact.js";
 import type { FileStateCache } from "../../agent/file-state.js";
+import type { InvokedSkillRecord } from "../../agent/types.js";
 import type { CompactionResult } from "./types.js";
 
 export interface CompactSummaryRunnerInput {
@@ -35,6 +43,7 @@ export interface CompactConversationOptions {
   maxPromptTooLongRetries?: number;
   fileStateCache?: FileStateCache;
   cwd?: string;
+  invokedSkills?: ReadonlyMap<string, InvokedSkillRecord>;
 }
 
 export function isPromptTooLongError(error: unknown): boolean {
@@ -98,20 +107,30 @@ export async function compactConversation(
       `Compact summary missing required sections: ${summaryCheck.missingSections.join(", ")}`,
     );
   }
+  const fileAttachments = options.fileStateCache && options.cwd
+    ? await createPostCompactFileAttachments(options.fileStateCache, { cwd: options.cwd })
+    : [];
+  const restoreResults = await Promise.all([
+    createSkillRestoreAttachments(options.invokedSkills),
+    createPlanRestoreAttachments(),
+    createPlanModeRestoreAttachments(),
+  ]);
+  const attachmentStats = mergeAttachmentDiagnostics(
+    restoreResults.map((result) => result.diagnostics),
+  );
   const boundaryMessage = createCompactBoundaryMessage({
     trigger: "manual",
     preTokens: preCompactTokens,
     tokensSavedByMicrocompact: microcompact.tokensSaved,
     clearedToolCallIds: microcompact.clearedToolCallIds,
     summaryCheck,
+    attachmentStats,
   });
   const summaryMessage = createCompactSummaryMessage(summaryText);
-  const fileAttachments = options.fileStateCache && options.cwd
-    ? await createPostCompactFileAttachments(options.fileStateCache, { cwd: options.cwd })
-    : [];
   const attachments = [
     ...(options.attachments ?? []),
     ...fileAttachments,
+    ...restoreResults.flatMap((result) => result.attachments),
   ];
   const messagesToKeep = options.messagesToKeep ?? [];
   const postCompactMessages = buildPostCompactMessages({
@@ -129,6 +148,7 @@ export async function compactConversation(
     messagesToKeep,
     attachments,
     postCompactMessages,
+    attachmentStats,
     displayText: `Compacted conversation: ${preCompactTokens} -> ${postCompactTokens} tokens.`,
     metrics: {
       preCompactTokens,
@@ -137,4 +157,16 @@ export async function compactConversation(
       clearedToolCallIds: microcompact.clearedToolCallIds,
     },
   };
+}
+
+function mergeAttachmentDiagnostics(
+  diagnostics: Array<PostCompactAttachmentResult["diagnostics"]>,
+): CompactAttachmentDiagnostics {
+  return diagnostics.reduce<CompactAttachmentDiagnostics>(
+    (merged, next) => ({
+      generated: [...merged.generated, ...next.generated],
+      skipped: [...merged.skipped, ...next.skipped],
+    }),
+    { generated: [], skipped: [] },
+  );
 }

@@ -68,8 +68,48 @@ export interface SkillListingAttachment extends BaseAttachment {
   skillNames: string[];
 }
 
-/** 附件联合体 —— 包含 file、directory、skill_listing */
-export type Attachment = FileAttachment | DirectoryAttachment | SkillListingAttachment;
+/** 已调用 skills 恢复 attachment */
+export interface InvokedSkillsAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "invoked_skills";
+  /** 已调用 skill 内容 */
+  skills: Array<{
+    name: string;
+    path: string;
+    content: string;
+  }>;
+}
+
+/** Plan 文件引用 attachment */
+export interface PlanFileReferenceAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "plan_file_reference";
+  /** Plan 文件路径 */
+  planFilePath: string;
+  /** Plan 文件内容 */
+  planContent: string;
+}
+
+/** Plan mode 恢复 attachment */
+export interface PlanModeAttachment extends BaseAttachment {
+  /** 附件类型 */
+  type: "plan_mode";
+  /** 提醒类型 */
+  reminderType: "full";
+  /** Plan 文件路径（如存在） */
+  planFilePath?: string;
+  /** 是否存在 plan 文件 */
+  planExists: boolean;
+}
+
+/** 附件联合体 */
+export type Attachment =
+  | FileAttachment
+  | DirectoryAttachment
+  | SkillListingAttachment
+  | InvokedSkillsAttachment
+  | PlanFileReferenceAttachment
+  | PlanModeAttachment;
 
 /** 附件消息 */
 export interface AttachmentMessage {

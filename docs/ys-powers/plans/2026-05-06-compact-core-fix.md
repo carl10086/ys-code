@@ -98,6 +98,12 @@ debug-compact example verifies end-to-end behavior
 
 ### Phase 2: Attachment Restore and Diagnostics
 
+> Scope sync: P0 attachment alignment is tracked in
+> `docs/ys-powers/plans/2026-05-06-compact-p0-attachment-alignment.md`.
+> That P0 slice completes invoked skill restore plus explicit plan/plan_mode
+> unsupported diagnostics. File diagnostics, background task diagnostics, and
+> debug API/UI observability remain in this broader compact core plan.
+
 #### Task 3: 为 file restore attachment 增加 diagnostics 和 skip reason
 
 **Description:** 将 `createPostCompactFileAttachments()` 从只返回数组扩展为返回 `{ attachments, diagnostics }`，记录 generated attachments 和每个跳过原因。保留安全过滤：partial view、workspace 外路径、敏感路径、secret、大小限制。

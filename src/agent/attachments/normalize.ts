@@ -53,6 +53,60 @@ export function normalizeAttachment(attachment: Attachment): UserMessage[] {
       ].join("\n");
       return [{ role: "user", content, timestamp: attachment.timestamp }];
     }
+    case "invoked_skills": {
+      if (attachment.skills.length === 0) {
+        return [];
+      }
+      const skillsContent = attachment.skills
+        .map((skill) => [
+          `### Skill: ${skill.name}`,
+          `Path: ${skill.path}`,
+          "",
+          skill.content,
+        ].join("\n"))
+        .join("\n\n---\n\n");
+      const content = [
+        "<system-reminder>",
+        "The following skills were invoked in this session. Continue to follow these guidelines:",
+        "",
+        skillsContent,
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
+    case "plan_file_reference": {
+      const content = [
+        "<system-reminder>",
+        `A plan file exists from plan mode at: ${attachment.planFilePath}`,
+        "",
+        "Plan contents:",
+        "",
+        attachment.planContent,
+        "",
+        "If this plan is relevant to the current work and not already complete, continue working on it.",
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
+    case "plan_mode": {
+      const planFileText = attachment.planFilePath
+        ? `Plan file path: ${attachment.planFilePath}`
+        : "No plan file path is available.";
+      const planExistsText = attachment.planExists
+        ? "A plan file exists."
+        : "No plan file is currently available.";
+      const content = [
+        "<system-reminder>",
+        "You are still in plan mode after compaction. Continue to analyze and plan before making code changes.",
+        planFileText,
+        planExistsText,
+        "</system-reminder>",
+        "",
+      ].join("\n");
+      return [{ role: "user", content, timestamp: attachment.timestamp }];
+    }
     default: {
       // 穷尽检查 —— 新增类型时必须添加 case
       const _exhaustive: never = attachment;

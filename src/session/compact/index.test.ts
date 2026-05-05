@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentMessage } from "../../agent/types.js";
+import type { AgentMessage, InvokedSkillRecord } from "../../agent/types.js";
 import {
   COMPACT_SUMMARY_SECTIONS,
   MICROCOMPACT_CLEARED_MESSAGE,
@@ -122,6 +122,52 @@ describe("compactConversation", () => {
       sectionCount: COMPACT_SUMMARY_SECTIONS.length,
       missingSections: [],
     });
+  });
+
+  it("includes invoked skill restore attachments and generated diagnostics", async () => {
+    const invokedSkills = new Map<string, InvokedSkillRecord>([
+      ["cc-diff", {
+        name: "cc-diff",
+        path: ".claude/skills/cc-diff/SKILL.md",
+        content: "Compare CC and YS implementations.",
+        invokedAt: 123,
+      }],
+    ]);
+
+    const result = await compactConversation({
+      messages: [userMessage("hello")],
+      invokedSkills,
+      summaryRunner: async () => validCompactSummary(),
+    });
+
+    expect(result.attachments).toHaveLength(1);
+    const attachment = result.attachments[0];
+    expect(attachment.role).toBe("attachment");
+    if (attachment.role !== "attachment") {
+      throw new Error("Expected attachment message");
+    }
+    expect(attachment.attachment.type).toBe("invoked_skills");
+    expect(result.attachmentStats.generated).toEqual([
+      { type: "invoked_skills", count: 1 },
+    ]);
+    expect((result.boundaryMessage as any).compactMetadata.attachmentStats.generated).toEqual([
+      { type: "invoked_skills", count: 1 },
+    ]);
+  });
+
+  it("records skip diagnostics when restore attachments are unavailable", async () => {
+    const result = await compactConversation({
+      messages: [userMessage("hello")],
+      summaryRunner: async () => validCompactSummary(),
+    });
+
+    expect(result.attachments).toEqual([]);
+    expect(result.attachmentStats.skipped).toEqual([
+      { type: "invoked_skills", reason: "no invoked skills" },
+      { type: "plan_file_reference", reason: "plan restore unsupported: no stable plan state" },
+      { type: "plan_mode", reason: "plan mode restore unsupported: no stable plan mode state" },
+    ]);
+    expect((result.boundaryMessage as any).compactMetadata.attachmentStats.skipped).toEqual(result.attachmentStats.skipped);
   });
 });
 

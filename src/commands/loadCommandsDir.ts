@@ -73,6 +73,7 @@ export async function loadCommandsFromDir(
             commandName,
             markdownContent,
             source,
+            sourcePath: filePath,
             ...parsed,
           });
         } catch (error) {
@@ -201,6 +202,7 @@ function createPromptCommand({
   disableModelInvocation,
   userInvocable,
   source,
+  sourcePath,
 }: {
   commandName: string;
   description: string;
@@ -213,6 +215,7 @@ function createPromptCommand({
   disableModelInvocation: boolean;
   userInvocable: boolean;
   source: "userSettings" | "projectSettings";
+  sourcePath?: string;
 }): PromptCommand {
   return {
     type: "prompt",
@@ -228,6 +231,7 @@ function createPromptCommand({
     disableModelInvocation,
     userInvocable,
     source,
+    sourcePath,
     getPromptForCommand: async (args: string): Promise<SkillContentBlock[]> => {
       let finalContent = markdownContent;
 

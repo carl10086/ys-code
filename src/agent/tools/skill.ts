@@ -15,6 +15,9 @@ const SkillOutputSchema = Type.Object({
   details: Type.Object({
     success: Type.Boolean(),
     skillName: Type.String(),
+    skillPath: Type.Optional(Type.String()),
+    skillContent: Type.Optional(Type.String()),
+    invokedAt: Type.Optional(Type.Number()),
   }),
   newMessages: Type.Optional(Type.Array(Type.Any())),
   contextModifier: Type.Optional(Type.Any()),
@@ -56,7 +59,7 @@ Call this tool with the exact skill name from the listing.`,
       return { ok: true };
     },
 
-    async execute(_toolCallId, params, _context): Promise<{ content: unknown[]; details: { success: boolean; skillName: string }; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[]; modelOverride?: string }> {
+    async execute(_toolCallId, params, _context): Promise<SkillOutput & { newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
       const commands = await getCommands();
       const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
 
@@ -82,19 +85,26 @@ Call this tool with the exact skill name from the listing.`,
         .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
         .map(block => block.text)
         .join('\n\n');
+      const invokedAt = Date.now();
 
       // 创建 meta user 消息（UI 隐藏，LLM 可见）
       const metaUserMessage: UserMessage = {
         role: "user",
         content: textContent,
-        timestamp: Date.now(),
+        timestamp: invokedAt,
         isMeta: true,
       };
 
       // 返回结果（包含 newMessages 由 tool-execution.ts 注入）
       return {
         content: [],
-        details: { success: true, skillName: params.skill },
+        details: {
+          success: true,
+          skillName: params.skill,
+          skillPath: command.sourcePath ?? "",
+          skillContent: textContent,
+          invokedAt,
+        },
         newMessages: [metaUserMessage as AgentMessage],
         contextModifier: modifier,
         modelOverride: command.model,
