@@ -3,6 +3,7 @@ import {
   COMPACT_SUMMARY_SECTIONS,
   formatCompactSummary,
   getCompactPrompt,
+  validateCompactSummary,
 } from "./prompt.js";
 
 describe("compact prompt", () => {
@@ -108,5 +109,40 @@ AWS AKIA1234567890ABCDEF
     expect(formatted).not.toContain("npm_abcdefghijklmnopqrstuvwxyz1234567890");
     expect(formatted).not.toContain("AKIA1234567890ABCDEF");
     expect(formatted).toContain("[REDACTED_TOKEN]");
+  });
+
+  it("validates a compact summary containing all required sections", () => {
+    const summary = [
+      "Summary:",
+      ...COMPACT_SUMMARY_SECTIONS.map((section) => `${section}\ncontent`),
+    ].join("\n\n");
+
+    expect(validateCompactSummary(summary)).toEqual({
+      ok: true,
+      sectionCount: COMPACT_SUMMARY_SECTIONS.length,
+      missingSections: [],
+    });
+  });
+
+  it("reports missing compact summary sections", () => {
+    const summary = [
+      "Summary:",
+      "1. Primary Request and Intent:\ncontent",
+      "2. Key Technical Concepts:\ncontent",
+    ].join("\n\n");
+
+    expect(validateCompactSummary(summary)).toEqual({
+      ok: false,
+      sectionCount: 2,
+      missingSections: COMPACT_SUMMARY_SECTIONS.slice(2),
+    });
+  });
+
+  it("treats plain text summaries as missing all required sections", () => {
+    expect(validateCompactSummary("Summary:\nAlready concise")).toEqual({
+      ok: false,
+      sectionCount: 0,
+      missingSections: [...COMPACT_SUMMARY_SECTIONS],
+    });
   });
 });

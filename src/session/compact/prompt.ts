@@ -64,6 +64,24 @@ export function formatCompactSummary(raw: string): string {
   return `Summary:\n${redactSecrets(summary)}`;
 }
 
+export interface CompactSummaryValidation {
+  ok: boolean;
+  sectionCount: number;
+  missingSections: string[];
+}
+
+export function validateCompactSummary(summary: string): CompactSummaryValidation {
+  const missingSections = COMPACT_SUMMARY_SECTIONS.filter(
+    (section) => !summary.includes(section),
+  );
+
+  return {
+    ok: missingSections.length === 0,
+    sectionCount: COMPACT_SUMMARY_SECTIONS.length - missingSections.length,
+    missingSections,
+  };
+}
+
 export function containsSecret(text: string): boolean {
   return redactSecrets(text) !== text;
 }
