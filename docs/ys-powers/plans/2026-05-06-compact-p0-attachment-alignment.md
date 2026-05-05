@@ -252,15 +252,15 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 运行聚焦测试和 typecheck，必要时更新 compact core plan 中 Phase 2/P0 的状态描述，确保新 spec 和既有 `compact-core-fix` plan 不冲突。
 
 **Acceptance criteria:**
-- [ ] 聚焦测试命令通过。
-- [ ] `bun run typecheck` 通过。
-- [ ] `git diff --check` 通过。
-- [ ] 如果旧 plan 中 Phase 2 描述与本 P0 计划冲突，更新为引用本计划或标注拆分。
+- [x] 聚焦测试命令通过。
+- [x] `bun run typecheck` 通过。
+- [x] `git diff --check` 通过。
+- [x] 如果旧 plan 中 Phase 2 描述与本 P0 计划冲突，更新为引用本计划或标注拆分。
 
 **Verification:**
-- [ ] `bun test ./src/session/compact/attachments.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts ./src/agent/attachments/normalize.test.ts`
-- [ ] `bun run typecheck`
-- [ ] `git diff --check`
+- [x] `bun test ./src/session/compact/attachments.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts ./src/agent/attachments/normalize.test.ts`
+- [x] `bun run typecheck`
+- [x] `git diff --check`
 
 **Dependencies:** Task 7
 
