@@ -2,10 +2,38 @@ import { realpath, stat } from "fs/promises";
 import { basename, isAbsolute, relative, sep } from "path";
 import type { FileStateCache } from "../../agent/file-state.js";
 import type { AttachmentMessage } from "../../agent/attachments/types.js";
+import type { InvokedSkillRecord } from "../../agent/types.js";
 import { containsSecret } from "./prompt.js";
 
 export const DEFAULT_POST_COMPACT_MAX_BYTES_PER_FILE = 200_000;
 export const DEFAULT_POST_COMPACT_MAX_TOTAL_BYTES = 400_000;
+export const DEFAULT_POST_COMPACT_MAX_BYTES_PER_SKILL = 20_000;
+export const DEFAULT_POST_COMPACT_SKILLS_MAX_TOTAL_BYTES = 100_000;
+const SKILL_TRUNCATION_MARKER =
+  "\n\n[... skill content truncated for compaction]";
+
+export interface CompactAttachmentDiagnostics {
+  generated: Array<{
+    type: string;
+    displayName?: string;
+    count?: number;
+  }>;
+  skipped: Array<{
+    type: string;
+    displayName?: string;
+    reason: string;
+  }>;
+}
+
+export interface PostCompactAttachmentResult {
+  attachments: AttachmentMessage[];
+  diagnostics: CompactAttachmentDiagnostics;
+}
+
+export interface SkillRestoreAttachmentOptions {
+  maxBytesPerSkill?: number;
+  maxTotalBytes?: number;
+}
 
 export interface PostCompactFileAttachmentOptions {
   cwd: string;
@@ -121,8 +149,79 @@ function isSensitivePath(filePath: string, cwd: string): boolean {
   );
 }
 
-export async function createSkillRestoreAttachments(): Promise<AttachmentMessage[]> {
-  return [];
+export async function createSkillRestoreAttachments(
+  invokedSkills: ReadonlyMap<string, InvokedSkillRecord> = new Map(),
+  options: SkillRestoreAttachmentOptions = {},
+): Promise<PostCompactAttachmentResult> {
+  const diagnostics: CompactAttachmentDiagnostics = {
+    generated: [],
+    skipped: [],
+  };
+  const records = Array.from(invokedSkills.values())
+    .sort((a, b) => b.invokedAt - a.invokedAt);
+
+  if (records.length === 0) {
+    diagnostics.skipped.push({
+      type: "invoked_skills",
+      reason: "no invoked skills",
+    });
+    return { attachments: [], diagnostics };
+  }
+
+  const maxBytesPerSkill = options.maxBytesPerSkill ?? DEFAULT_POST_COMPACT_MAX_BYTES_PER_SKILL;
+  const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_POST_COMPACT_SKILLS_MAX_TOTAL_BYTES;
+  const skills: Array<{ name: string; path: string; content: string }> = [];
+  let totalBytes = 0;
+
+  for (const record of records) {
+    const content = truncateSkillContent(record.content, maxBytesPerSkill);
+    const contentBytes = Buffer.byteLength(content);
+    if (totalBytes + contentBytes > maxTotalBytes) {
+      diagnostics.skipped.push({
+        type: "invoked_skills",
+        displayName: record.name,
+        reason: "invoked skills exceeded restore budget",
+      });
+      continue;
+    }
+
+    skills.push({
+      name: record.name,
+      path: record.path,
+      content,
+    });
+    totalBytes += contentBytes;
+  }
+
+  if (skills.length === 0) {
+    return { attachments: [], diagnostics };
+  }
+
+  const timestamp = Date.now();
+  diagnostics.generated.push({
+    type: "invoked_skills",
+    count: skills.length,
+  });
+
+  return {
+    attachments: [{
+      role: "attachment",
+      attachment: {
+        type: "invoked_skills",
+        skills,
+        timestamp,
+      },
+      timestamp,
+    }],
+    diagnostics,
+  };
+}
+
+function truncateSkillContent(content: string, maxBytes: number): string {
+  if (Buffer.byteLength(content) <= maxBytes) {
+    return content;
+  }
+  return content.slice(0, maxBytes) + SKILL_TRUNCATION_MARKER;
 }
 
 export async function createPlanRestoreAttachments(): Promise<AttachmentMessage[]> {

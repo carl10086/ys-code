@@ -138,15 +138,15 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 在 compact attachment 层实现 `createSkillRestoreAttachments()`，输入 invoked skill records，输出 `{ attachments, diagnostics }`。按 `invokedAt` 倒序排序，应用 per-skill 和 total bytes budget，超出时截断或跳过并记录 diagnostics。
 
 **Acceptance criteria:**
-- [ ] 有 invoked skill records 时生成单个 `invoked_skills` attachment。
-- [ ] skills 按最近调用优先排序。
-- [ ] 超过 per-skill budget 时保留头部内容并追加 truncation marker。
-- [ ] 超过 total budget 的 skill 被跳过并写入 skip reason。
-- [ ] 无 invoked skills 时返回 `skipped: no invoked skills`。
+- [x] 有 invoked skill records 时生成单个 `invoked_skills` attachment。
+- [x] skills 按最近调用优先排序。
+- [x] 超过 per-skill budget 时保留头部内容并追加 truncation marker。
+- [x] 超过 total budget 的 skill 被跳过并写入 skip reason。
+- [x] 无 invoked skills 时返回 `skipped: no invoked skills`。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/session/compact/attachments.test.ts`
-- [ ] 新测试覆盖生成、排序、截断、total budget、空状态。
+- [x] Tests pass: `bun test ./src/session/compact/attachments.test.ts`
+- [x] 新测试覆盖生成、排序、截断、total budget、空状态。
 
 **Dependencies:** Task 3
 
