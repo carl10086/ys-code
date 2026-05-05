@@ -334,6 +334,11 @@ describe("AgentSession", () => {
 
     expect(session.messages).toEqual(result.postCompactMessages);
     expect(session.messages[0].role).toBe("compact_boundary");
+    expect((session.messages[0] as any).compactMetadata.summaryCheck).toEqual({
+      ok: true,
+      sectionCount: COMPACT_SUMMARY_SECTIONS.length,
+      missingSections: [],
+    });
     expect(session.messages[1].role).toBe("user");
     expect((session.messages[2] as any).content[0].text).toBe("/compact 只关注代码修改");
     expect((session.messages[3] as any).isMeta).toBe(true);
@@ -391,6 +396,22 @@ describe("AgentSession", () => {
     await expect(session.compact({
       commandText: "/compact",
       summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
+    })).rejects.toThrow("missing required sections");
+
+    expect(session.messages).toEqual(originalMessages);
+  });
+
+  it("compact should keep messages unchanged when summary is plain text", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const originalMessages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+    (session as any).agent.state.messages = originalMessages;
+
+    await expect(session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "Already concise",
     })).rejects.toThrow("missing required sections");
 
     expect(session.messages).toEqual(originalMessages);

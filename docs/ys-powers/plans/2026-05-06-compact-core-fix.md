@@ -329,4 +329,3 @@ debug-compact example verifies end-to-end behavior
 - skill restore 是否应只根据 `sentSkillNames` 生成轻量提示，还是需要保存 skill 内容？当前计划先要求“有状态则生成，否则 skip reason”。
 - plan / plan mode 的稳定状态源是否已经存在？若不存在，本期只做 skip reason。
 - background task attachment 是否完全排除，还是在 diagnostics 中标记 unsupported？当前计划采用 unsupported diagnostics。
-

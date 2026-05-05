@@ -264,4 +264,3 @@ Debug Inspector 页面至少要能通过 Messages / LLM View 判断：
 - skill restore 的状态来源是否直接使用 `sentSkillNames`，还是需要记录被调用 skill 的完整内容？
 - plan / plan mode 的当前状态在 YS 中是否已有稳定来源？如果没有，本期是否只做 skip reason？
 - background task attachment 是否本期完全排除，还是在 diagnostics 中预留类型并标记 unsupported？
-

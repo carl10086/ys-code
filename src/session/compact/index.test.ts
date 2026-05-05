@@ -104,6 +104,11 @@ describe("compactConversation", () => {
       messages: [userMessage("hello")],
       summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
     })).rejects.toThrow("missing required sections");
+
+    await expect(compactConversation({
+      messages: [userMessage("hello")],
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
+    })).rejects.toThrow("2. Key Technical Concepts:");
   });
 
   it("records summary validation metadata for valid summaries", async () => {
