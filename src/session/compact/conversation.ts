@@ -107,16 +107,16 @@ export async function compactConversation(
       `Compact summary missing required sections: ${summaryCheck.missingSections.join(", ")}`,
     );
   }
-  const fileAttachments = options.fileStateCache && options.cwd
+  const fileAttachmentsResult = options.fileStateCache && options.cwd
     ? await createPostCompactFileAttachments(options.fileStateCache, { cwd: options.cwd })
-    : [];
+    : { attachments: [], diagnostics: { generated: [], skipped: [] } };
   const restoreResults = await Promise.all([
     createSkillRestoreAttachments(options.invokedSkills),
     createPlanRestoreAttachments(),
     createPlanModeRestoreAttachments(),
   ]);
   const attachmentStats = mergeAttachmentDiagnostics(
-    restoreResults.map((result) => result.diagnostics),
+    [fileAttachmentsResult.diagnostics, ...restoreResults.map((result) => result.diagnostics)],
   );
   const boundaryMessage = createCompactBoundaryMessage({
     trigger: "manual",
@@ -129,7 +129,7 @@ export async function compactConversation(
   const summaryMessage = createCompactSummaryMessage(summaryText);
   const attachments = [
     ...(options.attachments ?? []),
-    ...fileAttachments,
+    ...fileAttachmentsResult.attachments,
     ...restoreResults.flatMap((result) => result.attachments),
   ];
   const messagesToKeep = options.messagesToKeep ?? [];
