@@ -702,4 +702,138 @@ describe("AgentSession attachment handling", () => {
 
     expect(session.sentSkillNames.size).toBe(initialSize);
   });
+
+  it("should record invoked skill metadata from successful Skill tool results", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    session["handleAgentEvent"]({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "Skill",
+        content: [],
+        details: {
+          success: true,
+          skillName: "cc-diff",
+          skillPath: ".claude/skills/cc-diff/SKILL.md",
+          skillContent: "Skill content",
+          invokedAt: 123,
+        },
+        isError: false,
+        timestamp: 123,
+      } as AgentMessage,
+    });
+
+    expect(session.invokedSkills.get("cc-diff")).toEqual({
+      name: "cc-diff",
+      path: ".claude/skills/cc-diff/SKILL.md",
+      content: "Skill content",
+      invokedAt: 123,
+    });
+  });
+
+  it("should not record invoked skills for failed or non-Skill tool results", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    session["handleAgentEvent"]({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "Skill",
+        content: [],
+        details: {
+          success: true,
+          skillName: "cc-diff",
+          skillPath: ".claude/skills/cc-diff/SKILL.md",
+          skillContent: "Skill content",
+          invokedAt: 123,
+        },
+        isError: true,
+        timestamp: 123,
+      } as AgentMessage,
+    });
+
+    session["handleAgentEvent"]({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-2",
+        toolName: "Read",
+        content: [],
+        details: {
+          success: true,
+          skillName: "read",
+          skillContent: "not a skill",
+          invokedAt: 124,
+        },
+        isError: false,
+        timestamp: 124,
+      } as AgentMessage,
+    });
+
+    expect(session.invokedSkills.size).toBe(0);
+  });
+
+  it("should keep the latest invoked skill record for repeated skill calls", () => {
+    const session = new AgentSession({
+      cwd: process.cwd(),
+      model: { name: "test", provider: "test" } as any,
+      apiKey: "test",
+    });
+
+    session["handleAgentEvent"]({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-1",
+        toolName: "Skill",
+        content: [],
+        details: {
+          success: true,
+          skillName: "cc-diff",
+          skillPath: "old/path",
+          skillContent: "old content",
+          invokedAt: 100,
+        },
+        isError: false,
+        timestamp: 100,
+      } as AgentMessage,
+    });
+
+    session["handleAgentEvent"]({
+      type: "message_end",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-2",
+        toolName: "Skill",
+        content: [],
+        details: {
+          success: true,
+          skillName: "cc-diff",
+          skillPath: "new/path",
+          skillContent: "new content",
+          invokedAt: 200,
+        },
+        isError: false,
+        timestamp: 200,
+      } as AgentMessage,
+    });
+
+    expect(session.invokedSkills.get("cc-diff")).toEqual({
+      name: "cc-diff",
+      path: "new/path",
+      content: "new content",
+      invokedAt: 200,
+    });
+  });
 });

@@ -186,10 +186,20 @@ export interface AgentContext {
   tools?: AgentTool<any, any>[];
   /** 已发送的 skill 名称集合（用于去重） */
   sentSkillNames?: Set<string>;
+  /** 已调用的 skill 内容记录，用于 compact 后恢复 */
+  invokedSkills?: Map<string, InvokedSkillRecord>;
   /** 工具返回的新消息，供循环使用（UI 隐藏，LLM 可见） */
   pendingMessages?: AgentMessage[];
   /** 命令级模型覆盖（由 SkillTool 等设置） */
   modelOverride?: string;
+}
+
+/** 已调用 skill 的恢复记录 */
+export interface InvokedSkillRecord {
+  name: string;
+  path: string;
+  content: string;
+  invokedAt: number;
 }
 
 /** Agent 公开状态 */
@@ -204,6 +214,8 @@ export interface AgentState {
   readonly errorMessage?: string;
   /** 已发送的 skill 名称集合（用于去重） */
   sentSkillNames?: Set<string>;
+  /** 已调用的 skill 内容记录，用于 compact 后恢复 */
+  invokedSkills?: Map<string, InvokedSkillRecord>;
 }
 
 /** Agent 事件类型 */

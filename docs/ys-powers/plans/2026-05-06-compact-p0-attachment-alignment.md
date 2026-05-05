@@ -74,14 +74,14 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 在 Agent state 中增加 `invokedSkills` map/record，并在 AgentSession 处理成功 `toolResult` 时从 details 中提取 SkillTool metadata，写入最新调用记录。重复调用同一 skill 时用最新 `invokedAt/content` 覆盖旧记录。
 
 **Acceptance criteria:**
-- [ ] Agent state 类型包含 `invokedSkills`。
-- [ ] `AgentSession` 能在 SkillTool 成功 toolResult 后记录 invoked skill。
-- [ ] 非 SkillTool、失败 toolResult、缺少 metadata 的 toolResult 不影响 invoked skill state。
-- [ ] 重复调用同一 skill 时保留最新记录。
+- [x] Agent state 类型包含 `invokedSkills`。
+- [x] `AgentSession` 能在 SkillTool 成功 toolResult 后记录 invoked skill。
+- [x] 非 SkillTool、失败 toolResult、缺少 metadata 的 toolResult 不影响 invoked skill state。
+- [x] 重复调用同一 skill 时保留最新记录。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/agent/session.test.ts`
-- [ ] 新测试覆盖成功记录、非 skill 不记录、失败不记录、重复覆盖。
+- [x] Tests pass: `bun test ./src/agent/session.test.ts`
+- [x] 新测试覆盖成功记录、非 skill 不记录、失败不记录、重复覆盖。
 
 **Dependencies:** Task 1
 
@@ -95,9 +95,9 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 
 ### Checkpoint: State Foundation
 
-- [ ] `bun test ./src/agent/tools/skill.test.ts ./src/agent/session.test.ts`
-- [ ] `invokedSkills` 不影响现有 `sentSkillNames` / `skill_listing` 去重行为。
-- [ ] 没有新增 session JSONL persistence 行为。
+- [x] `bun test ./src/agent/tools/skill.test.ts ./src/agent/session.test.ts`
+- [x] `invokedSkills` 不影响现有 `sentSkillNames` / `skill_listing` 去重行为。
+- [x] 没有新增 session JSONL persistence 行为。
 
 ### Phase 2: Attachment Contract and Normalize
 

@@ -2,7 +2,7 @@
 import { join } from "node:path";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { Model, SystemPrompt } from "../core/ai/index.js";
+import type { Model, SystemPrompt, ToolResultMessage } from "../core/ai/index.js";
 import { asSystemPrompt } from "../core/ai/index.js";
 import { findModelById } from "../core/ai/models.js";
 import { logger } from "../utils/logger.js";
@@ -87,6 +87,14 @@ export class AgentSession {
       this.agent.state.sentSkillNames = new Set();
     }
     return this.agent.state.sentSkillNames;
+  }
+
+  /** 已调用的 skill 内容记录（只读） */
+  get invokedSkills(): Map<string, import("./types.js").InvokedSkillRecord> {
+    if (!this.agent.state.invokedSkills) {
+      this.agent.state.invokedSkills = new Map();
+    }
+    return this.agent.state.invokedSkills;
   }
 
   private turnStartTime = 0;
@@ -480,6 +488,10 @@ export class AgentSession {
           }
         }
 
+        if (msg.role === "toolResult") {
+          this.recordInvokedSkillFromToolResult(msg);
+        }
+
         break;
       }
       case "turn_start": {
@@ -555,9 +567,49 @@ export class AgentSession {
     }
   }
 
+  private recordInvokedSkillFromToolResult(message: ToolResultMessage): void {
+    if (message.toolName !== "Skill" || message.isError) {
+      return;
+    }
+
+    const details = message.details;
+    if (!isInvokedSkillDetails(details)) {
+      return;
+    }
+
+    this.invokedSkills.set(details.skillName, {
+      name: details.skillName,
+      path: details.skillPath ?? "",
+      content: details.skillContent,
+      invokedAt: details.invokedAt,
+    });
+  }
+
   private emit(event: AgentSessionEvent): void {
     for (const listener of this.listeners) {
       listener(event);
     }
   }
+}
+
+interface InvokedSkillDetails {
+  success: true;
+  skillName: string;
+  skillPath?: string;
+  skillContent: string;
+  invokedAt: number;
+}
+
+function isInvokedSkillDetails(details: unknown): details is InvokedSkillDetails {
+  if (typeof details !== "object" || details === null) {
+    return false;
+  }
+  const value = details as Record<string, unknown>;
+  return (
+    value.success === true &&
+    typeof value.skillName === "string" &&
+    (value.skillPath === undefined || typeof value.skillPath === "string") &&
+    typeof value.skillContent === "string" &&
+    typeof value.invokedAt === "number"
+  );
 }

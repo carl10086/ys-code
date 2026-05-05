@@ -89,6 +89,7 @@ function createMutableAgentState(
     streamingMessage: undefined,
     pendingToolCalls: new Set<string>(),
     errorMessage: undefined,
+    invokedSkills: initialState?.invokedSkills ?? new Map(),
   };
 }
 
@@ -454,6 +455,7 @@ export class Agent {
       messages: this._state.messages.slice(),
       tools: this._state.tools.slice(),
       sentSkillNames: this._state.sentSkillNames,
+      invokedSkills: this._state.invokedSkills,
     };
   }
 
