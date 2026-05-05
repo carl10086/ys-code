@@ -98,6 +98,8 @@ export interface PromptCommand extends CommandBase {
   model?: string
   /** 来源标识 */
   source: 'projectSettings' | 'userSettings' | 'bundled'
+  /** 来源文件路径，用于 compact 后恢复已调用 skill 内容 */
+  sourcePath?: string
   /** 是否禁用模型调用 */
   disableModelInvocation?: boolean
   /** 是否可被用户直接调用 */

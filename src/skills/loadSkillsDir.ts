@@ -50,6 +50,7 @@ export async function loadSkillsFromSkillsDir(
         skillName,
         markdownContent,
         source,
+        sourcePath: skillFilePath,
         ...parsed,
       })
     }),
@@ -74,6 +75,7 @@ function createSkillCommand({
   disableModelInvocation,
   userInvocable,
   source,
+  sourcePath,
 }: {
   /** skill 名称（唯一标识） */
   skillName: string
@@ -99,6 +101,8 @@ function createSkillCommand({
   userInvocable: boolean
   /** 配置来源 */
   source: SkillSource
+  /** 来源文件路径 */
+  sourcePath?: string
 }): PromptCommand {
   return {
     type: 'prompt',
@@ -114,6 +118,7 @@ function createSkillCommand({
     disableModelInvocation,
     userInvocable,
     source,
+    sourcePath,
     getPromptForCommand: async (args: string): Promise<SkillContentBlock[]> => {
       let finalContent = markdownContent
 

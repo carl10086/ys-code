@@ -48,15 +48,15 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 扩展 `PromptCommand` 的可选来源路径字段，并让 `SkillTool.execute()` 成功执行后在 output/details 中返回 `skillName`、`skillPath`、`skillContent`、`invokedAt`。这一步只建立可观测 metadata，不改变 agent state。
 
 **Acceptance criteria:**
-- [ ] `PromptCommand` 支持可选 `sourcePath` 或等价字段。
-- [ ] 加载 project/user/bundled prompt command 时能填充可获得的 source path；无法获得时字段可为空。
-- [ ] `SkillTool.execute()` 成功时 details 中包含 skill restore metadata。
-- [ ] 失败或 validation 未通过时不记录成功的 invoked skill metadata。
+- [x] `PromptCommand` 支持可选 `sourcePath` 或等价字段。
+- [x] 加载 project/user/bundled prompt command 时能填充可获得的 source path；无法获得时字段可为空。
+- [x] `SkillTool.execute()` 成功时 details 中包含 skill restore metadata。
+- [x] 失败或 validation 未通过时不记录成功的 invoked skill metadata。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/agent/tools/skill.test.ts`
-- [ ] 新测试断言 SkillTool 成功 output 中包含 `skillName/skillContent/invokedAt`。
-- [ ] Type check passes for command loader changes.
+- [x] Tests pass: `bun test ./src/agent/tools/skill.test.ts`
+- [x] 新测试断言 SkillTool 成功 output 中包含 `skillName/skillContent/invokedAt`。
+- [x] Type check passes for command loader changes.
 
 **Dependencies:** None
 
