@@ -4,6 +4,7 @@ import type {
   CompactMessageBuildInput,
   CompactTriggerReason,
 } from "./types.js";
+import type { CompactSummaryValidation } from "./prompt.js";
 
 export interface CreateCompactBoundaryMessageOptions {
   trigger: CompactTriggerReason;
@@ -11,6 +12,7 @@ export interface CreateCompactBoundaryMessageOptions {
   postTokens?: number;
   tokensSavedByMicrocompact?: number;
   clearedToolCallIds?: string[];
+  summaryCheck?: CompactSummaryValidation;
   parentUuid?: string | null;
   timestamp?: number;
   uuid?: string;
@@ -32,6 +34,9 @@ export function createCompactBoundaryMessage(
   }
   if (options.clearedToolCallIds !== undefined) {
     metadata.clearedToolCallIds = options.clearedToolCallIds;
+  }
+  if (options.summaryCheck !== undefined) {
+    metadata.summaryCheck = options.summaryCheck;
   }
 
   return {

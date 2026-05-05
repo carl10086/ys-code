@@ -1,5 +1,7 @@
 // src/session/entry-types.ts
 
+import type { CompactMetadata } from "./compact/types.js";
+
 /** 会话条目基接口 */
 export interface SessionEntry {
   /** 条目类型 */
@@ -82,13 +84,7 @@ export interface CompactBoundaryEntry extends SessionEntry {
   /** 压缩后的 token 数 */
   tokensAfter: number;
   /** 新版 compact boundary 结构化元数据 */
-  compactMetadata?: {
-    trigger: "manual" | "auto";
-    preTokens: number;
-    postTokens?: number;
-    tokensSavedByMicrocompact?: number;
-    clearedToolCallIds?: string[];
-  };
+  compactMetadata?: CompactMetadata;
 }
 
 /** Attachment 条目 */

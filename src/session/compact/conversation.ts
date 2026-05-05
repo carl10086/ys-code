@@ -7,7 +7,11 @@ import {
   createCompactSummaryMessage,
   getMessagesAfterCompactBoundary,
 } from "./messages.js";
-import { formatCompactSummary, getCompactPrompt } from "./prompt.js";
+import {
+  formatCompactSummary,
+  getCompactPrompt,
+  validateCompactSummary,
+} from "./prompt.js";
 import { microcompactMessages } from "./microcompact.js";
 import type { FileStateCache } from "../../agent/file-state.js";
 import type { CompactionResult } from "./types.js";
@@ -88,11 +92,18 @@ export async function compactConversation(
   );
 
   const summaryText = formatCompactSummary(rawSummary);
+  const summaryCheck = validateCompactSummary(summaryText);
+  if (!summaryCheck.ok) {
+    throw new Error(
+      `Compact summary missing required sections: ${summaryCheck.missingSections.join(", ")}`,
+    );
+  }
   const boundaryMessage = createCompactBoundaryMessage({
     trigger: "manual",
     preTokens: preCompactTokens,
     tokensSavedByMicrocompact: microcompact.tokensSaved,
     clearedToolCallIds: microcompact.clearedToolCallIds,
+    summaryCheck,
   });
   const summaryMessage = createCompactSummaryMessage(summaryText);
   const fileAttachments = options.fileStateCache && options.cwd
