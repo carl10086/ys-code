@@ -1,4 +1,5 @@
 import type { AgentMessage } from "../../agent/types.js";
+import type { CompactAttachmentDiagnostics } from "./attachments.js";
 import type { CompactSummaryValidation } from "./prompt.js";
 
 export type CompactTriggerReason = "manual" | "auto";
@@ -10,6 +11,7 @@ export interface CompactMetadata {
   tokensSavedByMicrocompact?: number;
   clearedToolCallIds?: string[];
   summaryCheck?: CompactSummaryValidation;
+  attachmentStats?: CompactAttachmentDiagnostics;
 }
 
 export interface CompactBoundaryMessage {
@@ -29,6 +31,7 @@ export interface CompactMessageBuildInput {
 
 export interface CompactionResult extends CompactMessageBuildInput {
   postCompactMessages: AgentMessage[];
+  attachmentStats: CompactAttachmentDiagnostics;
   displayText: string;
   metrics: {
     preCompactTokens: number;

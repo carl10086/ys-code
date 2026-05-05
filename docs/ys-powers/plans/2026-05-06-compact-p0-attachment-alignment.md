@@ -192,16 +192,16 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 扩展 compact types，让 `CompactMetadata` / `CompactionResult` 能携带 `attachmentStats`。`compactConversation()` 需要聚合 file、skill、plan、plan_mode 的 restore 结果，把实际 attachments 放入 `postCompactMessages`，把 generated/skipped diagnostics 写入 boundary metadata。
 
 **Acceptance criteria:**
-- [ ] `CompactMetadata.attachmentStats` 或等价字段存在。
-- [ ] `CompactionResult` 暴露 attachment diagnostics，供后续 debug API 使用。
-- [ ] compact 成功且有 invoked skills 时，`result.attachments` 包含 `invoked_skills`。
-- [ ] compact 成功但无 invoked skills 时，metadata 包含 skip reason。
-- [ ] plan/plan_mode unsupported diagnostics 出现在 metadata。
+- [x] `CompactMetadata.attachmentStats` 或等价字段存在。
+- [x] `CompactionResult` 暴露 attachment diagnostics，供后续 debug API 使用。
+- [x] compact 成功且有 invoked skills 时，`result.attachments` 包含 `invoked_skills`。
+- [x] compact 成功但无 invoked skills 时，metadata 包含 skip reason。
+- [x] plan/plan_mode unsupported diagnostics 出现在 metadata。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/session/compact/index.test.ts ./src/session/compact/messages.test.ts`
-- [ ] 新测试覆盖有 invoked skills 和无 invoked skills 两条路径。
-- [ ] 新测试断言 boundary metadata 包含 generated/skipped diagnostics。
+- [x] Tests pass: `bun test ./src/session/compact/index.test.ts ./src/session/compact/messages.test.ts`
+- [x] 新测试覆盖有 invoked skills 和无 invoked skills 两条路径。
+- [x] 新测试断言 boundary metadata 包含 generated/skipped diagnostics。
 
 **Dependencies:** Task 4, Task 5
 
