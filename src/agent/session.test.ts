@@ -6,9 +6,14 @@ import { tmpdir } from "node:os";
 import { AgentSession } from "./session.js";
 import { getModel, asSystemPrompt } from "../core/ai/index.js";
 import type { AgentMessage } from "./types.js";
+import { COMPACT_SUMMARY_SECTIONS } from "../session/compact/index.js";
 
 describe("AgentSession", () => {
   let tmpDir: string;
+
+  const validCompactSummary = () => `<summary>${COMPACT_SUMMARY_SECTIONS
+    .map((section) => `${section}\nContent for ${section}`)
+    .join("\n\n")}</summary>`;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(path.join(tmpdir(), "agent-session-test-"));
@@ -324,7 +329,7 @@ describe("AgentSession", () => {
     const result = await session.compact({
       commandText: "/compact 只关注代码修改",
       instructions: "只关注代码修改",
-      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+      summaryRunner: async () => validCompactSummary(),
     });
 
     expect(session.messages).toEqual(result.postCompactMessages);
@@ -346,7 +351,7 @@ describe("AgentSession", () => {
 
     await session.compact({
       commandText: "/compact",
-      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+      summaryRunner: async () => validCompactSummary(),
     });
 
     const restored = (session as any).sessionManager.restoreMessages();
@@ -375,6 +380,22 @@ describe("AgentSession", () => {
     expect(session.messages).toEqual(originalMessages);
   });
 
+  it("compact should keep messages unchanged when summary is missing required sections", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const originalMessages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+    (session as any).agent.state.messages = originalMessages;
+
+    await expect(session.compact({
+      commandText: "/compact",
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
+    })).rejects.toThrow("missing required sections");
+
+    expect(session.messages).toEqual(originalMessages);
+  });
+
   it("compact should fail without replacing messages if messages change while summary is pending", async () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
     const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
@@ -396,7 +417,7 @@ describe("AgentSession", () => {
       content: [{ type: "text", text: "late message" }],
       timestamp: 2,
     });
-    resolveSummary("<summary>1. Primary Request and Intent:\nContinue work.</summary>");
+    resolveSummary(validCompactSummary());
 
     await expect(compactPromise).rejects.toThrow("changed during compact");
     expect(JSON.stringify(session.messages)).toContain("late message");
@@ -414,7 +435,7 @@ describe("AgentSession", () => {
 
     await expect(session.compact({
       commandText: "/compact",
-      summaryRunner: async () => "<summary>Summary</summary>",
+      summaryRunner: async () => validCompactSummary(),
     })).rejects.toThrow("streaming");
 
     expect(session.messages).toHaveLength(1);
@@ -438,10 +459,10 @@ describe("AgentSession", () => {
 
     await expect(session.compact({
       commandText: "/compact",
-      summaryRunner: async () => "<summary>second</summary>",
+      summaryRunner: async () => validCompactSummary(),
     })).rejects.toThrow("already in progress");
 
-    resolveSummary("<summary>1. Primary Request and Intent:\nContinue work.</summary>");
+    resolveSummary(validCompactSummary());
     await firstCompact;
   });
 
@@ -459,7 +480,7 @@ describe("AgentSession", () => {
       yield {
         type: "done",
         message: {
-          content: [{ type: "text", text: "<summary>1. Primary Request and Intent:\nContinue work.</summary>" }],
+          content: [{ type: "text", text: validCompactSummary() }],
         },
       };
     };
@@ -478,7 +499,7 @@ describe("AgentSession", () => {
 
     await firstSession.compact({
       commandText: "/compact",
-      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nContinue work.</summary>",
+      summaryRunner: async () => validCompactSummary(),
     });
 
     const restoredSession = new AgentSession({
@@ -491,7 +512,7 @@ describe("AgentSession", () => {
     });
 
     expect(restoredSession.messages[0].role).toBe("compact_boundary");
-    expect(JSON.stringify(restoredSession.messages)).toContain("Continue work");
+    expect(JSON.stringify(restoredSession.messages)).toContain("Content for 1. Primary Request and Intent:");
     expect(JSON.stringify(restoredSession.messages)).not.toContain("old history");
   });
 

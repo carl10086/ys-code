@@ -71,13 +71,13 @@ debug-compact example verifies end-to-end behavior
 **Description:** 在 `compactConversation()` 生成 formatted summary 后执行 summary check；不合格时抛出明确错误，并确保 `AgentSession.compact()` 不执行 `replaceMessages()`。
 
 **Acceptance criteria:**
-- [ ] summary 缺章节时 `compactConversation()` reject，错误信息包含缺失章节信息。
-- [ ] summary 合格时 `compactMetadata.summaryCheck` 或等价字段记录检查结果。
-- [ ] 失败时 `AgentSession` active messages 保持不变。
+- [x] summary 缺章节时 `compactConversation()` reject，错误信息包含缺失章节信息。
+- [x] summary 合格时 `compactMetadata.summaryCheck` 或等价字段记录检查结果。
+- [x] 失败时 `AgentSession` active messages 保持不变。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/session/compact/index.test.ts ./src/agent/session.test.ts`
-- [ ] 新测试覆盖不合格 summary 不替换 messages。
+- [x] Tests pass: `bun test ./src/session/compact/index.test.ts ./src/agent/session.test.ts`
+- [x] 新测试覆盖不合格 summary 不替换 messages。
 
 **Dependencies:** Task 1
 
@@ -92,8 +92,8 @@ debug-compact example verifies end-to-end behavior
 
 ### Checkpoint: Summary Contract
 
-- [ ] `bun test ./src/session/compact/prompt.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts`
-- [ ] 手动检查：不合格 summary 错误可读，且不会覆盖 active messages。
+- [x] `bun test ./src/session/compact/prompt.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts`
+- [x] 手动检查：不合格 summary 错误可读，且不会覆盖 active messages。
 - [ ] 与用户确认 summary 失败策略仍符合预期。
 
 ### Phase 2: Attachment Restore and Diagnostics

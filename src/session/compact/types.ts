@@ -1,4 +1,5 @@
 import type { AgentMessage } from "../../agent/types.js";
+import type { CompactSummaryValidation } from "./prompt.js";
 
 export type CompactTriggerReason = "manual" | "auto";
 
@@ -8,6 +9,7 @@ export interface CompactMetadata {
   postTokens?: number;
   tokensSavedByMicrocompact?: number;
   clearedToolCallIds?: string[];
+  summaryCheck?: CompactSummaryValidation;
 }
 
 export interface CompactBoundaryMessage {

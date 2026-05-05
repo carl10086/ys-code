@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentMessage } from "../../agent/types.js";
 import {
+  COMPACT_SUMMARY_SECTIONS,
   MICROCOMPACT_CLEARED_MESSAGE,
   compactConversation,
   isPromptTooLongError,
@@ -11,6 +12,10 @@ const userMessage = (text: string, timestamp = 1): AgentMessage => ({
   content: [{ type: "text", text }],
   timestamp,
 });
+
+const validCompactSummary = () => `<summary>${COMPACT_SUMMARY_SECTIONS
+  .map((section) => `${section}\nContent for ${section}`)
+  .join("\n\n")}</summary>`;
 
 const toolResult = (
   toolCallId: string,
@@ -40,7 +45,7 @@ describe("compactConversation", () => {
       keepRecentToolResults: 0,
       summaryRunner: async ({ messages }) => {
         runnerMessages = messages;
-        return "<summary>1. Primary Request and Intent:\nDo compact.</summary>";
+        return validCompactSummary();
       },
     });
 
@@ -77,7 +82,7 @@ describe("compactConversation", () => {
         if (runnerMessageCounts.length === 1) {
           throw new Error("prompt is too long");
         }
-        return "retry summary";
+        return validCompactSummary();
       },
     });
 
@@ -92,6 +97,26 @@ describe("compactConversation", () => {
         throw new Error("network unavailable");
       },
     })).rejects.toThrow("network unavailable");
+  });
+
+  it("rejects compact summaries missing required sections", async () => {
+    await expect(compactConversation({
+      messages: [userMessage("hello")],
+      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
+    })).rejects.toThrow("missing required sections");
+  });
+
+  it("records summary validation metadata for valid summaries", async () => {
+    const result = await compactConversation({
+      messages: [userMessage("hello")],
+      summaryRunner: async () => validCompactSummary(),
+    });
+
+    expect((result.boundaryMessage as any).compactMetadata.summaryCheck).toEqual({
+      ok: true,
+      sectionCount: COMPACT_SUMMARY_SECTIONS.length,
+      missingSections: [],
+    });
   });
 });
 
