@@ -346,6 +346,34 @@ describe("AgentSession", () => {
     expect(JSON.stringify(session.messages)).not.toContain("old history");
   });
 
+  it("compact should preserve invoked skill attachments in active messages", async () => {
+    const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+    const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+    const agent = (session as any).agent;
+    agent.state.messages = [
+      { role: "user", content: [{ type: "text", text: "old history" }], timestamp: 1 },
+    ];
+    session.invokedSkills.set("cc-diff", {
+      name: "cc-diff",
+      path: ".claude/skills/cc-diff/SKILL.md",
+      content: "Compare CC and YS implementations.",
+      invokedAt: 123,
+    });
+
+    const result = await session.compact({
+      summaryRunner: async () => validCompactSummary(),
+    });
+
+    expect(result.attachments).toHaveLength(1);
+    const restoredAttachment = session.messages.find((message) => (
+      message.role === "attachment" && message.attachment.type === "invoked_skills"
+    ));
+    expect(restoredAttachment).toBeDefined();
+    expect((session.messages[0] as any).compactMetadata.attachmentStats.generated).toEqual([
+      { type: "invoked_skills", count: 1 },
+    ]);
+  });
+
   it("compact should persist compacted messages for session restore", async () => {
     const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
     const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });

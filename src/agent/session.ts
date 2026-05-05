@@ -261,6 +261,7 @@ export class AgentSession {
         messagesToKeep: commandMessage ? [commandMessage] : [],
         fileStateCache: this.agent.getFileStateCache(),
         cwd: this.cwd,
+        invokedSkills: this.invokedSkills,
       });
 
       if (!this.messagesUnchangedSinceCompactStarted(messagesAtStart, messageSnapshot)) {

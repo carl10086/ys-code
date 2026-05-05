@@ -219,14 +219,14 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 **Description:** 让 `AgentSession.compact()` 把 Agent state 中的 invoked skill records 传给 `compactConversation()`。成功 compact 后，active `session.messages` 中应包含 generated `invoked_skills` attachment；summary 失败和 messages changed 失败路径保持原子性。
 
 **Acceptance criteria:**
-- [ ] `AgentSession.compact()` 将 invoked skill state 传入 compactConversation。
-- [ ] compact 成功后 active messages 包含 `role: "attachment"` 且 type 为 `invoked_skills`。
-- [ ] `/compact` command stdout/message keep 行为不回归。
-- [ ] summary 不合格时仍不替换 active messages。
+- [x] `AgentSession.compact()` 将 invoked skill state 传入 compactConversation。
+- [x] compact 成功后 active messages 包含 `role: "attachment"` 且 type 为 `invoked_skills`。
+- [x] `/compact` command stdout/message keep 行为不回归。
+- [x] summary 不合格时仍不替换 active messages。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/agent/session.test.ts ./src/session/compact/index.test.ts`
-- [ ] 新测试覆盖 SkillTool invoked state -> compact -> active attachment 的完整路径。
+- [x] Tests pass: `bun test ./src/agent/session.test.ts ./src/session/compact/index.test.ts`
+- [x] 新测试覆盖 SkillTool invoked state -> compact -> active attachment 的完整路径。
 
 **Dependencies:** Task 2, Task 6
 
@@ -240,10 +240,10 @@ AgentSession.compact passes invokedSkills and preserves active attachments
 
 ### Checkpoint: End-to-End P0 Compact Path
 
-- [ ] `bun test ./src/session/compact/attachments.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts ./src/agent/attachments/normalize.test.ts`
-- [ ] 成功 compact 后 active messages 有 `invoked_skills` attachment。
-- [ ] normalized LLM payload 包含 invoked skills `<system-reminder>`。
-- [ ] 无 invoked skills、plan unsupported、plan mode unsupported 都有 diagnostics。
+- [x] `bun test ./src/session/compact/attachments.test.ts ./src/session/compact/index.test.ts ./src/agent/session.test.ts ./src/agent/attachments/normalize.test.ts`
+- [x] 成功 compact 后 active messages 有 `invoked_skills` attachment。
+- [x] normalized LLM payload 包含 invoked skills `<system-reminder>`。
+- [x] 无 invoked skills、plan unsupported、plan mode unsupported 都有 diagnostics。
 
 ### Phase 5: Verification and Spec Alignment
 
