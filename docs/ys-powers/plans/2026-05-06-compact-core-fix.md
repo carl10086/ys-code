@@ -50,13 +50,13 @@ debug-compact example verifies end-to-end behavior
 **Description:** 在 `src/session/compact/prompt.ts` 中增加 summary validation helper，检查 formatted summary 是否包含 9 个固定章节，并返回可写入 metadata/debug 的检查结果。
 
 **Acceptance criteria:**
-- [ ] `validateCompactSummary()` 或等价函数返回 `ok/missingSections/sectionCount`。
-- [ ] 缺任一 `COMPACT_SUMMARY_SECTIONS` 时 `ok === false`。
-- [ ] `formatCompactSummary()` 继续保留 secret redaction 和 `Summary:\n` 前缀。
+- [x] `validateCompactSummary()` 或等价函数返回 `ok/missingSections/sectionCount`。
+- [x] 缺任一 `COMPACT_SUMMARY_SECTIONS` 时 `ok === false`。
+- [x] `formatCompactSummary()` 继续保留 secret redaction 和 `Summary:\n` 前缀。
 
 **Verification:**
-- [ ] Tests pass: `bun test ./src/session/compact/prompt.test.ts`
-- [ ] 新测试覆盖完整 summary、缺章节 summary、plain text summary。
+- [x] Tests pass: `bun test ./src/session/compact/prompt.test.ts`
+- [x] 新测试覆盖完整 summary、缺章节 summary、plain text summary。
 
 **Dependencies:** None
 
