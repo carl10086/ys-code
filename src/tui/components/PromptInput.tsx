@@ -1,6 +1,6 @@
 // src/tui/components/PromptInput.tsx
 import { Box, Text, useInput } from "ink";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { Command } from "../../commands/types.js";
 import { CommandSuggestions, type SuggestionItem } from "./CommandSuggestions.js";
 import Fuse from "fuse.js";
@@ -25,6 +25,8 @@ export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: Pr
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // 同步提交锁：防止同一批次内的重复 Enter 事件触发多次提交
+  const isSubmittingRef = useRef(false);
 
   const filterCommands = React.useCallback((inputText: string, availableCommands: Command[] = []): SuggestionItem[] => {
     const query = inputText.slice(1).toLowerCase().trim();
@@ -84,6 +86,9 @@ export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: Pr
     };
 
     if (key.return) {
+      // 同步提交锁：阻止同一批次内的重复 Enter 事件
+      if (isSubmittingRef.current) return;
+
       // 如果有建议列表，应用选中的建议并执行
       if (showSuggestions && suggestions.length > 0) {
         const selected = suggestions[selectedSuggestion];
@@ -93,10 +98,15 @@ export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: Pr
           setLines([""]);
           setCursorLine(0);
           setCursorCol(0);
+          isSubmittingRef.current = true;
           void (async () => {
-            const handled = await onCommand(commandText);
-            if (!handled) {
-              onSubmit(commandText);
+            try {
+              const handled = await onCommand(commandText);
+              if (!handled) {
+                onSubmit(commandText);
+              }
+            } finally {
+              isSubmittingRef.current = false;
             }
           })();
           return;
@@ -106,22 +116,27 @@ export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: Pr
       const text = lines.join("\n").trim();
       if (!text) return;
 
+      isSubmittingRef.current = true;
       void (async () => {
-        if (text.startsWith("/")) {
-          const handled = await onCommand(text);
-          if (handled) {
-            setLines([""]);
-            setCursorLine(0);
-            setCursorCol(0);
-            return;
+        try {
+          if (text.startsWith("/")) {
+            const handled = await onCommand(text);
+            if (handled) {
+              setLines([""]);
+              setCursorLine(0);
+              setCursorCol(0);
+              return;
+            }
           }
+          onSubmit(text);
+          setHistory((h) => [...h, text]);
+          setHistoryIndex(-1);
+          setLines([""]);
+          setCursorLine(0);
+          setCursorCol(0);
+        } finally {
+          isSubmittingRef.current = false;
         }
-        onSubmit(text);
-        setHistory((h) => [...h, text]);
-        setHistoryIndex(-1);
-        setLines([""]);
-        setCursorLine(0);
-        setCursorCol(0);
       })();
       return;
     }
@@ -147,7 +162,6 @@ export function PromptInput({ disabled, onSubmit, onCommand, commands = [] }: Pr
         return;
       }
       process.exit(0);
-      return;
     }
 
     if (key.upArrow) {
