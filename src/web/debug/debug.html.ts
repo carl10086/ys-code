@@ -271,6 +271,11 @@ export const DEBUG_HTML = `<!DOCTYPE html>
         </dl>
       </div>
 
+      <div id="compact-diagnostics" style="display:none; margin-bottom: 1rem; padding: 0.75rem; border: 1px solid var(--pico-muted-border-color); border-radius: 0.5rem;">
+        <div style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;">Compact Diagnostics</div>
+        <div id="compact-diagnostics-content"></div>
+      </div>
+
       <div class="tabs">
         <button class="tab-btn active" data-tab="messages">Messages</button>
         <button class="tab-btn" data-tab="llm">LLM View</button>
@@ -444,6 +449,71 @@ export const DEBUG_HTML = `<!DOCTYPE html>
       });
     }
 
+    function renderCompactDiagnostics(diagnostics) {
+      const container = document.getElementById('compact-diagnostics');
+      const content = document.getElementById('compact-diagnostics-content');
+      if (!diagnostics) {
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = 'block';
+
+      let html = '';
+
+      // Token metrics
+      if (diagnostics.tokenMetrics) {
+        const t = diagnostics.tokenMetrics;
+        html += '<div style="font-size: 0.8125rem; margin-bottom: 0.5rem;">';
+        html += '<strong>Tokens:</strong> ' + t.preCompactTokens;
+        if (t.postCompactTokens !== undefined) {
+          html += ' → ' + t.postCompactTokens;
+        }
+        if (t.microcompactTokensSaved > 0) {
+          html += ' (saved ' + t.microcompactTokensSaved + ' by microcompact)';
+        }
+        html += '</div>';
+      }
+
+      // Summary check
+      if (diagnostics.summaryCheck) {
+        const s = diagnostics.summaryCheck;
+        const status = s.ok ? '✅' : '❌';
+        html += '<div style="font-size: 0.8125rem; margin-bottom: 0.5rem;">';
+        html += '<strong>Summary Check:</strong> ' + status + ' ' + s.sectionCount + ' sections';
+        if (s.missingSections && s.missingSections.length > 0) {
+          html += ' (missing: ' + s.missingSections.join(', ') + ')';
+        }
+        html += '</div>';
+      }
+
+      // Attachment stats
+      if (diagnostics.attachmentStats) {
+        const a = diagnostics.attachmentStats;
+        html += '<div style="font-size: 0.8125rem; margin-bottom: 0.5rem;">';
+        html += '<strong>Attachments:</strong> ' + a.generated.length + ' generated';
+        if (a.skipped.length > 0) {
+          html += ', ' + a.skipped.length + ' skipped';
+        }
+        html += '</div>';
+
+        if (a.skipped.length > 0) {
+          html += '<details style="font-size: 0.75rem; margin-left: 0.5rem;">';
+          html += '<summary>Skip reasons</summary>';
+          html += '<ul style="margin: 0.25rem 0; padding-left: 1rem;">';
+          for (const skip of a.skipped) {
+            html += '<li>' + escapeHtml(skip.type) + ': ' + escapeHtml(skip.reason);
+            if (skip.displayName) {
+              html += ' (' + escapeHtml(skip.displayName) + ')';
+            }
+            html += '</li>';
+          }
+          html += '</ul></details>';
+        }
+      }
+
+      content.innerHTML = html;
+    }
+
     function renderTools(tools) {
       const container = document.getElementById('tab-tools');
       if (!tools || tools.length === 0) {
@@ -541,6 +611,7 @@ export const DEBUG_HTML = `<!DOCTYPE html>
           document.getElementById('tab-system').innerHTML = '<pre><code>' + (data.systemPrompt || '无') + '</code></pre>';
         }
         renderTools(data.toolNames);
+        renderCompactDiagnostics(data.compactDiagnostics);
 
         document.getElementById('timestamp').textContent = '更新时间: ' + formatTime(data.timestamp);
       } catch (err) {

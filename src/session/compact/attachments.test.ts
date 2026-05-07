@@ -49,18 +49,20 @@ describe("compact attachments", () => {
     cache.recordRead(filePath, "old content", 1000);
     writeFileSync(filePath, "new content");
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0].role).toBe("attachment");
-    expect(attachments[0].attachment.type).toBe("file");
-    if (attachments[0].attachment.type !== "file") {
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].role).toBe("attachment");
+    expect(result.attachments[0].attachment.type).toBe("file");
+    if (result.attachments[0].attachment.type !== "file") {
       throw new Error("Expected file attachment");
     }
-    expect(attachments[0].attachment.content.file?.content).toBe("old content");
+    expect(result.attachments[0].attachment.content.file?.content).toBe("old content");
+    expect(result.diagnostics.generated).toEqual([{ type: "file", displayName: "file.ts" }]);
+    expect(result.diagnostics.skipped).toEqual([]);
   });
 
   it("skips missing files and files over the byte budget", async () => {
@@ -72,13 +74,14 @@ describe("compact attachments", () => {
     cache.recordRead(join(tempDir, "missing.txt"), "missing", 1000);
     cache.recordRead(largeFile, "x".repeat(20), 1001);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxBytesPerFile: 10,
       maxFiles: 5,
     });
 
-    expect(attachments).toEqual([]);
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.skipped.length).toBeGreaterThan(0);
   });
 
   it("uses a default byte budget before rereading file attachments", async () => {
@@ -89,12 +92,13 @@ describe("compact attachments", () => {
     const cache = new FileStateCache();
     cache.recordRead(largeFile, "x".repeat(250_000), 1000);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toEqual([]);
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.skipped.length).toBeGreaterThan(0);
   });
 
   it("skips partial reads instead of expanding their original scope", async () => {
@@ -105,12 +109,15 @@ describe("compact attachments", () => {
     const cache = new FileStateCache();
     cache.recordRead(filePath, "line 2", 1000, 2, 1);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toEqual([]);
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.skipped).toEqual([
+      { type: "file", displayName: filePath, reason: "entry is partial view" },
+    ]);
   });
 
   it("enforces a total byte budget across restored attachments", async () => {
@@ -124,13 +131,15 @@ describe("compact attachments", () => {
     cache.recordRead(firstFile, "12345", 1000);
     cache.recordRead(secondFile, "67890", 1001);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
       maxTotalBytes: 5,
     });
 
-    expect(attachments).toHaveLength(1);
+    expect(result.attachments).toHaveLength(1);
+    expect(result.diagnostics.generated).toHaveLength(1);
+    expect(result.diagnostics.skipped.length).toBeGreaterThan(0);
   });
 
   it("does not let skipped candidates consume the restored maxFiles budget", async () => {
@@ -144,17 +153,18 @@ describe("compact attachments", () => {
     cache.recordRead(partialFile, "partial", 1000, 1, 1);
     cache.recordRead(fullFile, "full", 1001);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 1,
     });
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0].attachment.type).toBe("file");
-    if (attachments[0].attachment.type !== "file") {
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].attachment.type).toBe("file");
+    if (result.attachments[0].attachment.type !== "file") {
       throw new Error("Expected file attachment");
     }
-    expect(attachments[0].attachment.filePath).toBe(fullFile);
+    expect(result.attachments[0].attachment.filePath).toBe(fullFile);
+    expect(result.diagnostics.generated).toHaveLength(1);
   });
 
   it("skips cached files outside cwd and sensitive file paths", async () => {
@@ -172,17 +182,18 @@ describe("compact attachments", () => {
     cache.recordRead(envFile, "TOKEN=secret", 1001);
     cache.recordRead(normalFile, "normal", 1002);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0].attachment.type).toBe("file");
-    if (attachments[0].attachment.type !== "file") {
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].attachment.type).toBe("file");
+    if (result.attachments[0].attachment.type !== "file") {
       throw new Error("Expected file attachment");
     }
-    expect(attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.diagnostics.skipped.length).toBe(2);
 
     rmSync(outsideDir, { recursive: true, force: true });
   });
@@ -217,17 +228,18 @@ describe("compact attachments", () => {
     writeFileSync(normalFile, "normal");
     cache.recordRead(normalFile, "normal", 1001);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 20,
     });
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0].attachment.type).toBe("file");
-    if (attachments[0].attachment.type !== "file") {
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].attachment.type).toBe("file");
+    if (result.attachments[0].attachment.type !== "file") {
       throw new Error("Expected file attachment");
     }
-    expect(attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.diagnostics.skipped.length).toBe(sensitivePaths.length);
   });
 
   it("skips cwd symlinks that resolve outside the workspace", async () => {
@@ -241,12 +253,13 @@ describe("compact attachments", () => {
     const cache = new FileStateCache();
     cache.recordRead(symlinkPath, "outside secret", 1000);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toEqual([]);
+    expect(result.attachments).toEqual([]);
+    expect(result.diagnostics.skipped.length).toBeGreaterThan(0);
 
     rmSync(outsideDir, { recursive: true, force: true });
   });
@@ -262,17 +275,22 @@ describe("compact attachments", () => {
     cache.recordRead(tokenFile, '{"token":"ghp_abcdefghijklmnopqrstuvwxyz1234567890"}', 1000);
     cache.recordRead(normalFile, "normal", 1001);
 
-    const attachments = await createPostCompactFileAttachments(cache, {
+    const result = await createPostCompactFileAttachments(cache, {
       cwd: tempDir,
       maxFiles: 5,
     });
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0].attachment.type).toBe("file");
-    if (attachments[0].attachment.type !== "file") {
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments[0].attachment.type).toBe("file");
+    if (result.attachments[0].attachment.type !== "file") {
       throw new Error("Expected file attachment");
     }
-    expect(attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.attachments[0].attachment.filePath).toBe(normalFile);
+    expect(result.diagnostics.skipped).toContainEqual({
+      type: "file",
+      displayName: tokenFile,
+      reason: "contains secret",
+    });
   });
 
   it("restores invoked skills sorted by latest invocation", async () => {

@@ -7,6 +7,8 @@ import { getUserContext, prependUserContext } from "../../agent/context/user-con
 import { sections, buildCodingAgentSystemPrompt } from "../../agent/system-prompt/coding-agent.js";
 import type { SystemPromptContext } from "../../agent/system-prompt/types.js";
 import { SYSTEM_PROMPT_DYNAMIC_BOUNDARY } from "../../agent/system-prompt/types.js";
+import type { CompactAttachmentDiagnostics } from "../../session/compact/attachments.js";
+import type { CompactSummaryValidation } from "../../session/compact/prompt.js";
 
 /**
  * 带调试标记的 LLM 消息
@@ -100,6 +102,20 @@ async function buildSystemPromptSections(session: any): Promise<SystemPromptSect
   return result;
 }
 
+/** Compact 诊断信息 */
+export interface CompactDiagnostics {
+  /** summary 校验结果 */
+  summaryCheck?: CompactSummaryValidation;
+  /** attachment 生成/跳过统计 */
+  attachmentStats?: CompactAttachmentDiagnostics;
+  /** token 指标 */
+  tokenMetrics?: {
+    preCompactTokens: number;
+    postCompactTokens?: number;
+    microcompactTokensSaved: number;
+  };
+}
+
 /**
  * Debug 上下文响应结构
  */
@@ -124,6 +140,8 @@ export interface DebugContextResponse {
   systemPromptSections: SystemPromptSectionInfo[];
   /** 工具名称列表 */
   toolNames: string[];
+  /** compact 诊断信息 */
+  compactDiagnostics?: CompactDiagnostics;
   /** 数据生成时间戳 */
   timestamp: number;
 }
@@ -164,6 +182,9 @@ export async function buildDebugContext(): Promise<DebugContextResponse | null> 
 
   const systemPromptSections = await buildSystemPromptSections(session);
 
+  // 提取最新的 compact boundary metadata
+  const compactDiagnostics = extractCompactDiagnostics(messages);
+
   return {
     sessionId: session.sessionId,
     model: {
@@ -178,8 +199,31 @@ export async function buildDebugContext(): Promise<DebugContextResponse | null> 
     systemPrompt: session.getSystemPrompt(),
     systemPromptSections,
     toolNames: session.tools.map((t) => t.name),
+    compactDiagnostics,
     timestamp: Date.now(),
   };
+}
+
+/**
+ * 从消息列表中提取最新的 compact diagnostics
+ */
+function extractCompactDiagnostics(messages: AgentMessage[]): CompactDiagnostics | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === "compact_boundary" && "compactMetadata" in msg) {
+      const metadata = (msg as any).compactMetadata;
+      return {
+        summaryCheck: metadata.summaryCheck,
+        attachmentStats: metadata.attachmentStats,
+        tokenMetrics: {
+          preCompactTokens: metadata.preTokens,
+          postCompactTokens: metadata.postTokens,
+          microcompactTokensSaved: metadata.tokensSavedByMicrocompact ?? 0,
+        },
+      };
+    }
+  }
+  return undefined;
 }
 
 /**

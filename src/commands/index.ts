@@ -200,7 +200,10 @@ export async function executeCommand(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn("Local command failed", { commandName, error: message });
-      return { handled: true, skipPrompt: true, textResult: "Command failed. See logs for details." };
+      const textResult = commandName === "compact"
+        ? mapCompactErrorToUserMessage(message)
+        : "Command failed. See logs for details.";
+      return { handled: true, skipPrompt: true, textResult };
     }
   }
 
@@ -249,4 +252,14 @@ export async function executeCommand(
   }
 
   return { handled: false };
+}
+
+function mapCompactErrorToUserMessage(message: string): string {
+  if (message.includes("Compact is already in progress")) {
+    return "Compact 正在进行中，请等待完成后重试。";
+  }
+  if (message.includes("Cannot compact while a model response is streaming")) {
+    return "当前模型仍在响应，请等待结束后重试。";
+  }
+  return `Compact 失败: ${message}`;
 }

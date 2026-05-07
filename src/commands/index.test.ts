@@ -359,4 +359,64 @@ describe("commands/index integration", () => {
       instructions: "只关注代码修改",
     });
   });
+
+  it("executeCommand 应将 compact 进行中错误映射为用户可读提示", async () => {
+    const result = await executeCommand(
+      "/compact",
+      {
+        session: {
+          compact: async () => {
+            throw new Error("Compact is already in progress");
+          },
+        } as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.skipPrompt).toBe(true);
+    expect(result.textResult).toBe("Compact 正在进行中，请等待完成后重试。");
+  });
+
+  it("executeCommand 应将 streaming 中 compact 错误映射为用户可读提示", async () => {
+    const result = await executeCommand(
+      "/compact",
+      {
+        session: {
+          compact: async () => {
+            throw new Error("Cannot compact while a model response is streaming");
+          },
+        } as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.skipPrompt).toBe(true);
+    expect(result.textResult).toBe("当前模型仍在响应，请等待结束后重试。");
+  });
+
+  it("executeCommand 应将未知 compact 错误显示为通用失败提示", async () => {
+    const result = await executeCommand(
+      "/compact",
+      {
+        session: {
+          compact: async () => {
+            throw new Error("Something unexpected happened");
+          },
+        } as any,
+        appendUserMessage: () => {},
+        appendSystemMessage: () => {},
+        resetSession: () => {},
+      },
+    );
+
+    expect(result.handled).toBe(true);
+    expect(result.skipPrompt).toBe(true);
+    expect(result.textResult).toBe("Compact 失败: Something unexpected happened");
+  });
 });

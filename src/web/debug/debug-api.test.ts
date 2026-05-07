@@ -204,4 +204,76 @@ describe("Debug API buildDebugContext", () => {
     // systemPrompt 保持兼容
     expect(context!.systemPrompt).toBe("test system prompt");
   });
+
+  it("should include compactDiagnostics when compact boundary exists", async () => {
+    const mockSession = {
+      messages: [
+        { role: "user", content: "Hello", timestamp: 1000 } as AgentMessage,
+        {
+          role: "compact_boundary",
+          uuid: "boundary-1",
+          timestamp: 2000,
+          compactMetadata: {
+            trigger: "manual",
+            preTokens: 10000,
+            postTokens: 5000,
+            tokensSavedByMicrocompact: 2000,
+            summaryCheck: { ok: true, missingSections: [], sectionCount: 9 },
+            attachmentStats: {
+              generated: [{ type: "file", displayName: "test.ts" }],
+              skipped: [],
+            },
+          },
+        } as AgentMessage,
+      ],
+      convertToLlm: (msgs: AgentMessage[]) => msgs,
+      sessionId: "test-session",
+      model: { name: "test", provider: "test" },
+      isStreaming: false,
+      pendingToolCalls: new Set(),
+      tools: [],
+      getSystemPrompt: () => "",
+    };
+
+    setDebugAgentSession(mockSession as any);
+
+    const context = await buildDebugContext();
+
+    expect(context).not.toBeNull();
+    expect(context!.compactDiagnostics).toBeDefined();
+    expect(context!.compactDiagnostics!.summaryCheck).toEqual({
+      ok: true,
+      missingSections: [],
+      sectionCount: 9,
+    });
+    expect(context!.compactDiagnostics!.attachmentStats).toEqual({
+      generated: [{ type: "file", displayName: "test.ts" }],
+      skipped: [],
+    });
+    expect(context!.compactDiagnostics!.tokenMetrics).toEqual({
+      preCompactTokens: 10000,
+      postCompactTokens: 5000,
+      microcompactTokensSaved: 2000,
+    });
+  });
+
+  it("should omit compactDiagnostics when no compact boundary exists", async () => {
+    const mockSession = {
+      messages: [{ role: "user", content: "Hello", timestamp: 1000 } as AgentMessage],
+      convertToLlm: (msgs: AgentMessage[]) => msgs,
+      sessionId: "test-session",
+      model: { name: "test", provider: "test" },
+      isStreaming: false,
+      pendingToolCalls: new Set(),
+      tools: [],
+      getSystemPrompt: () => "",
+    };
+
+    setDebugAgentSession(mockSession as any);
+
+    const context = await buildDebugContext();
+
+    expect(context).not.toBeNull();
+    expect(context!.compactDiagnostics).toBeUndefined();
+  });
 });

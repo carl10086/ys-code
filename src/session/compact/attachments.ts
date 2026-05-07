@@ -45,14 +45,23 @@ export interface PostCompactFileAttachmentOptions {
 export async function createPostCompactFileAttachments(
   fileStateCache: FileStateCache,
   options: PostCompactFileAttachmentOptions,
-): Promise<AttachmentMessage[]> {
+): Promise<PostCompactAttachmentResult> {
   const maxFiles = options.maxFiles ?? 10;
   const maxBytesPerFile = options.maxBytesPerFile ?? DEFAULT_POST_COMPACT_MAX_BYTES_PER_FILE;
   const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_POST_COMPACT_MAX_TOTAL_BYTES;
   const snapshot = fileStateCache.snapshot();
   const attachments: AttachmentMessage[] = [];
+  const diagnostics: CompactAttachmentDiagnostics = { generated: [], skipped: [] };
   let totalBytes = 0;
   const realCwd = await realpath(options.cwd);
+
+  if (snapshot.length === 0) {
+    diagnostics.skipped.push({
+      type: "file",
+      reason: "no fileStateCache entries",
+    });
+    return { attachments, diagnostics };
+  }
 
   for (const entry of snapshot) {
     if (
@@ -60,37 +69,81 @@ export async function createPostCompactFileAttachments(
       entry.record.offset !== undefined ||
       entry.record.limit !== undefined
     ) {
+      diagnostics.skipped.push({
+        type: "file",
+        displayName: entry.path,
+        reason: "entry is partial view",
+      });
       continue;
     }
 
+    let realEntryPath: string;
     try {
-      const realEntryPath = await realpath(entry.path);
-      if (!isPathInside(realEntryPath, realCwd) || isSensitivePath(realEntryPath, realCwd)) {
+      realEntryPath = await realpath(entry.path);
+      if (!isPathInside(realEntryPath, realCwd)) {
+        diagnostics.skipped.push({
+          type: "file",
+          displayName: entry.path,
+          reason: "entry outside workspace",
+        });
+        continue;
+      }
+      if (isSensitivePath(realEntryPath, realCwd)) {
+        diagnostics.skipped.push({
+          type: "file",
+          displayName: entry.path,
+          reason: "sensitive path",
+        });
         continue;
       }
 
       const stats = await stat(realEntryPath);
       if (!stats.isFile()) {
+        diagnostics.skipped.push({
+          type: "file",
+          displayName: entry.path,
+          reason: "not a file",
+        });
         continue;
       }
     } catch {
+      diagnostics.skipped.push({
+        type: "file",
+        displayName: entry.path,
+        reason: "stat failed",
+      });
       continue;
     }
 
     if (containsSecret(entry.record.content)) {
+      diagnostics.skipped.push({
+        type: "file",
+        displayName: entry.path,
+        reason: "contains secret",
+      });
       continue;
     }
 
     const contentBytes = Buffer.byteLength(entry.record.content);
-    if (
-      contentBytes > maxBytesPerFile ||
-      totalBytes + contentBytes > maxTotalBytes
-    ) {
+    if (contentBytes > maxBytesPerFile) {
+      diagnostics.skipped.push({
+        type: "file",
+        displayName: entry.path,
+        reason: "exceeds max bytes per file",
+      });
+      continue;
+    }
+    if (totalBytes + contentBytes > maxTotalBytes) {
+      diagnostics.skipped.push({
+        type: "file",
+        displayName: entry.path,
+        reason: "exceeds total bytes budget",
+      });
       continue;
     }
 
     const lineCount = entry.record.content.split("\n").length;
-    const displayPath = relative(realCwd, entry.path) || ".";
+    const displayPath = relative(realCwd, realEntryPath) || ".";
     totalBytes += contentBytes;
 
     attachments.push({
@@ -113,13 +166,23 @@ export async function createPostCompactFileAttachments(
       },
       timestamp: Date.now(),
     });
+    diagnostics.generated.push({
+      type: "file",
+      displayName: displayPath,
+    });
 
     if (attachments.length >= maxFiles) {
+      if (snapshot.indexOf(entry) < snapshot.length - 1) {
+        diagnostics.skipped.push({
+          type: "file",
+          reason: "max files reached",
+        });
+      }
       break;
     }
   }
 
-  return attachments;
+  return { attachments, diagnostics };
 }
 
 function isPathInside(childPath: string, parentPath: string): boolean {
