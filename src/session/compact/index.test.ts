@@ -99,16 +99,18 @@ describe("compactConversation", () => {
     })).rejects.toThrow("network unavailable");
   });
 
-  it("rejects compact summaries missing required sections", async () => {
-    await expect(compactConversation({
+  it("continues with compact summaries missing required sections", async () => {
+    const result = await compactConversation({
       messages: [userMessage("hello")],
       summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
-    })).rejects.toThrow("missing required sections");
+    });
 
-    await expect(compactConversation({
-      messages: [userMessage("hello")],
-      summaryRunner: async () => "<summary>1. Primary Request and Intent:\nOnly one section.</summary>",
-    })).rejects.toThrow("2. Key Technical Concepts:");
+    expect((result.summaryMessage as any).content[0].text).toContain("1. Primary Request and Intent:");
+    expect((result.boundaryMessage as any).compactMetadata.summaryCheck).toEqual({
+      ok: false,
+      sectionCount: 1,
+      missingSections: expect.arrayContaining(["2. Key Technical Concepts:"]),
+    });
   });
 
   it("records summary validation metadata for valid summaries", async () => {

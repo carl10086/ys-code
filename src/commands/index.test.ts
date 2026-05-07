@@ -417,6 +417,6 @@ describe("commands/index integration", () => {
 
     expect(result.handled).toBe(true);
     expect(result.skipPrompt).toBe(true);
-    expect(result.textResult).toBe("Compact 失败，请查看日志了解详情。");
+    expect(result.textResult).toBe("Compact 失败: Something unexpected happened");
   });
 });

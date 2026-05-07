@@ -1,4 +1,5 @@
 import type { AgentMessage } from "../../agent/types.js";
+import { logger } from "../../utils/logger.js";
 import { TokenEstimator } from "../token-estimator.js";
 import {
   createPlanModeRestoreAttachments,
@@ -103,9 +104,9 @@ export async function compactConversation(
   const summaryText = formatCompactSummary(rawSummary);
   const summaryCheck = validateCompactSummary(summaryText);
   if (!summaryCheck.ok) {
-    throw new Error(
-      `Compact summary missing required sections: ${summaryCheck.missingSections.join(", ")}`,
-    );
+    logger.warn("Compact summary missing required sections, continuing anyway", {
+      missingSections: summaryCheck.missingSections,
+    });
   }
   const fileAttachmentsResult = options.fileStateCache && options.cwd
     ? await createPostCompactFileAttachments(options.fileStateCache, { cwd: options.cwd })

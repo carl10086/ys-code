@@ -261,5 +261,5 @@ function mapCompactErrorToUserMessage(message: string): string {
   if (message.includes("Cannot compact while a model response is streaming")) {
     return "当前模型仍在响应，请等待结束后重试。";
   }
-  return "Compact 失败，请查看日志了解详情。";
+  return `Compact 失败: ${message}`;
 }
