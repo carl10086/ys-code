@@ -165,8 +165,6 @@ export interface AgentOptions {
   onPayload?: SimpleStreamOptions["onPayload"];
   /** 引导模式 */
   steeringMode?: QueueMode;
-  /** 后续消息模式 */
-  followUpMode?: QueueMode;
   /** 会话 ID */
   sessionId?: string;
   /** 思考预算 */
@@ -187,7 +185,6 @@ export class Agent {
   private _state: MutableAgentState;
   private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
   private readonly steeringQueue: PendingMessageQueue;
-  private readonly followUpQueue: PendingMessageQueue;
   private readonly fileStateCache: FileStateCache;
 
   /** 将 Agent 消息转换为 LLM 消息格式 */
@@ -220,7 +217,6 @@ export class Agent {
     this.getApiKey = options.getApiKey;
     this.onPayload = options.onPayload;
     this.steeringQueue = new PendingMessageQueue(options.steeringMode ?? "one-at-a-time");
-    this.followUpQueue = new PendingMessageQueue(options.followUpMode ?? "one-at-a-time");
     this.sessionId = options.sessionId;
     this.thinkingBudgets = options.thinkingBudgets;
     this.transport = options.transport ?? "sse";
@@ -261,26 +257,10 @@ export class Agent {
     return this.steeringQueue.mode;
   }
 
-  /** 后续消息队列模式 */
-  set followUpMode(mode: QueueMode) {
-    this.followUpQueue.mode = mode;
-  }
-
-  /** @returns 后续消息队列模式 */
-  get followUpMode(): QueueMode {
-    return this.followUpQueue.mode;
-  }
-
   /** 入队引导消息，在当前 assistant turn 结束后注入 */
   steer(message: AgentMessage): void {
     logger.debug("Steer enqueued", { message });
     this.steeringQueue.enqueue(message);
-  }
-
-  /** 入队后续消息，仅在 agent 停止后运行 */
-  followUp(message: AgentMessage | AgentMessage[]): void {
-    logger.debug("FollowUp enqueued", { message });
-    this.followUpQueue.enqueue(message);
   }
 
   /** 清空引导队列 */
@@ -289,24 +269,17 @@ export class Agent {
     this.steeringQueue.clear();
   }
 
-  /** 清空后续队列 */
-  clearFollowUpQueue(): void {
-    logger.debug("FollowUp queue cleared");
-    this.followUpQueue.clear();
-  }
-
   /** 清空所有队列 */
   clearAllQueues(): void {
     logger.debug("All queues cleared");
     this.clearSteeringQueue();
-    this.clearFollowUpQueue();
   }
 
   /** 检查是否有队列消息
    * @returns 是否有待处理消息
    */
   hasQueuedMessages(): boolean {
-    return this.steeringQueue.hasItems() || this.followUpQueue.hasItems();
+    return this.steeringQueue.hasItems();
   }
 
   /**
@@ -335,7 +308,6 @@ export class Agent {
     this._state.streamingMessage = undefined;
     this._state.pendingToolCalls = new Set<string>();
     this._state.errorMessage = undefined;
-    this.clearFollowUpQueue();
     this.clearSteeringQueue();
   }
 
@@ -384,12 +356,6 @@ export class Agent {
       const queuedSteering = this.steeringQueue.drain();
       if (queuedSteering.length > 0) {
         await this.runPromptMessages(queuedSteering, { skipInitialSteeringPoll: true });
-        return;
-      }
-
-      const queuedFollowUps = this.followUpQueue.drain();
-      if (queuedFollowUps.length > 0) {
-        await this.runPromptMessages(queuedFollowUps);
         return;
       }
 
@@ -483,7 +449,6 @@ export class Agent {
         }
         return this.steeringQueue.drain();
       },
-      getFollowUpMessages: async () => this.followUpQueue.drain(),
       fileStateCache: this.fileStateCache,
     };
   }

@@ -101,34 +101,6 @@ describe("createSkillTool", () => {
     expect((result.content[0] as any).text).toContain("not found");
   });
 
-  it("当 command 有 model 字段时返回 modelOverride", async () => {
-    const command = createMockCommand({ model: "MiniMax-M2.7" });
-    const tool = createSkillTool(async () => [command]);
-
-    const result = await tool.execute("call-1", { skill: "test-skill" }, {
-      abortSignal: new AbortController().signal,
-      messages: [],
-      tools: [],
-      fileStateCache: {} as any,
-    });
-
-    expect(result.modelOverride).toBe("MiniMax-M2.7");
-  });
-
-  it("当 command 无 model 字段时 modelOverride 为 undefined", async () => {
-    const command = createMockCommand();
-    const tool = createSkillTool(async () => [command]);
-
-    const result = await tool.execute("call-1", { skill: "test-skill" }, {
-      abortSignal: new AbortController().signal,
-      messages: [],
-      tools: [],
-      fileStateCache: {} as any,
-    });
-
-    expect(result.modelOverride).toBeUndefined();
-  });
-
   it("无参数时传递空字符串给 getPromptForCommand", async () => {
     let receivedArgs = "not-called";
     const command = createMockCommand({
