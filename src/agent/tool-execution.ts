@@ -133,7 +133,7 @@ async function executePreparedToolCall(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<{ output: unknown; isError: boolean; newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[]; modelOverride?: string }> {
+): Promise<{ output: unknown; isError: boolean; newMessages?: AgentMessage[] }> {
   const updateEvents: Promise<void>[] = [];
   const context = buildToolUseContext(currentContext, config, signal);
 
@@ -157,12 +157,10 @@ async function executePreparedToolCall(
       },
     );
     await Promise.all(updateEvents);
-    // 提取 newMessages、contextModifier 和 modelOverride
+    // 提取 newMessages
     const toolResult = output as AgentToolResult<unknown>;
     const newMessages = toolResult?.newMessages;
-    const contextModifier = toolResult?.contextModifier;
-    const modelOverride = toolResult?.modelOverride;
-    return { output, isError: false, newMessages, contextModifier, modelOverride };
+    return { output, isError: false, newMessages };
   } catch (error) {
     await Promise.all(updateEvents);
     return {
@@ -174,7 +172,7 @@ async function executePreparedToolCall(
 
 async function finalizeExecutedToolCall(
   prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown },
-  executed: { output: unknown; isError: boolean; newMessages?: AgentMessage[]; modelOverride?: string },
+  executed: { output: unknown; isError: boolean; newMessages?: AgentMessage[] },
   emit: AgentEventSink,
 ): Promise<ToolResultMessage> {
   let content: (import("../core/ai/index.js").TextContent | import("../core/ai/index.js").ImageContent)[];
@@ -218,8 +216,9 @@ async function executeToolCallsSequential(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
-  const results: ToolResultMessage[] = [];
+): Promise<{ toolResults: ToolResultMessage[]; newMessages: AgentMessage[] }> {
+  const toolResults: ToolResultMessage[] = [];
+  const newMessages: AgentMessage[] = [];
 
   for (const toolCall of toolCalls) {
     logger.debug("Tool execution started (sequential)", { toolName: toolCall.name, args: toolCall.arguments });
@@ -232,25 +231,19 @@ async function executeToolCallsSequential(
 
     const preparation = await prepareToolCall(currentContext, assistantMessage, toolCall, config, signal);
     if (preparation.kind === "immediate") {
-      results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
+      toolResults.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
       const executed = await executePreparedToolCall(preparation, currentContext, config, signal, emit);
-      // 将 newMessages 加入 pendingMessages，触发下一轮循环
       if (executed.newMessages && executed.newMessages.length > 0) {
-        currentContext.pendingMessages = currentContext.pendingMessages || [];
-        currentContext.pendingMessages.push(...executed.newMessages);
-        logger.debug("Tool newMessages queued for next turn", { count: executed.newMessages.length });
-      }
-      // 传递 modelOverride
-      if (executed.modelOverride) {
-        currentContext.modelOverride = executed.modelOverride;
+        newMessages.push(...executed.newMessages);
+        logger.debug("Tool newMessages collected (sequential)", { count: executed.newMessages.length });
       }
       logger.debug("Tool execution result (sequential)", { toolName: toolCall.name, output: executed.output, isError: executed.isError });
-      results.push(await finalizeExecutedToolCall(preparation, executed, emit));
+      toolResults.push(await finalizeExecutedToolCall(preparation, executed, emit));
     }
   }
 
-  return results;
+  return { toolResults, newMessages };
 }
 
 async function executeToolCallsParallel(
@@ -260,8 +253,8 @@ async function executeToolCallsParallel(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
-  const results: ToolResultMessage[] = [];
+): Promise<{ toolResults: ToolResultMessage[]; newMessages: AgentMessage[] }> {
+  const toolResults: ToolResultMessage[] = [];
   const runnableCalls: Array<{ toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown }> = [];
 
   for (const toolCall of toolCalls) {
@@ -275,7 +268,7 @@ async function executeToolCallsParallel(
 
     const preparation = await prepareToolCall(currentContext, assistantMessage, toolCall, config, signal);
     if (preparation.kind === "immediate") {
-      results.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
+      toolResults.push(await emitToolCallOutcome(toolCall, preparation.result, preparation.isError, emit));
     } else {
       runnableCalls.push(preparation);
     }
@@ -287,26 +280,21 @@ async function executeToolCallsParallel(
   }));
 
   const executedResults = await Promise.all(runningCalls.map((r) => r.execution));
+  const newMessages: AgentMessage[] = [];
 
   for (let i = 0; i < executedResults.length; i++) {
     const executed = executedResults[i];
     const prepared = runningCalls[i].prepared;
-    // 将 newMessages 加入 pendingMessages，触发下一轮循环
     if (executed.newMessages && executed.newMessages.length > 0) {
-      currentContext.pendingMessages = currentContext.pendingMessages || [];
-      currentContext.pendingMessages.push(...executed.newMessages);
-      logger.debug("Tool newMessages queued for next turn (parallel)", { count: executed.newMessages.length });
-    }
-    // 传递 modelOverride（第一个生效，避免竞争）
-    if (executed.modelOverride && !currentContext.modelOverride) {
-      currentContext.modelOverride = executed.modelOverride;
+      newMessages.push(...executed.newMessages);
+      logger.debug("Tool newMessages collected (parallel)", { count: executed.newMessages.length });
     }
     logger.debug("Tool execution result (parallel)", { toolName: prepared.toolCall.name, output: executed.output, isError: executed.isError });
     const finalResult = await finalizeExecutedToolCall(prepared, executed, emit);
-    results.push(finalResult);
+    toolResults.push(finalResult);
   }
 
-  return results;
+  return { toolResults, newMessages };
 }
 
 export async function executeToolCalls(
@@ -315,7 +303,7 @@ export async function executeToolCalls(
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
-): Promise<ToolResultMessage[]> {
+): Promise<{ toolResults: ToolResultMessage[]; newMessages: AgentMessage[] }> {
   const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall") as import("../core/ai/index.js").ToolCall[];
   if (config.toolExecution === "sequential") {
     return executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit);
