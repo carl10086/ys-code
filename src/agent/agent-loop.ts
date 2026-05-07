@@ -1,9 +1,7 @@
 // src/agent/agent-loop.ts
-import { type AssistantMessage, type Model, type ToolResultMessage } from "../core/ai/index.js";
-import { findModelById } from "../core/ai/models.js";
+import { type ToolResultMessage } from "../core/ai/index.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
-import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
   AgentLoopConfig,
@@ -11,149 +9,107 @@ import type {
   StreamFn,
 } from "./types.js";
 
-/**
- * 执行单次 turn：注入 pendingMessages、请求 assistant 回复、执行工具调用并发射 turn_end。
- *
- * @param currentContext - 当前 agent 上下文
- * @param pendingMessages - 待注入的 steering / follow-up 消息数组（会被清空）
- * @param config - agent 循环配置
- * @param signal - 可选的取消信号
- * @param emit - 事件发射器
- * @param streamFn - 可选的流式请求函数
- * @returns assistant 消息与工具执行结果
- */
-async function runTurnOnce(
-  currentContext: AgentContext,
-  pendingMessages: AgentMessage[],
-  config: AgentLoopConfig,
-  signal: AbortSignal | undefined,
-  emit: AgentEventSink,
-  streamFn?: StreamFn,
-): Promise<{ assistantMessage: AssistantMessage; toolResults: ToolResultMessage[] }> {
-  logger.debug("runTurnOnce started");
-
-  // T6: 应用 modelOverride（由 SkillTool 等设置）
-  let originalModel: Model<any> | undefined;
-  if (currentContext.modelOverride) {
-    const resolvedModel = findModelById(currentContext.modelOverride);
-    if (resolvedModel) {
-      originalModel = config.model;
-      config.model = resolvedModel;
-      logger.info("Model overridden for tool turn", { model: resolvedModel.name });
-    } else {
-      logger.warn("Unknown model override, ignoring", { model: currentContext.modelOverride });
-    }
-    currentContext.modelOverride = undefined;
-  }
-
-  try {
-    if (pendingMessages.length > 0) {
-      for (const message of pendingMessages) {
-        logger.debug("Injecting pending message", { role: message.role });
-        await emit({ type: "message_start", message });
-        await emit({ type: "message_end", message });
-        currentContext.messages.push(message);
-      }
-      pendingMessages.length = 0;
-    }
-
-    const message = await streamAssistantResponse(currentContext, config, signal, emit, streamFn);
-
-    const toolCalls = message.content.filter((c) => c.type === "toolCall");
-    const hasMoreToolCalls = toolCalls.length > 0;
-
-    const toolResults: ToolResultMessage[] = [];
-    if (hasMoreToolCalls) {
-      toolResults.push(...(await executeToolCalls(currentContext, message, config, signal, emit)));
-
-      for (const result of toolResults) {
-        currentContext.messages.push(result);
-      }
-    }
-
-    await emit({ type: "turn_end", message, toolResults });
-
-    return { assistantMessage: message, toolResults };
-  } finally {
-    // 恢复原始模型
-    if (originalModel) {
-      config.model = originalModel;
-    }
-  }
+interface LoopState {
+  messages: AgentMessage[];
+  tools: AgentContext["tools"];
+  sentSkillNames?: AgentContext["sentSkillNames"];
+  invokedSkills?: AgentContext["invokedSkills"];
+  pendingToolNewMessages: AgentMessage[];
+  pendingSteering: AgentMessage[];
+  turnCount: number;
 }
 
-/**
- * 核心循环逻辑：反复执行 turn，直到没有更多工具调用、steering 消息或 follow-up 消息为止。
- *
- * @param currentContext - 当前 agent 上下文
- * @param config - agent 循环配置
- * @param signal - 可选的取消信号
- * @param emit - 事件发射器
- * @param streamFn - 可选的流式请求函数
- */
 async function runLoop(
-  currentContext: AgentContext,
+  initialState: LoopState,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<void> {
-  let hasPreEmittedTurnStart = true;
-  let pendingMessages: AgentMessage[] = (await config.getSteeringMessages?.()) || [];
+  let state: LoopState = initialState;
 
   while (true) {
-    let hasMoreToolCalls = true;
+    // 1. 从 state 读取当前值
+    let { messages, tools, pendingToolNewMessages, pendingSteering, turnCount } = state;
 
-    while (hasMoreToolCalls || pendingMessages.length > 0) {
-      if (!hasPreEmittedTurnStart) {
-        await emit({ type: "turn_start" });
+    // 2. 组合上一轮末尾 drain 的 steering + 工具返回的 newMessages
+    const toInject = [...pendingSteering, ...pendingToolNewMessages];
+    pendingToolNewMessages = [];
+    pendingSteering = [];
+
+    // 3. turn_start 事件（首次迭代已预先发射，跳过）
+    if (turnCount > 0) {
+      await emit({ type: "turn_start" });
+    }
+
+    // 4. 注入消息并发射事件
+    if (toInject.length > 0) {
+      for (const message of toInject) {
+        await emit({ type: "message_start", message });
+        await emit({ type: "message_end", message });
+        messages.push(message);
       }
-      hasPreEmittedTurnStart = false;
+    }
 
-      const { assistantMessage: message } = await runTurnOnce(
-        currentContext,
-        pendingMessages,
+    // 5. 请求 assistant 回复（核心工作）
+    // streamAssistantResponse 会 mutate messages 数组，将 assistant message 追加到尾部
+    const assistantMessage = await streamAssistantResponse(
+      { messages, tools, sentSkillNames: state.sentSkillNames, invokedSkills: state.invokedSkills },
+      config,
+      signal,
+      emit,
+      streamFn,
+    );
+
+    // 6. 工具执行
+    const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
+    let toolResults: ToolResultMessage[] = [];
+    if (toolCalls.length > 0) {
+      const execution = await executeToolCalls(
+        { messages, tools, sentSkillNames: state.sentSkillNames, invokedSkills: state.invokedSkills },
+        assistantMessage,
         config,
         signal,
         emit,
-        streamFn,
       );
-
-      logger.debug("Loop condition check", {
-        hasMoreToolCalls: message.content.filter((c) => c.type === "toolCall").length > 0,
-        pendingMessages: pendingMessages.length,
-        stopReason: message.stopReason,
-      });
-
-      if (message.stopReason === "error" || message.stopReason === "aborted") {
-        await emit({ type: "agent_end" });
-        return;
+      toolResults = execution.toolResults;
+      pendingToolNewMessages = execution.newMessages || [];
+      for (const result of toolResults) {
+        messages.push(result);
       }
-
-      hasMoreToolCalls = message.content.filter((c) => c.type === "toolCall").length > 0;
-      pendingMessages = (await config.getSteeringMessages?.()) || [];
     }
 
-    // 检查 context.pendingMessages（工具返回的 newMessages）
-    const contextPending = currentContext.pendingMessages || [];
-    if (contextPending.length > 0) {
-      currentContext.pendingMessages = [];
-      pendingMessages = contextPending;
-      hasPreEmittedTurnStart = false;
-      continue;
+    // 7. 发射 turn_end（必须在 error/aborted 检查之前）
+    await emit({ type: "turn_end", message: assistantMessage, toolResults });
+
+    // 8. 错误/中止检查
+    if (assistantMessage.stopReason === "error" || assistantMessage.stopReason === "aborted") {
+      await emit({ type: "agent_end" });
+      return;
     }
 
-    const followUpMessages = (await config.getFollowUpMessages?.()) || [];
-    if (followUpMessages.length > 0) {
-      pendingMessages = followUpMessages;
-      hasPreEmittedTurnStart = false;
-      continue;
+    // 9. 末尾 drain steering：本轮期间用户触发的 steering 在下一轮注入
+    const nextSteering = (await config.getSteeringMessages?.()) || [];
+
+    // 10. 结束判断：是否需要继续下一轮
+    const shouldContinue = toolCalls.length > 0
+      || pendingToolNewMessages.length > 0
+      || nextSteering.length > 0;
+
+    if (!shouldContinue) {
+      await emit({ type: "agent_end" });
+      return;
     }
 
-    break;
+    // 11. 构建下一轮 state
+    state = {
+      messages,
+      tools,
+      pendingToolNewMessages,
+      pendingSteering: nextSteering,
+      turnCount: turnCount + 1,
+    };
   }
-
-  await emit({ type: "agent_end" });
 }
 
 /**
@@ -161,13 +117,6 @@ async function runLoop(
  *
  * 先发射 agent_start、turn_start 以及所有 prompt 的 message_start/end 事件，
  * 然后进入核心循环直到结束。
- *
- * @param prompts - 用户初始 prompt 消息
- * @param context - 初始 agent 上下文
- * @param config - agent 循环配置
- * @param emit - 事件发射器
- * @param signal - 可选的取消信号
- * @param streamFn - 可选的流式请求函数
  */
 export async function runAgentLoop(
   prompts: AgentMessage[],
@@ -177,9 +126,14 @@ export async function runAgentLoop(
   signal?: AbortSignal,
   streamFn?: StreamFn,
 ): Promise<void> {
-  const currentContext: AgentContext = {
-    ...context,
+  const initialState: LoopState = {
     messages: [...context.messages, ...prompts],
+    tools: context.tools ?? [],
+    sentSkillNames: context.sentSkillNames,
+    invokedSkills: context.invokedSkills,
+    pendingToolNewMessages: [],
+    pendingSteering: [],
+    turnCount: 0,
   };
 
   await emit({ type: "agent_start" });
@@ -189,19 +143,13 @@ export async function runAgentLoop(
     await emit({ type: "message_end", message: prompt });
   }
 
-  await runLoop(currentContext, config, signal, emit, streamFn);
+  await runLoop(initialState, config, signal, emit, streamFn);
 }
 
 /**
  * 从已有上下文继续 agent 循环。
  *
  * 要求上下文中最后一条消息不能是 assistant，且消息列表不能为空。
- *
- * @param context - 当前 agent 上下文
- * @param config - agent 循环配置
- * @param emit - 事件发射器
- * @param signal - 可选的取消信号
- * @param streamFn - 可选的流式请求函数
  */
 export async function runAgentLoopContinue(
   context: AgentContext,
@@ -218,10 +166,16 @@ export async function runAgentLoopContinue(
     throw new Error("Cannot continue from message role: assistant");
   }
 
-  const currentContext: AgentContext = { ...context };
+  const initialState: LoopState = {
+    messages: [...context.messages],
+    tools: context.tools ?? [],
+    pendingToolNewMessages: [],
+    pendingSteering: [],
+    turnCount: 0,
+  };
 
   await emit({ type: "agent_start" });
   await emit({ type: "turn_start" });
 
-  await runLoop(currentContext, config, signal, emit, streamFn);
+  await runLoop(initialState, config, signal, emit, streamFn);
 }
