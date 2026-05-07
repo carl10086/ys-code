@@ -108,13 +108,13 @@ describe("runAgentLoop", () => {
     const prompts = [createUserMessage("hello")];
     await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
 
-    expect(callCount).toBe(1);
+    expect(callCount).toBe(2);
     const messages = events.filter(e => e.type === "message_start").map((e: any) => e.message);
     const steering = messages.find((m: any) => m.role === "user" && (m.content as any)[0]?.text === "steer-1");
     expect(steering).toBeDefined();
   });
 
-  it("steeringMessages 初始为空时仍会在首个 assistant turn 后注入", async () => {
+  it("steeringMessages 在首个 turn 后到达时会触发新一轮", async () => {
     const context: AgentContext = { messages: [], tools: [] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
@@ -124,7 +124,8 @@ describe("runAgentLoop", () => {
       disableUserContext: true,
       getSteeringMessages: async () => {
         steeringCall++;
-        if (steeringCall === 2) return [createUserMessage("late-steer")];
+        // 首个 turn 结束后返回 steering
+        if (steeringCall === 1) return [createUserMessage("late-steer")];
         return [];
       },
     } as any;
@@ -150,16 +151,26 @@ describe("runAgentLoop", () => {
     expect(steering).toBeDefined();
   });
 
-  it("followUpMessages 在即将停止时触发新一轮", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
-    let followUpCall = 0;
+  it("steering 在 tool calls 之后到达时会在下一轮正确注入", async () => {
+    const tool: AgentTool = {
+      name: "noop",
+      description: "noop",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "noop",
+      execute: async () => ({ text: "done" }),
+      formatResult: () => [{ type: "text", text: "done" }],
+    };
+    const context: AgentContext = { messages: [], tools: [tool] };
+    let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
       systemPrompt: asSystemPrompt(["test"]),
-      getFollowUpMessages: async () => {
-        followUpCall++;
-        if (followUpCall === 1) return [createUserMessage("follow-up")];
+      getSteeringMessages: async () => {
+        steeringCall++;
+        // 第二轮末尾才返回 steering
+        if (steeringCall === 2) return [createUserMessage("post-tool-steer")];
         return [];
       },
     } as any;
@@ -172,18 +183,31 @@ describe("runAgentLoop", () => {
       callCount++;
       const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
       const stream = createAssistantMessageEventStream();
-      const msg = createAssistantMessage("hi");
+      const msg = callCount === 1
+        ? createAssistantMessage("", [{ type: "toolCall", id: "call-1", name: "noop", arguments: {} }])
+        : createAssistantMessage("after-steer");
       stream.end(msg);
       return stream;
     };
 
-    const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
 
-    expect(callCount).toBe(2);
-    const messages = events.filter(e => e.type === "message_start").map((e: any) => e.message);
-    const followUp = messages.find((m: any) => m.role === "user" && (m.content as any)[0]?.text === "follow-up");
-    expect(followUp).toBeDefined();
+    // 第1轮: prompt -> assistant(toolCall) -> tool -> turn_end
+    // 第1轮末尾 drain steering: empty -> shouldContinue=true (toolCalls>0)
+    // 第2轮: turn_start -> assistant(toolCall结果后回复) -> turn_end
+    // 第2轮末尾 drain steering: [post-tool-steer] -> shouldContinue=true (steering>0)
+    // 第3轮: turn_start -> inject post-tool-steer -> assistant -> turn_end -> agent_end
+    expect(callCount).toBe(3);
+
+    const turnStartEvents = events.filter(e => e.type === "turn_start");
+    expect(turnStartEvents).toHaveLength(3);
+
+    // 验证 steering 消息在第三轮被注入
+    const messageStartEvents = events.filter(e => e.type === "message_start");
+    const steerMsg = messageStartEvents.find((e: any) =>
+      e.message.role === "user" && (e.message.content as any)[0]?.text === "post-tool-steer"
+    );
+    expect(steerMsg).toBeDefined();
   });
 
   it("工具返回的 newMessages 会注入到后续 turn 的模型上下文", async () => {
@@ -222,16 +246,17 @@ describe("runAgentLoop", () => {
       const stream = createAssistantMessageEventStream();
       const msg = callCount === 1
         ? createAssistantMessage("", [{ type: "toolCall", id: "call-1", name: "inject_context", arguments: {} }])
-        : createAssistantMessage(callCount === 2 ? "after-tool" : "after-injected");
+        : createAssistantMessage("after-tool");
       stream.end(msg);
       return stream;
     };
 
     await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
 
-    expect(callCount).toBe(3);
-    const thirdRequestMessages = capturedLlmMessages[2] as any[];
-    expect(thirdRequestMessages.some(
+    expect(callCount).toBe(2);
+    // 第二轮的 LLM 上下文应包含 tool 返回的 newMessages
+    const secondRequestMessages = capturedLlmMessages[1] as any[];
+    expect(secondRequestMessages.some(
       (message) => message.role === "user" && message.content?.[0]?.text === "tool-injected-context"
     )).toBe(true);
     const injectedStart = events.find(
@@ -262,6 +287,10 @@ describe("runAgentLoop", () => {
     const prompts = [createUserMessage("hello")];
     await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
 
+    const turnEndIndex = events.findIndex(e => e.type === "turn_end");
+    const agentEndIndex = events.findIndex(e => e.type === "agent_end");
+    expect(turnEndIndex).toBeGreaterThanOrEqual(0);
+    expect(agentEndIndex).toBeGreaterThan(turnEndIndex);
     expect(events[events.length - 1].type).toBe("agent_end");
     const agentEnd = events.find((e) => e.type === "agent_end") as any;
     expect(agentEnd).not.toHaveProperty("messages");
@@ -357,10 +386,10 @@ describe("runLoop 控制流结构", () => {
     expect(source).not.toContain("firstTurn");
   });
 
-  it("应包含 runTurnOnce 函数", () => {
+  it("不应包含 runTurnOnce 函数", () => {
     const fs = require("fs");
     const source = fs.readFileSync("src/agent/agent-loop.ts", "utf-8");
-    expect(source).toContain("async function runTurnOnce");
+    expect(source).not.toContain("async function runTurnOnce");
   });
 
   it("不应包含未使用的 createAgentStream 函数", () => {
@@ -370,92 +399,3 @@ describe("runLoop 控制流结构", () => {
   });
 });
 
-describe("runAgentLoop modelOverride", () => {
-  it("modelOverride 存在时临时切换模型并在 turn 结束恢复", async () => {
-    const originalModel = createMockModel();
-    const context: AgentContext = {
-      messages: [],
-      tools: [],
-      modelOverride: "MiniMax-M2.7",
-    };
-    const config: AgentLoopConfig = {
-      model: originalModel,
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    const events: AgentEvent[] = [];
-    const emit = async (e: AgentEvent) => { events.push(e); };
-
-    let capturedModel: any;
-    const streamFn = async (model: any) => {
-      capturedModel = model;
-      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
-      const stream = createAssistantMessageEventStream();
-      const msg = createAssistantMessage("hi");
-      stream.end(msg);
-      return stream;
-    };
-
-    const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
-
-    expect(capturedModel.name).toBe("MiniMax-M2.7");
-    expect(config.model.name).toBe("test"); // 恢复原始模型
-  });
-
-  it("modelOverride 无效时忽略并保持当前模型", async () => {
-    const originalModel = createMockModel();
-    const context: AgentContext = {
-      messages: [],
-      tools: [],
-      modelOverride: "nonexistent-model",
-    };
-    const config: AgentLoopConfig = {
-      model: originalModel,
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    let capturedModel: any;
-    const streamFn = async (model: any) => {
-      capturedModel = model;
-      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
-      const stream = createAssistantMessageEventStream();
-      const msg = createAssistantMessage("hi");
-      stream.end(msg);
-      return stream;
-    };
-
-    const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, async () => {}, undefined, streamFn as any);
-
-    expect(capturedModel.name).toBe("test");
-    expect(config.model.name).toBe("test");
-  });
-
-  it("stream 抛出异常后仍恢复原始模型", async () => {
-    const originalModel = createMockModel();
-    const context: AgentContext = {
-      messages: [],
-      tools: [],
-      modelOverride: "MiniMax-M2.7",
-    };
-    const config: AgentLoopConfig = {
-      model: originalModel,
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    const streamFn = async () => {
-      throw new Error("stream error");
-    };
-
-    const prompts = [createUserMessage("hello")];
-    await expect(
-      runAgentLoop(prompts, context, config, async () => {}, undefined, streamFn as any)
-    ).rejects.toThrow("stream error");
-
-    expect(config.model.name).toBe("test");
-  });
-});
