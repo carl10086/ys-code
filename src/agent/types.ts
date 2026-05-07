@@ -68,14 +68,6 @@ export interface AgentToolResult<T> {
   renderData?: ToolRenderResult;
   /** 注入到消息列表的新消息（UI 隐藏，LLM 可见） */
   newMessages?: AgentMessage[];
-  /** 上下文修改器 */
-  contextModifier?: (messages: AgentMessage[]) => AgentMessage[];
-  /**
-   * 命令级模型覆盖。
-   * - 顺序执行时：最后一个有 override 的工具生效（覆盖式）
-   * - 并行执行时：第一个（按请求顺序）有 override 的工具生效，避免竞争
-   */
-  modelOverride?: string;
 }
 
 /** 工具执行上下文 */
@@ -188,10 +180,6 @@ export interface AgentContext {
   sentSkillNames?: Set<string>;
   /** 已调用的 skill 内容记录，用于 compact 后恢复 */
   invokedSkills?: Map<string, InvokedSkillRecord>;
-  /** 工具返回的新消息，供循环使用（UI 隐藏，LLM 可见） */
-  pendingMessages?: AgentMessage[];
-  /** 命令级模型覆盖（由 SkillTool 等设置） */
-  modelOverride?: string;
 }
 
 /** 已调用 skill 的恢复记录 */
@@ -239,7 +227,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;   // 将 Agent 消息转换为 LLM 消息格式
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;   // 可选的自定义 API Key 获取函数
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
-  getFollowUpMessages?: () => Promise<AgentMessage[]>;   // 可选的后续消息获取函数
   toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
   /** 禁用自动 userContext prepend */
   disableUserContext?: boolean;
