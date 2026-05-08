@@ -377,6 +377,53 @@ describe("executeToolCalls", () => {
     expect((context as any).modelOverride).toBeUndefined();
   });
 
+  it("并行执行时多个工具返回 newMessages 顺序保持", async () => {
+    const toolFast: AgentTool = {
+      name: "fast",
+      description: "fast",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => {
+        await new Promise(r => setTimeout(r, 5));
+        return {
+          newMessages: [{ role: "user", content: "msg-fast", timestamp: 1 }],
+        };
+      },
+      formatResult: () => [{ type: "text", text: "fast" }],
+    };
+    const toolSlow: AgentTool = {
+      name: "slow",
+      description: "slow",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "test",
+      execute: async () => {
+        await new Promise(r => setTimeout(r, 30));
+        return {
+          newMessages: [{ role: "user", content: "msg-slow", timestamp: 2 }],
+        };
+      },
+      formatResult: () => [{ type: "text", text: "slow" }],
+    };
+
+    const context = createMockContext([toolFast, toolSlow]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-1", name: "fast", arguments: {} },
+      { type: "toolCall", id: "call-2", name: "slow", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = { toolExecution: "parallel" } as any;
+    const emit = async () => {};
+
+    const { toolResults, newMessages } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(toolResults).toHaveLength(2);
+    expect(newMessages).toHaveLength(2);
+    // 顺序应与 toolCalls 请求顺序一致
+    expect((newMessages[0] as any).content).toBe("msg-fast");
+    expect((newMessages[1] as any).content).toBe("msg-slow");
+  });
+
   it("多个工具返回 newMessages 时顺序保持", async () => {
     const toolA: AgentTool = {
       name: "toolA",

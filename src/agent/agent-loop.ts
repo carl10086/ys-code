@@ -2,6 +2,7 @@
 import { type ToolResultMessage } from "../core/ai/index.js";
 import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant.js";
 import { executeToolCalls } from "./tool-execution.js";
+import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
   AgentLoopConfig,
@@ -17,6 +18,36 @@ interface LoopState {
   pendingToolNewMessages: AgentMessage[];
   pendingSteering: AgentMessage[];
   turnCount: number;
+}
+
+function isValidNewMessage(message: unknown): message is AgentMessage {
+  if (typeof message !== "object" || message === null) {
+    return false;
+  }
+  const m = message as Record<string, unknown>;
+  // 只允许 user 角色的消息被注入，禁止 system/assistant/tool 伪装
+  if (m.role !== "user") {
+    return false;
+  }
+  if (!Array.isArray(m.content)) {
+    return false;
+  }
+  if (typeof m.timestamp !== "number") {
+    return false;
+  }
+  return true;
+}
+
+function validateNewMessages(messages: unknown[]): AgentMessage[] {
+  const valid: AgentMessage[] = [];
+  for (const message of messages) {
+    if (isValidNewMessage(message)) {
+      valid.push(message);
+    } else {
+      logger.warn("Invalid newMessages entry rejected", { message });
+    }
+  }
+  return valid;
 }
 
 async function runLoop(
@@ -73,7 +104,7 @@ async function runLoop(
         emit,
       );
       toolResults = execution.toolResults;
-      pendingToolNewMessages = execution.newMessages || [];
+      pendingToolNewMessages = validateNewMessages(execution.newMessages || []);
       for (const result of toolResults) {
         messages.push(result);
       }
@@ -169,6 +200,8 @@ export async function runAgentLoopContinue(
   const initialState: LoopState = {
     messages: [...context.messages],
     tools: context.tools ?? [],
+    sentSkillNames: context.sentSkillNames,
+    invokedSkills: context.invokedSkills,
     pendingToolNewMessages: [],
     pendingSteering: [],
     turnCount: 0,

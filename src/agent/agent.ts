@@ -331,7 +331,7 @@ export class Agent {
   async prompt(input: string | AgentMessage | AgentMessage[], images?: ImageContent[]): Promise<void> {
     if (this.activeRun) {
       throw new Error(
-        "Agent is already processing a prompt. Use steer() or followUp() to queue messages, or wait for completion.",
+        "Agent is already processing a prompt. Use steer() to queue messages, or wait for completion.",
       );
     }
     const messages = this.normalizePromptInput(input, images);

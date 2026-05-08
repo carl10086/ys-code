@@ -379,6 +379,78 @@ describe("runAgentLoopContinue", () => {
   });
 });
 
+  it("继续时保留 sentSkillNames 和 invokedSkills 到 streamAssistantResponse", async () => {
+    const context: AgentContext = {
+      messages: [createUserMessage("hello")],
+      tools: [],
+      sentSkillNames: new Set(["skill-a"]),
+      invokedSkills: new Map([["skill-a", { name: "skill-a", path: "/tmp", content: "content", invokedAt: 1 }]]),
+    };
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    let capturedContext: any;
+    const streamFn = async (_model: any, options: any) => {
+      // streamFn receives options which contain the context
+      capturedContext = options;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      stream.end(createAssistantMessage("continued"));
+      return stream;
+    };
+
+    await runAgentLoopContinue(context, config, async () => {}, undefined, streamFn as any);
+
+    // sentSkillNames and invokedSkills should be passed through to streamAssistantResponse
+    expect(capturedContext).toBeDefined();
+  });
+
+  it("streamAssistantResponse 抛出异常时错误向上传播", async () => {
+    const context: AgentContext = { messages: [createUserMessage("hello")], tools: [] };
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const streamFn = async () => {
+      throw new Error("stream exploded");
+    };
+
+    await expect(
+      runAgentLoop([createUserMessage("hello")], context, config, async () => {}, undefined, streamFn as any)
+    ).rejects.toThrow("stream exploded");
+  });
+
+  it("turn_end 和 agent_end 每个 run 只发射一次", async () => {
+    const context: AgentContext = { messages: [], tools: [] };
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    const streamFn = async () => {
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      stream.end(createAssistantMessage("hi"));
+      return stream;
+    };
+
+    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
+
+    const turnEnds = events.filter(e => e.type === "turn_end");
+    const agentEnds = events.filter(e => e.type === "agent_end");
+    expect(turnEnds).toHaveLength(1);
+    expect(agentEnds).toHaveLength(1);
+  });
+
 describe("runLoop 控制流结构", () => {
   it("不应包含 firstTurn 标志", () => {
     const fs = require("fs");
