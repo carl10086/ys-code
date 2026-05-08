@@ -74,12 +74,10 @@ async function runLoop(
     }
 
     // 4. 注入消息并发射事件
-    if (toInject.length > 0) {
-      for (const message of toInject) {
-        await emit({ type: "message_start", message });
-        await emit({ type: "message_end", message });
-        messages.push(message);
-      }
+    for (const message of toInject) {
+      await emit({ type: "message_start", message });
+      await emit({ type: "message_end", message });
+      messages.push(message);
     }
 
     // 5. 请求 assistant 回复（核心工作）
@@ -120,7 +118,7 @@ async function runLoop(
     }
 
     // 9. 末尾 drain steering：本轮期间用户触发的 steering 在下一轮注入
-    const nextSteering = (await config.getSteeringMessages?.()) || [];
+    const nextSteering = await config.getSteeringMessages?.() || [];
 
     // 10. 结束判断：是否需要继续下一轮
     const shouldContinue = toolCalls.length > 0

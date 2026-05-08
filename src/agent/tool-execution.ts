@@ -4,7 +4,6 @@ import type { AgentEventSink } from "./stream-assistant.js";
 import { logger } from "../utils/logger.js";
 import type {
   AgentContext,
-  AgentEvent,
   AgentLoopConfig,
   AgentMessage,
   AgentTool,
