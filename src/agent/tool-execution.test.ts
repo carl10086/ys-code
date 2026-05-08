@@ -55,11 +55,11 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(order).toEqual(["call-1", "call-2"]);
-    expect(results[0].content).toEqual([{ type: "text", text: "a" }]);
-    expect(results[1].content).toEqual([{ type: "text", text: "b" }]);
+    expect(toolResults[0].content).toEqual([{ type: "text", text: "a" }]);
+    expect(toolResults[1].content).toEqual([{ type: "text", text: "b" }]);
   });
 
   it("并行执行：并发调用但结果保持请求顺序", async () => {
@@ -87,7 +87,7 @@ describe("executeToolCalls", () => {
     const emit = async (e: AgentEvent) => { events.push(e); };
 
     const start = Date.now();
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(80);
@@ -104,7 +104,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(results[0].isError).toBe(true);
     expect(results[0].content[0].type).toBe("text");
@@ -131,7 +131,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(executeMock).not.toHaveBeenCalled();
     expect(results[0].isError).toBe(true);
@@ -158,7 +158,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(executeMock).not.toHaveBeenCalled();
     expect(results[0].isError).toBe(true);
@@ -184,7 +184,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(results[0].content).toEqual([{ type: "text", text: "formatted" }]);
     expect(results[0].details).toEqual({ raw: "orig" });
@@ -282,7 +282,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(results[0].isError).toBe(true);
     expect((results[0].content[0] as any).text).toContain("Validation failed for tool \"Grep\"");
@@ -306,7 +306,7 @@ describe("executeToolCalls", () => {
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
 
-    const results = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults: results } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
     expect(results[0].isError).toBe(true);
     expect((results[0].content[0] as any).text).toBe("boom");
@@ -346,7 +346,7 @@ describe("executeToolCalls", () => {
     ]);
   });
 
-  it("工具返回 newMessages 时加入 currentContext.pendingMessages", async () => {
+  it("返回 newMessages 且不修改 context", async () => {
     const tool: AgentTool = {
       name: "meta",
       description: "meta",
@@ -367,72 +367,17 @@ describe("executeToolCalls", () => {
     const config: AgentLoopConfig = {} as any;
     const emit = async () => {};
 
-    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults, newMessages } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
-    expect(context.pendingMessages).toHaveLength(1);
-    expect((context.pendingMessages![0] as any).content).toBe("meta-msg");
+    expect(toolResults).toHaveLength(1);
+    expect(newMessages).toHaveLength(1);
+    expect((newMessages[0] as any).content).toBe("meta-msg");
+    // context 不应被修改（无副作用）
+    expect((context as any).pendingMessages).toBeUndefined();
+    expect((context as any).modelOverride).toBeUndefined();
   });
 
-  it("工具返回 modelOverride 时写入 currentContext.modelOverride", async () => {
-    const tool: AgentTool = {
-      name: "model",
-      description: "model",
-      parameters: Type.Object({}),
-      outputSchema: Type.Object({}),
-      label: "test",
-      execute: async () => ({
-        text: "done",
-        modelOverride: "MiniMax-M2.7",
-      }),
-      formatResult: () => [{ type: "text", text: "done" }],
-    };
-
-    const context = createMockContext([tool]);
-    const assistantMessage = createMockAssistantMessage([
-      { type: "toolCall", id: "call-1", name: "model", arguments: {} },
-    ]);
-    const config: AgentLoopConfig = {} as any;
-    const emit = async () => {};
-
-    await executeToolCalls(context, assistantMessage, config, undefined, emit);
-
-    expect(context.modelOverride).toBe("MiniMax-M2.7");
-  });
-
-  it("多个工具返回 modelOverride 时后者覆盖前者", async () => {
-    const toolA: AgentTool = {
-      name: "toolA",
-      description: "toolA",
-      parameters: Type.Object({}),
-      outputSchema: Type.Object({}),
-      label: "test",
-      execute: async () => ({ modelOverride: "model-A" }),
-      formatResult: () => [{ type: "text", text: "a" }],
-    };
-    const toolB: AgentTool = {
-      name: "toolB",
-      description: "toolB",
-      parameters: Type.Object({}),
-      outputSchema: Type.Object({}),
-      label: "test",
-      execute: async () => ({ modelOverride: "model-B" }),
-      formatResult: () => [{ type: "text", text: "b" }],
-    };
-
-    const context = createMockContext([toolA, toolB]);
-    const assistantMessage = createMockAssistantMessage([
-      { type: "toolCall", id: "call-1", name: "toolA", arguments: {} },
-      { type: "toolCall", id: "call-2", name: "toolB", arguments: {} },
-    ]);
-    const config: AgentLoopConfig = { toolExecution: "sequential" } as any;
-    const emit = async () => {};
-
-    await executeToolCalls(context, assistantMessage, config, undefined, emit);
-
-    expect(context.modelOverride).toBe("model-B");
-  });
-
-  it("并行执行时 modelOverride 由第一个有 override 的工具决定", async () => {
+  it("并行执行时多个工具返回 newMessages 顺序保持", async () => {
     const toolFast: AgentTool = {
       name: "fast",
       description: "fast",
@@ -441,7 +386,9 @@ describe("executeToolCalls", () => {
       label: "test",
       execute: async () => {
         await new Promise(r => setTimeout(r, 5));
-        return { modelOverride: "model-fast" };
+        return {
+          newMessages: [{ role: "user", content: "msg-fast", timestamp: 1 }],
+        };
       },
       formatResult: () => [{ type: "text", text: "fast" }],
     };
@@ -453,7 +400,9 @@ describe("executeToolCalls", () => {
       label: "test",
       execute: async () => {
         await new Promise(r => setTimeout(r, 30));
-        return { modelOverride: "model-slow" };
+        return {
+          newMessages: [{ role: "user", content: "msg-slow", timestamp: 2 }],
+        };
       },
       formatResult: () => [{ type: "text", text: "slow" }],
     };
@@ -466,13 +415,16 @@ describe("executeToolCalls", () => {
     const config: AgentLoopConfig = { toolExecution: "parallel" } as any;
     const emit = async () => {};
 
-    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { toolResults, newMessages } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
-    // 第一个有 modelOverride 的工具（按请求顺序）生效，避免竞争
-    expect(context.modelOverride).toBe("model-fast");
+    expect(toolResults).toHaveLength(2);
+    expect(newMessages).toHaveLength(2);
+    // 顺序应与 toolCalls 请求顺序一致
+    expect((newMessages[0] as any).content).toBe("msg-fast");
+    expect((newMessages[1] as any).content).toBe("msg-slow");
   });
 
-  it("并行执行时混合 newMessages 和 modelOverride 都正确处理", async () => {
+  it("多个工具返回 newMessages 时顺序保持", async () => {
     const toolA: AgentTool = {
       name: "toolA",
       description: "toolA",
@@ -480,7 +432,6 @@ describe("executeToolCalls", () => {
       outputSchema: Type.Object({}),
       label: "test",
       execute: async () => ({
-        modelOverride: "model-A",
         newMessages: [{ role: "user", content: "msg-A", timestamp: 1 }],
       }),
       formatResult: () => [{ type: "text", text: "a" }],
@@ -492,7 +443,6 @@ describe("executeToolCalls", () => {
       outputSchema: Type.Object({}),
       label: "test",
       execute: async () => ({
-        modelOverride: "model-B",
         newMessages: [{ role: "user", content: "msg-B", timestamp: 2 }],
       }),
       formatResult: () => [{ type: "text", text: "b" }],
@@ -503,16 +453,13 @@ describe("executeToolCalls", () => {
       { type: "toolCall", id: "call-1", name: "toolA", arguments: {} },
       { type: "toolCall", id: "call-2", name: "toolB", arguments: {} },
     ]);
-    const config: AgentLoopConfig = { toolExecution: "parallel" } as any;
+    const config: AgentLoopConfig = { toolExecution: "sequential" } as any;
     const emit = async () => {};
 
-    await executeToolCalls(context, assistantMessage, config, undefined, emit);
+    const { newMessages } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
 
-    // newMessages 应该都被加入 pendingMessages
-    expect(context.pendingMessages).toHaveLength(2);
-    expect((context.pendingMessages![0] as any).content).toBe("msg-A");
-    expect((context.pendingMessages![1] as any).content).toBe("msg-B");
-    // modelOverride 第一个生效（按请求顺序）
-    expect(context.modelOverride).toBe("model-A");
+    expect(newMessages).toHaveLength(2);
+    expect((newMessages[0] as any).content).toBe("msg-A");
+    expect((newMessages[1] as any).content).toBe("msg-B");
   });
 });

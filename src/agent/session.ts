@@ -407,20 +407,6 @@ export class AgentSession {
     }
   }
 
-  /** 注入后续消息（消息数组） */
-  followUp(messages: AgentMessage[]): void;
-  /** 注入后续消息 */
-  followUp(text: string): void;
-  followUp(textOrMessages: string | AgentMessage[]): void {
-    if (typeof textOrMessages === "string") {
-      logger.debug("FollowUp message enqueued", { text: textOrMessages });
-      this.agent.followUp({ role: "user", content: [{ type: "text", text: textOrMessages }], timestamp: Date.now() });
-    } else {
-      logger.debug("FollowUp messages enqueued", { count: textOrMessages.length });
-      this.agent.followUp(textOrMessages);
-    }
-  }
-
   /** 重置会话 */
   reset(): void {
     logger.info("Session reset");

@@ -20,8 +20,6 @@ const SkillOutputSchema = Type.Object({
     invokedAt: Type.Optional(Type.Number()),
   }),
   newMessages: Type.Optional(Type.Array(Type.Any())),
-  contextModifier: Type.Optional(Type.Any()),
-  modelOverride: Type.Optional(Type.String()),
 });
 
 type SkillOutput = Static<typeof SkillOutputSchema>;
@@ -59,21 +57,15 @@ Call this tool with the exact skill name from the listing.`,
       return { ok: true };
     },
 
-    async execute(_toolCallId, params, _context): Promise<SkillOutput & { newMessages?: AgentMessage[]; contextModifier?: (messages: AgentMessage[]) => AgentMessage[] }> {
+    async execute(_toolCallId, params, _context): Promise<SkillOutput & { newMessages?: AgentMessage[] }> {
       const commands = await getCommands();
       const command = commands.find(cmd => cmd.name === params.skill && cmd.type === 'prompt') as PromptCommand | undefined;
-
-      // contextModifier 占位实现（后续可限制 allowedTools）
-      const modifier = (messages: AgentMessage[]): AgentMessage[] => {
-        return messages;
-      };
 
       // 防御性检查：validateInput 已通过，但框架不保证一定调用
       if (!command) {
         return {
           content: [{ type: "text", text: `Skill "${params.skill}" not found` }],
           details: { success: false, skillName: params.skill },
-          contextModifier: modifier,
         };
       }
 
@@ -106,8 +98,6 @@ Call this tool with the exact skill name from the listing.`,
           invokedAt,
         },
         newMessages: [metaUserMessage as AgentMessage],
-        contextModifier: modifier,
-        modelOverride: command.model,
       };
     },
 
