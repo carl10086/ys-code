@@ -250,6 +250,7 @@ export class AgentSession {
           role: "user" as const,
           content: [{ type: "text" as const, text: options.commandText }],
           timestamp: Date.now(),
+          uuid: crypto.randomUUID(),
         }
       : undefined;
 
@@ -277,6 +278,7 @@ export class AgentSession {
               text: `<local-command-stdout>${result.displayText}</local-command-stdout>`,
             }],
             timestamp: Date.now(),
+            uuid: crypto.randomUUID(),
           }
         : undefined;
 
@@ -303,6 +305,10 @@ export class AgentSession {
     }
   }
 
+  /**
+   * 检查 compact 期间消息列表是否未发生变化。
+   * 注意：此处检查的是引用相等性（append-only 语义下消息不会被修改，只会被追加）。
+   */
   private messagesUnchangedSinceCompactStarted(
     messagesAtStart: AgentMessage[],
     messageSnapshot: AgentMessage[],

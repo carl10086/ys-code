@@ -15,11 +15,11 @@ import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
 import { logger } from "../utils/logger.js";
 import { FileStateCache } from "./file-state.js";
 import type {
-  AgentContext,
+  AgentInput,
   AgentEvent,
   AgentLoopConfig,
   AgentMessage,
-  AgentState,
+  AgentView,
   AgentTool,
   StreamFn,
   ToolExecutionMode,
@@ -57,16 +57,16 @@ const DEFAULT_MODEL = {
 type QueueMode = "all" | "one-at-a-time";
 
 /** 可变 Agent 状态 */
-type MutableAgentState = Omit<AgentState, "systemPrompt" | "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
+type MutableAgentView = Omit<AgentView, "systemPrompt" | "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
   isStreaming: boolean;
   streamingMessage?: AgentMessage;
   pendingToolCalls: Set<string>;
   errorMessage?: string;
 };
 
-function createMutableAgentState(
-  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>,
-): MutableAgentState {
+function createMutableAgentView(
+  initialState?: Partial<Omit<AgentView, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>,
+): MutableAgentView {
   let tools = initialState?.tools?.slice() ?? [];
   let messages = initialState?.messages?.slice() ?? [];
 
@@ -152,9 +152,9 @@ type ActiveRun = {
 /** Agent 构造选项 */
 export interface AgentOptions {
   /** 初始状态 */
-  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
+  initialState?: Partial<Omit<AgentView, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
   /** 系统提示词构建函数 */
-  systemPrompt?: (context: AgentContext) => Promise<SystemPrompt>;
+  systemPrompt?: (context: AgentInput) => Promise<SystemPrompt>;
   /** 将 Agent 消息转换为 LLM 消息格式 */
   convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
   /** 流函数 */
@@ -182,7 +182,7 @@ export interface AgentOptions {
  * 状态化 Agent，封装底层 agent loop
  */
 export class Agent {
-  private _state: MutableAgentState;
+  private _state: MutableAgentView;
   private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
   private readonly steeringQueue: PendingMessageQueue;
   private readonly fileStateCache: FileStateCache;
@@ -194,7 +194,7 @@ export class Agent {
   /** 自定义 API Key 获取函数 */
   public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
   /** 系统提示词构建函数 */
-  public systemPrompt: (context: AgentContext) => Promise<SystemPrompt>;
+  public systemPrompt: (context: AgentInput) => Promise<SystemPrompt>;
   /** 载荷回调函数 */
   public onPayload?: SimpleStreamOptions["onPayload"];
   private activeRun?: ActiveRun;
@@ -210,7 +210,7 @@ export class Agent {
   public toolExecution: ToolExecutionMode;
 
   constructor(options: AgentOptions = {}) {
-    this._state = createMutableAgentState(options.initialState);
+    this._state = createMutableAgentView(options.initialState);
     this.systemPrompt = options.systemPrompt ?? (async () => asSystemPrompt([""]));
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
     this.streamFn = options.streamFn ?? streamSimple;
@@ -238,7 +238,7 @@ export class Agent {
   /**
    * 当前 agent 状态
    */
-  get state(): AgentState {
+  get state(): AgentView {
     return this._state;
   }
 
@@ -392,8 +392,9 @@ export class Agent {
   ): Promise<void> {
     await this.runWithLifecycle(async (signal) => {
       await runAgentLoop(
+        this._state.messages,
         messages,
-        this.createContextSnapshot(),
+        this.createInputSnapshot(),
         await this.createLoopConfig(options),
         (event) => this.processEvents(event),
         signal,
@@ -406,7 +407,8 @@ export class Agent {
   private async runContinuation(): Promise<void> {
     await this.runWithLifecycle(async (signal) => {
       await runAgentLoopContinue(
-        this.createContextSnapshot(),
+        this._state.messages,
+        this.createInputSnapshot(),
         await this.createLoopConfig(),
         (event) => this.processEvents(event),
         signal,
@@ -415,10 +417,9 @@ export class Agent {
     });
   }
 
-  /** 创建上下文快照 */
-  private createContextSnapshot(): AgentContext {
+  /** 创建输入快照（纯配置，不含运行时消息状态） */
+  private createInputSnapshot(): AgentInput {
     return {
-      messages: this._state.messages.slice(),
       tools: this._state.tools.slice(),
       sentSkillNames: this._state.sentSkillNames,
       invokedSkills: this._state.invokedSkills,
@@ -428,7 +429,7 @@ export class Agent {
   /** 创建循环配置 */
   private async createLoopConfig(options: { skipInitialSteeringPoll?: boolean } = {}): Promise<AgentLoopConfig> {
     let skipInitialSteeringPoll = options.skipInitialSteeringPoll === true;
-    const resolvedSystemPrompt = await this.systemPrompt(this.createContextSnapshot());
+    const resolvedSystemPrompt = await this.systemPrompt(this.createInputSnapshot());
 
     return {
       model: this._state.model,
