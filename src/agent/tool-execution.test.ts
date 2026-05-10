@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
 import { executeToolCalls } from "./tool-execution.js";
-import type { AgentInput, AgentEvent, AgentLoopConfig, AgentTool } from "./types.js";
+import type { AgentRuntime, AgentEvent, AgentLoopConfig, AgentTool } from "./types.js";
 import type { AssistantMessage } from "../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
 import { createGrepTool } from "./tools/grep.js";
@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
-function createMockContext(tools: AgentTool<any, any>[] = []): AgentInput {
+function createMockRuntime(tools: AgentTool<any, any>[] = []): AgentRuntime {
   return {
     messages: [],
     tools,
@@ -46,7 +46,7 @@ describe("executeToolCalls", () => {
       formatResult: (output) => [{ type: "text", text: (output as any).text }],
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "echo", arguments: { msg: "a" } },
       { type: "toolCall", id: "call-2", name: "echo", arguments: { msg: "b" } },
@@ -77,7 +77,7 @@ describe("executeToolCalls", () => {
       formatResult: (output) => [{ type: "text", text: (output as any).id }],
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-slow", name: "delay", arguments: { ms: delays[0] } },
       { type: "toolCall", id: "call-fast", name: "delay", arguments: { ms: delays[1] } },
@@ -96,7 +96,7 @@ describe("executeToolCalls", () => {
   });
 
   it("工具不存在时返回错误结果", async () => {
-    const context = createMockContext([]);
+    const context = createMockRuntime([]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "missing", arguments: {} },
     ]);
@@ -123,7 +123,7 @@ describe("executeToolCalls", () => {
       validateInput: async () => ({ ok: false, message: "参数非法" }),
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "blocked", arguments: {} },
     ]);
@@ -150,7 +150,7 @@ describe("executeToolCalls", () => {
       checkPermissions: async () => ({ allowed: false, reason: "权限不足" }),
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "blocked", arguments: {} },
     ]);
@@ -176,7 +176,7 @@ describe("executeToolCalls", () => {
       formatResult: () => [{ type: "text", text: "formatted" }],
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "modify", arguments: {} },
     ]);
@@ -202,7 +202,7 @@ describe("executeToolCalls", () => {
       renderResult: () => ({ type: "plain", text: "rendered" }),
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-render", name: "renderable", arguments: {} },
     ]);
@@ -221,7 +221,7 @@ describe("executeToolCalls", () => {
     try {
       await writeFile(join(dir, "alpha.ts"), "target\n", "utf-8");
       const grep = createGrepTool(dir);
-      const context = createMockContext([grep]);
+      const context = createMockRuntime([grep]);
       const assistantMessage = createMockAssistantMessage([
         { type: "toolCall", id: "call-real-grep", name: "Grep", arguments: { pattern: "target", output_mode: "content" } },
       ]);
@@ -248,7 +248,7 @@ describe("executeToolCalls", () => {
     try {
       await writeFile(join(dir, "alpha.ts"), "export const alpha = 1;\n", "utf-8");
       const glob = createGlobTool(dir);
-      const context = createMockContext([glob]);
+      const context = createMockRuntime([glob]);
       const assistantMessage = createMockAssistantMessage([
         { type: "toolCall", id: "call-real-glob", name: "Glob", arguments: { pattern: "*.ts" } },
       ]);
@@ -274,7 +274,7 @@ describe("executeToolCalls", () => {
 
   it("rejects invalid Grep schema arguments before execution", async () => {
     const grep = createGrepTool("/tmp");
-    const context = createMockContext([grep]);
+    const context = createMockRuntime([grep]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-invalid-grep", name: "Grep", arguments: { pattern: "target", output_mode: "bad" } },
     ]);
@@ -298,7 +298,7 @@ describe("executeToolCalls", () => {
       execute: async () => { throw new Error("boom"); },
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "fail", arguments: {} },
     ]);
@@ -326,7 +326,7 @@ describe("executeToolCalls", () => {
       formatResult: (output) => [{ type: "text", text: (output as any).text }],
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "echo", arguments: {} },
     ]);
@@ -360,7 +360,7 @@ describe("executeToolCalls", () => {
       formatResult: () => [{ type: "text", text: "done" }],
     };
 
-    const context = createMockContext([tool]);
+    const context = createMockRuntime([tool]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "meta", arguments: {} },
     ]);
@@ -407,7 +407,7 @@ describe("executeToolCalls", () => {
       formatResult: () => [{ type: "text", text: "slow" }],
     };
 
-    const context = createMockContext([toolFast, toolSlow]);
+    const context = createMockRuntime([toolFast, toolSlow]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "fast", arguments: {} },
       { type: "toolCall", id: "call-2", name: "slow", arguments: {} },
@@ -448,7 +448,7 @@ describe("executeToolCalls", () => {
       formatResult: () => [{ type: "text", text: "b" }],
     };
 
-    const context = createMockContext([toolA, toolB]);
+    const context = createMockRuntime([toolA, toolB]);
     const assistantMessage = createMockAssistantMessage([
       { type: "toolCall", id: "call-1", name: "toolA", arguments: {} },
       { type: "toolCall", id: "call-2", name: "toolB", arguments: {} },

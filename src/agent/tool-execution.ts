@@ -3,7 +3,7 @@ import { type AssistantMessage, type ToolResultMessage, validateToolArguments } 
 import type { AgentEventSink } from "./stream-assistant.js";
 import { logger } from "../utils/logger.js";
 import type {
-  AgentInput,
+  AgentRuntime,
   AgentLoopConfig,
   AgentMessage,
   AgentTool,
@@ -20,7 +20,7 @@ function createErrorToolResult(message: string): AgentToolResult<any> {
 }
 
 function buildToolUseContext(
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
 ): ToolUseContext {
@@ -64,7 +64,7 @@ async function emitToolCallOutcome(
 }
 
 async function prepareToolCall(
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   assistantMessage: AssistantMessage,
   toolCall: import("../core/ai/index.js").ToolCall,
   config: AgentLoopConfig,
@@ -128,7 +128,7 @@ async function prepareToolCall(
 
 async function executePreparedToolCall(
   prepared: { toolCall: import("../core/ai/index.js").ToolCall; tool: AgentTool<any, any>; args: unknown },
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
@@ -209,7 +209,7 @@ async function finalizeExecutedToolCall(
 }
 
 async function executeToolCallsSequential(
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   assistantMessage: AssistantMessage,
   toolCalls: import("../core/ai/index.js").ToolCall[],
   config: AgentLoopConfig,
@@ -246,7 +246,7 @@ async function executeToolCallsSequential(
 }
 
 async function executeToolCallsParallel(
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   assistantMessage: AssistantMessage,
   toolCalls: import("../core/ai/index.js").ToolCall[],
   config: AgentLoopConfig,
@@ -297,7 +297,7 @@ async function executeToolCallsParallel(
 }
 
 export async function executeToolCalls(
-  currentContext: AgentInput,
+  currentContext: AgentRuntime,
   assistantMessage: AssistantMessage,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,

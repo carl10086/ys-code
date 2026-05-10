@@ -182,6 +182,14 @@ export interface AgentInput {
   invokedSkills?: Map<string, InvokedSkillRecord>;
 }
 
+/** Agent 运行时快照（供 stream-assistant / tool-execution 使用） */
+export interface AgentRuntime {
+  messages: AgentMessage[];
+  tools?: AgentTool<any, any>[];
+  sentSkillNames?: Set<string>;
+  invokedSkills?: Map<string, InvokedSkillRecord>;
+}
+
 /** 已调用 skill 的恢复记录 */
 export interface InvokedSkillRecord {
   name: string;
