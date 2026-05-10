@@ -1,12 +1,13 @@
 import type { LocalCommandCall } from "../types.js";
 
 export const call: LocalCommandCall = async (args, context) => {
-  const commandText = args.trim()
-    ? `/compact ${args.trim()}`
+  const trimmedArgs = args.trim();
+  const commandText = trimmedArgs
+    ? `/compact ${trimmedArgs}`
     : "/compact";
   const result = await context.session.compact({
     commandText,
-    instructions: args.trim() || undefined,
+    instructions: trimmedArgs || undefined,
   });
 
   return {
