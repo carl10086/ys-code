@@ -193,6 +193,78 @@ describe("streamAssistantResponse", () => {
 
     expect(receivedSignal?.aborted).toBe(true);
   });
+
+  it("thinking 事件应发射 message_update", async () => {
+    const runtime = await createMockRuntime();
+    const config = createMockConfig();
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    const streamFn = async () => {
+      const stream = createAssistantMessageEventStream();
+      const partial: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.push({ type: "start", partial });
+      stream.push({
+        type: "thinking_delta",
+        contentIndex: 0,
+        delta: "thinking...",
+        partial: { ...partial, thinking: "thinking..." } as any,
+      });
+      stream.push({ type: "done", reason: "stop", message: partial });
+      return stream;
+    };
+
+    await streamAssistantResponse(runtime, config, undefined, emit, streamFn as any);
+
+    const updates = events.filter((e) => e.type === "message_update");
+    expect(updates.length).toBeGreaterThanOrEqual(1);
+    expect((updates[0] as any).assistantMessageEvent.type).toBe("thinking_delta");
+  });
+
+  it("toolcall 事件应发射 message_update", async () => {
+    const runtime = await createMockRuntime();
+    const config = createMockConfig();
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    const streamFn = async () => {
+      const stream = createAssistantMessageEventStream();
+      const partial: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call-1", name: "test", arguments: {} }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.push({ type: "start", partial });
+      stream.push({
+        type: "toolcall_delta",
+        contentIndex: 0,
+        delta: '{"arg": "value"}',
+        partial: { ...partial, content: [{ type: "toolCall", id: "call-1", name: "test", arguments: { arg: "value" } }] },
+      });
+      stream.push({ type: "done", reason: "stop", message: partial });
+      return stream;
+    };
+
+    await streamAssistantResponse(runtime, config, undefined, emit, streamFn as any);
+
+    const updates = events.filter((e) => e.type === "message_update");
+    expect(updates.length).toBeGreaterThanOrEqual(1);
+    expect((updates[0] as any).assistantMessageEvent.type).toBe("toolcall_delta");
+  });
 });
 
 describe("streamAssistantResponse userContext integration", () => {

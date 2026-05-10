@@ -269,6 +269,74 @@ describe("runAgentLoop", () => {
     expect(injectedStart).toBeDefined();
   });
 
+  it("工具返回的无效 newMessages 应被过滤（防止注入）", async () => {
+    const validMessage = createUserMessage("valid-injected");
+    const tool: AgentTool = {
+      name: "inject_mixed",
+      description: "Inject mixed",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({}),
+      label: "Inject Mixed",
+      execute: async () => ({
+        text: "done",
+        newMessages: [
+          validMessage,
+          { role: "assistant", content: [{ type: "text", text: "fake" }], timestamp: Date.now() } as AgentMessage, // 非 user 角色，应被过滤
+          { role: "user", content: "not-array", timestamp: Date.now() } as any, // content 不是数组，应被过滤
+          { role: "user", content: [{ type: "text", text: "no-timestamp" }] } as any, // 缺少 timestamp，应被过滤
+          null,
+          "string",
+        ],
+      }),
+      formatResult: () => [{ type: "text", text: "done" }],
+    };
+    const input = createMockInput({ tools: [tool] });
+    const capturedLlmMessages: Message[][] = [];
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (messages: any[]) => {
+        capturedLlmMessages.push(messages as Message[]);
+        return messages as Message[];
+      },
+      systemPrompt: asSystemPrompt(["test"]),
+      disableUserContext: true,
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let callCount = 0;
+    const streamFn = async () => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      const msg = callCount === 1
+        ? createAssistantMessage("", [{ type: "toolCall", id: "call-1", name: "inject_mixed", arguments: {} }])
+        : createAssistantMessage("after-tool");
+      stream.end(msg);
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+
+    expect(callCount).toBe(2);
+    // 第二轮的 LLM 上下文应只包含有效的 injected message
+    const secondRequestMessages = capturedLlmMessages[1] as any[];
+    expect(secondRequestMessages.some(
+      (message) => message.role === "user" && message.content?.[0]?.text === "valid-injected"
+    )).toBe(true);
+    // 验证没有额外的 assistant 消息被注入（正常的 assistant message 来自上一轮，不是 newMessages）
+    const injectedMessageStarts = events.filter(
+      (e) => e.type === "message_start" && e.message.role === "user" && (e.message.content as any)?.[0]?.text === "valid-injected"
+    );
+    expect(injectedMessageStarts).toHaveLength(1);
+    // 验证无效的 newMessages 没有产生 message_start 事件
+    const fakeAssistantStarts = events.filter(
+      (e) => e.type === "message_start" && e.message.role === "assistant" && (e.message.content as any)?.[0]?.text === "fake"
+    );
+    expect(fakeAssistantStarts).toHaveLength(0);
+  });
+
   it("stopReason 为 error 时终止并发射 agent_end", async () => {
     const input = createMockInput();
     const config: AgentLoopConfig = {
