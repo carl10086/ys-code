@@ -174,7 +174,6 @@ export interface AgentTool<
 
 /** Agent 启动输入（纯配置，不含运行时状态） */
 export interface AgentInput {
-  messages: AgentMessage[];
   tools?: AgentTool<any, any>[];
   /** 已发送的 skill 名称集合（用于去重） */
   sentSkillNames?: Set<string>;

@@ -392,6 +392,7 @@ export class Agent {
   ): Promise<void> {
     await this.runWithLifecycle(async (signal) => {
       await runAgentLoop(
+        this._state.messages,
         messages,
         this.createInputSnapshot(),
         await this.createLoopConfig(options),
@@ -406,6 +407,7 @@ export class Agent {
   private async runContinuation(): Promise<void> {
     await this.runWithLifecycle(async (signal) => {
       await runAgentLoopContinue(
+        this._state.messages,
         this.createInputSnapshot(),
         await this.createLoopConfig(),
         (event) => this.processEvents(event),
@@ -415,10 +417,9 @@ export class Agent {
     });
   }
 
-  /** 创建上下文快照 */
+  /** 创建输入快照（纯配置，不含运行时消息状态） */
   private createInputSnapshot(): AgentInput {
     return {
-      messages: this._state.messages.slice(),
       tools: this._state.tools.slice(),
       sentSkillNames: this._state.sentSkillNames,
       invokedSkills: this._state.invokedSkills,

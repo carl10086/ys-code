@@ -6,7 +6,7 @@ import {
   type Tool,
 } from "../core/ai/index.js";
 import type {
-  AgentInput,
+  AgentRuntime,
   AgentEvent,
   AgentLoopConfig,
   StreamFn,
@@ -30,17 +30,18 @@ export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
  * 生成但不保存，返回需要被添加的 attachment 列表
  */
 async function generateAttachments(
-  context: AgentInput,
+  messages: AgentMessage[],
+  sentSkillNames: Set<string> | undefined,
   _config: AgentLoopConfig,
   _signal?: AbortSignal,
 ): Promise<AgentMessage[]> {
   const attachments: AgentMessage[] = [];
 
   // skill listing attachments
-  const sentSkillNames = context.sentSkillNames ?? new Set<string>();
+  const skillNamesSet = sentSkillNames ?? new Set<string>();
   const skillCommands = await getCommands(join(process.cwd(), ".claude/skills"));
   const newSkills = skillCommands.filter(
-    (cmd): cmd is PromptCommand => cmd.type === "prompt" && !sentSkillNames.has(cmd.name)
+    (cmd): cmd is PromptCommand => cmd.type === "prompt" && !skillNamesSet.has(cmd.name)
   );
   if (newSkills.length > 0) {
     const content = formatSkillListing(newSkills);
@@ -58,7 +59,7 @@ async function generateAttachments(
 
   // @mention attachments
   const mentionPromises: Promise<void>[] = [];
-  for (const msg of context.messages) {
+  for (const msg of messages) {
     if (msg.role !== "user" || typeof msg.content !== "string") continue;
     const mentionedFiles = extractAtMentionedFiles(msg.content);
     for (const fp of mentionedFiles) {
@@ -105,18 +106,15 @@ function buildApiPayload(
 }
 
 /**
- * 统一处理流结束后的消息替换、追加和事件发射
+ * 统一处理流结束后的消息追加和事件发射
+ * 不再修改 messages 数组，仅发射事件让调用者处理状态更新
  */
 async function finalizeStreamMessage(
-  context: AgentInput,
   finalMessage: AssistantMessage,
   addedPartial: boolean,
   emit: AgentEventSink,
 ): Promise<void> {
-  if (addedPartial) {
-    context.messages[context.messages.length - 1] = finalMessage;
-  } else {
-    context.messages.push(finalMessage);
+  if (!addedPartial) {
     await emit({ type: "message_start", message: { ...finalMessage } });
   }
   await emit({ type: "message_end", message: finalMessage });
@@ -166,7 +164,7 @@ export async function injectAtMentionAttachments(
 
 /**
  * 流式获取 assistant 响应
- * @param context Agent 上下文
+ * @param runtime Agent 运行时快照（只读，函数不会修改）
  * @param config AgentLoop 配置
  * @param signal 可选的 abort 信号
  * @param emit 事件发射器
@@ -174,21 +172,21 @@ export async function injectAtMentionAttachments(
  * @returns AssistantMessage 最终消息
  */
 export async function streamAssistantResponse(
-  context: AgentInput,
+  runtime: AgentRuntime,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
 ): Promise<AssistantMessage> {
   // === 阶段 1: 生成 Attachments ===
-  const attachments = await generateAttachments(context, config, signal);
+  const attachments = await generateAttachments(runtime.messages, runtime.sentSkillNames, config, signal);
 
   // === 阶段 2: 保存 Attachments 到 State ===
-  // 这会触发 message_end 事件，将 attachment 写入 agent.state.messages
+  // 这会触发 message_end 事件，由调用者将 attachment 写入 state
   await saveAttachments(attachments, emit);
 
   // === 阶段 3: 构建 API Payload ===
-  let allMessages = [...context.messages, ...attachments] as Message[];
+  let allMessages = [...runtime.messages, ...attachments] as Message[];
 
   // 动态注入 userContext（不持久化）
   if (!config.disableUserContext) {
@@ -201,7 +199,7 @@ export async function streamAssistantResponse(
   const llmContext: Context = {
     systemPrompt: config.systemPrompt,
     messages: llmMessages,
-    tools: (context.tools ?? []) as Tool[],
+    tools: (runtime.tools ?? []) as Tool[],
   };
 
   const streamFunction = streamFn || streamSimple;
@@ -226,7 +224,6 @@ export async function streamAssistantResponse(
         logger.debug("Stream started");
         // 消息开始，创建 partial message
         partialMessage = event.partial;
-        context.messages.push(partialMessage);
         addedPartial = true;
         await emit({ type: "message_start", message: { ...partialMessage } });
         break;
@@ -240,7 +237,6 @@ export async function streamAssistantResponse(
             logger.debug("Text delta", { delta: event.delta });
           }
           partialMessage = event.partial;
-          context.messages[context.messages.length - 1] = partialMessage;
           await emit({
             type: "message_update",
             assistantMessageEvent: event,
@@ -257,7 +253,6 @@ export async function streamAssistantResponse(
             logger.debug("Thinking delta", { delta: event.delta });
           }
           partialMessage = event.partial;
-          context.messages[context.messages.length - 1] = partialMessage;
           await emit({
             type: "message_update",
             assistantMessageEvent: event,
@@ -271,7 +266,6 @@ export async function streamAssistantResponse(
       case "toolcall_end":     // 工具调用结束
         if (partialMessage) {
           partialMessage = event.partial;
-          context.messages[context.messages.length - 1] = partialMessage;
           await emit({
             type: "message_update",
             assistantMessageEvent: event,
@@ -283,21 +277,21 @@ export async function streamAssistantResponse(
       case "done": {  // 流式响应完成
         logger.debug("Stream done", { stopReason: partialMessage?.stopReason });
         const finalMessageDone = await response.result();
-        await finalizeStreamMessage(context, finalMessageDone, addedPartial, emit);
+        await finalizeStreamMessage(finalMessageDone, addedPartial, emit);
         return finalMessageDone;
       }
 
       case "error": {   // 流式响应错误
         logger.debug("Stream error");
         const finalMessageError = await response.result();
-        await finalizeStreamMessage(context, finalMessageError, addedPartial, emit);
+        await finalizeStreamMessage(finalMessageError, addedPartial, emit);
         return finalMessageError;
       }
     }
   }
 
   const finalMessage = await response.result();
-  await finalizeStreamMessage(context, finalMessage, addedPartial, emit);
+  await finalizeStreamMessage(finalMessage, addedPartial, emit);
   return finalMessage;
 }
 

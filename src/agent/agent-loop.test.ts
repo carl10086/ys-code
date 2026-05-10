@@ -24,6 +24,13 @@ function createUserMessage(text: string): AgentMessage {
   return { role: "user", content: [{ type: "text", text }], timestamp: Date.now() };
 }
 
+function createMockInput(overrides: Partial<AgentInput> = {}): AgentInput {
+  return {
+    tools: [],
+    ...overrides,
+  };
+}
+
 function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason: any = "stop"): AssistantMessage {
   return {
     role: "assistant",
@@ -39,10 +46,7 @@ function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason:
 
 describe("runAgentLoop", () => {
   it("完整流程：用户消息 -> assistant 回复 -> 无工具 -> 正常结束", async () => {
-    const context: AgentInput = {
-      messages: [],
-      tools: [],
-    };
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -63,7 +67,7 @@ describe("runAgentLoop", () => {
     };
 
     const prompts = [createUserMessage("hello")];
-    await expect(runAgentLoop(prompts, context, config, emit, undefined, streamFn as any)).resolves.toBeUndefined();
+    await expect(runAgentLoop([], prompts, input, config, emit, undefined, streamFn as any)).resolves.toBeUndefined();
 
     expect(callCount).toBe(1);
 
@@ -79,7 +83,7 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在 turn 之间正确注入", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const input = createMockInput();
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -106,7 +110,7 @@ describe("runAgentLoop", () => {
     };
 
     const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], prompts, input, config, emit, undefined, streamFn as any);
 
     expect(callCount).toBe(2);
     const messages = events.filter(e => e.type === "message_start").map((e: any) => e.message);
@@ -115,7 +119,7 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在首个 turn 后到达时会触发新一轮", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const input = createMockInput();
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -143,7 +147,7 @@ describe("runAgentLoop", () => {
       return stream;
     };
 
-    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
 
     expect(callCount).toBe(2);
     const messages = events.filter(e => e.type === "message_start").map((e: any) => e.message);
@@ -161,7 +165,7 @@ describe("runAgentLoop", () => {
       execute: async () => ({ text: "done" }),
       formatResult: () => [{ type: "text", text: "done" }],
     };
-    const context: AgentInput = { messages: [], tools: [tool] };
+    const input = createMockInput();
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -190,7 +194,7 @@ describe("runAgentLoop", () => {
       return stream;
     };
 
-    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
 
     // 第1轮: prompt -> assistant(toolCall) -> tool -> turn_end
     // 第1轮末尾 drain steering: empty -> shouldContinue=true (toolCalls>0)
@@ -224,7 +228,7 @@ describe("runAgentLoop", () => {
       }),
       formatResult: () => [{ type: "text", text: "done" }],
     };
-    const context: AgentInput = { messages: [], tools: [tool] };
+    const input = createMockInput({ tools: [tool] });
     const capturedLlmMessages: Message[][] = [];
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -251,7 +255,7 @@ describe("runAgentLoop", () => {
       return stream;
     };
 
-    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
 
     expect(callCount).toBe(2);
     // 第二轮的 LLM 上下文应包含 tool 返回的 newMessages
@@ -266,7 +270,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 error 时终止并发射 agent_end", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -285,7 +289,7 @@ describe("runAgentLoop", () => {
     };
 
     const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], prompts, input, config, emit, undefined, streamFn as any);
 
     const turnEndIndex = events.findIndex(e => e.type === "turn_end");
     const agentEndIndex = events.findIndex(e => e.type === "agent_end");
@@ -299,7 +303,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 aborted 时终止并发射 agent_end", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -318,7 +322,7 @@ describe("runAgentLoop", () => {
     };
 
     const prompts = [createUserMessage("hello")];
-    await runAgentLoop(prompts, context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], prompts, input, config, emit, undefined, streamFn as any);
 
     expect(events[events.length - 1].type).toBe("agent_end");
     const agentEnd = events.find((e) => e.type === "agent_end") as any;
@@ -330,10 +334,8 @@ describe("runAgentLoop", () => {
 
 describe("runAgentLoopContinue", () => {
   it("从已有上下文继续并生成新消息", async () => {
-    const context: AgentInput = {
-      messages: [createUserMessage("hello")],
-      tools: [],
-    };
+    const messages = [createUserMessage("hello")];
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -351,7 +353,7 @@ describe("runAgentLoopContinue", () => {
       return stream;
     };
 
-    await expect(runAgentLoopContinue(context, config, emit, undefined, streamFn as any)).resolves.toBeUndefined();
+    await expect(runAgentLoopContinue(messages, input, config, emit, undefined, streamFn as any)).resolves.toBeUndefined();
 
     expect(events.map(e => e.type)).toContain("agent_start");
     expect(events.map(e => e.type)).toContain("agent_end");
@@ -362,30 +364,28 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("最后一条消息为 assistant 时抛出错误", async () => {
-    const context: AgentInput = {
-      messages: [createAssistantMessage("hi")],
-      tools: [],
-    };
+    const messages = [createAssistantMessage("hi")];
+    const input = createMockInput();
     const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[], systemPrompt: asSystemPrompt(["test"]) } as any;
 
-    expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue from message role: assistant");
+    expect(runAgentLoopContinue(messages, input, config, async () => {}, undefined)).rejects.toThrow("Cannot continue from message role: assistant");
   });
 
   it("空消息时抛出错误", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const messages: AgentMessage[] = [];
+    const input = createMockInput();
     const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[], systemPrompt: asSystemPrompt(["test"]) } as any;
 
-    expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");
+    expect(runAgentLoopContinue(messages, input, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");
   });
 });
 
   it("继续时保留 sentSkillNames 和 invokedSkills 到 streamAssistantResponse", async () => {
-    const context: AgentInput = {
-      messages: [createUserMessage("hello")],
-      tools: [],
+    const messages = [createUserMessage("hello")];
+    const input = createMockInput({
       sentSkillNames: new Set(["skill-a"]),
       invokedSkills: new Map([["skill-a", { name: "skill-a", path: "/tmp", content: "content", invokedAt: 1 }]]),
-    };
+    });
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -402,14 +402,15 @@ describe("runAgentLoopContinue", () => {
       return stream;
     };
 
-    await runAgentLoopContinue(context, config, async () => {}, undefined, streamFn as any);
+    await runAgentLoopContinue(messages, input, config, async () => {}, undefined, streamFn as any);
 
     // sentSkillNames and invokedSkills should be passed through to streamAssistantResponse
     expect(capturedContext).toBeDefined();
   });
 
   it("streamAssistantResponse 抛出异常时错误向上传播", async () => {
-    const context: AgentInput = { messages: [createUserMessage("hello")], tools: [] };
+    const messages = [createUserMessage("hello")];
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -421,12 +422,12 @@ describe("runAgentLoopContinue", () => {
     };
 
     await expect(
-      runAgentLoop([createUserMessage("hello")], context, config, async () => {}, undefined, streamFn as any)
+      runAgentLoop([], [createUserMessage("hello")], input, config, async () => {}, undefined, streamFn as any)
     ).rejects.toThrow("stream exploded");
   });
 
   it("turn_end 和 agent_end 每个 run 只发射一次", async () => {
-    const context: AgentInput = { messages: [], tools: [] };
+    const input = createMockInput();
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -443,7 +444,7 @@ describe("runAgentLoopContinue", () => {
       return stream;
     };
 
-    await runAgentLoop([createUserMessage("hello")], context, config, emit, undefined, streamFn as any);
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
 
     const turnEnds = events.filter(e => e.type === "turn_end");
     const agentEnds = events.filter(e => e.type === "agent_end");

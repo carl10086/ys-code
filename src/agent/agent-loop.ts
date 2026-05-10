@@ -83,7 +83,7 @@ async function runLoop(
     }
 
     // 5. 请求 assistant 回复（核心工作）
-    // streamAssistantResponse 会 mutate messages 数组，将 assistant message 追加到尾部
+    // streamAssistantResponse 不再修改 messages，由 loop 显式控制状态更新
     const assistantMessage = await streamAssistantResponse(
       { messages, tools, sentSkillNames: state.sentSkillNames, invokedSkills: state.invokedSkills },
       config,
@@ -91,6 +91,7 @@ async function runLoop(
       emit,
       streamFn,
     );
+    messages.push(assistantMessage);
 
     // 6. 工具执行
     const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
@@ -150,18 +151,19 @@ async function runLoop(
  * 然后进入核心循环直到结束。
  */
 export async function runAgentLoop(
+  messages: AgentMessage[],
   prompts: AgentMessage[],
-  context: AgentInput,
+  input: AgentInput,
   config: AgentLoopConfig,
   emit: AgentEventSink,
   signal?: AbortSignal,
   streamFn?: StreamFn,
 ): Promise<void> {
   const initialState: LoopState = {
-    messages: [...context.messages, ...prompts],
-    tools: context.tools ?? [],
-    sentSkillNames: context.sentSkillNames,
-    invokedSkills: context.invokedSkills,
+    messages: [...messages, ...prompts],
+    tools: input.tools ?? [],
+    sentSkillNames: input.sentSkillNames,
+    invokedSkills: input.invokedSkills,
     pendingToolNewMessages: [],
     pendingSteering: [],
     turnCount: 0,
@@ -183,25 +185,26 @@ export async function runAgentLoop(
  * 要求上下文中最后一条消息不能是 assistant，且消息列表不能为空。
  */
 export async function runAgentLoopContinue(
-  context: AgentInput,
+  messages: AgentMessage[],
+  input: AgentInput,
   config: AgentLoopConfig,
   emit: AgentEventSink,
   signal?: AbortSignal,
   streamFn?: StreamFn,
 ): Promise<void> {
-  if (context.messages.length === 0) {
+  if (messages.length === 0) {
     throw new Error("Cannot continue: no messages in context");
   }
 
-  if (context.messages[context.messages.length - 1].role === "assistant") {
+  if (messages[messages.length - 1].role === "assistant") {
     throw new Error("Cannot continue from message role: assistant");
   }
 
   const initialState: LoopState = {
-    messages: [...context.messages],
-    tools: context.tools ?? [],
-    sentSkillNames: context.sentSkillNames,
-    invokedSkills: context.invokedSkills,
+    messages: [...messages],
+    tools: input.tools ?? [],
+    sentSkillNames: input.sentSkillNames,
+    invokedSkills: input.invokedSkills,
     pendingToolNewMessages: [],
     pendingSteering: [],
     turnCount: 0,

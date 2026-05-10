@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { streamAssistantResponse, injectAtMentionAttachments, generateAttachments, saveAttachments, buildApiPayload } from "./stream-assistant.js";
 import { createAssistantMessageEventStream } from "../core/ai/utils/event-stream.js";
-import type { AgentInput, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
+import type { AgentRuntime, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
 import type { AssistantMessage, Message } from "../core/ai/types.js";
 import { asSystemPrompt } from "../core/ai/types.js";
 import { mkdtempSync, writeFileSync, rmSync, readdirSync } from "fs";
@@ -41,7 +41,7 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
   } as AgentLoopConfig;
 }
 
-async function createMockContext(): Promise<AgentInput> {
+async function createMockRuntime(): Promise<AgentRuntime> {
   const allCommands = await getCommands(join(process.cwd(), ".claude/skills"));
   const allNames = allCommands
     .filter((cmd): cmd is PromptCommand => cmd.type === "prompt")
@@ -55,7 +55,7 @@ async function createMockContext(): Promise<AgentInput> {
 
 describe("streamAssistantResponse", () => {
   it("正常流式响应：正确处理 start、text_delta、done 事件", async () => {
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const config = createMockConfig();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
@@ -84,7 +84,7 @@ describe("streamAssistantResponse", () => {
       return stream;
     };
 
-    const result = await streamAssistantResponse(context, config, undefined, emit, streamFn as any);
+    const result = await streamAssistantResponse(runtime, config, undefined, emit, streamFn as any);
 
     expect(result.content).toEqual([{ type: "text", text: "hello" }]);
     expect(events.map(e => e.type)).toEqual([
@@ -94,8 +94,36 @@ describe("streamAssistantResponse", () => {
     ]);
   });
 
+  it("不修改传入的 messages 数组（去副作用化）", async () => {
+    const runtime = await createMockRuntime();
+    const config = createMockConfig();
+    const emit = async () => {};
+    const originalLength = runtime.messages.length;
+
+    const streamFn = async () => {
+      const stream = createAssistantMessageEventStream();
+      const partial: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "" }],
+        api: "anthropic-messages",
+        provider: "minimax",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.push({ type: "start", partial });
+      stream.push({ type: "done", reason: "stop", message: partial });
+      return stream;
+    };
+
+    await streamAssistantResponse(runtime, config, undefined, emit, streamFn as any);
+
+    expect(runtime.messages.length).toBe(originalLength);
+  });
+
   it("无流事件直接返回结果：触发 message_start + message_end", async () => {
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const config = createMockConfig();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
@@ -117,14 +145,14 @@ describe("streamAssistantResponse", () => {
       return stream;
     };
 
-    const result = await streamAssistantResponse(context, config, undefined, emit, streamFn as any);
+    const result = await streamAssistantResponse(runtime, config, undefined, emit, streamFn as any);
 
     expect(result.content).toEqual([{ type: "text", text: "direct" }]);
     expect(events.map(e => e.type)).toEqual(["message_start", "message_end"]);
   });
 
   it("streamFunction 抛出异常时向上传播", async () => {
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const config = createMockConfig();
     const emit = async () => {};
 
@@ -132,11 +160,11 @@ describe("streamAssistantResponse", () => {
       throw new Error("stream failed");
     };
 
-    expect(streamAssistantResponse(context, config, undefined, emit, streamFn as any)).rejects.toThrow("stream failed");
+    expect(streamAssistantResponse(runtime, config, undefined, emit, streamFn as any)).rejects.toThrow("stream failed");
   });
 
   it("signal aborted 时 streamFunction 应收到取消信号", async () => {
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const events: AgentEvent[] = [];
     const emit = async (e: AgentEvent) => { events.push(e); };
     const controller = new AbortController();
@@ -161,7 +189,7 @@ describe("streamAssistantResponse", () => {
     };
 
     const config = createMockConfig();
-    await streamAssistantResponse(context, config, controller.signal, emit, streamFn as any);
+    await streamAssistantResponse(runtime, config, controller.signal, emit, streamFn as any);
 
     expect(receivedSignal?.aborted).toBe(true);
   });
@@ -187,7 +215,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("默认应自动 prepend userContext 到 messages", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
 
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const config = createMockConfig({ disableUserContext: false });
 
     let capturedMessages: Message[] | undefined;
@@ -208,7 +236,7 @@ describe("streamAssistantResponse userContext integration", () => {
       return stream;
     };
 
-    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+    await streamAssistantResponse(runtime, config, undefined, async () => {}, streamFn as any);
 
     expect(capturedMessages).toBeDefined();
     expect(capturedMessages!.length).toBeGreaterThan(0);
@@ -219,7 +247,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("disableUserContext 为 true 时不应 prepend meta message", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
 
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
     const config = createMockConfig({ disableUserContext: true });
 
     let capturedMessages: Message[] | undefined;
@@ -240,7 +268,7 @@ describe("streamAssistantResponse userContext integration", () => {
       return stream;
     };
 
-    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+    await streamAssistantResponse(runtime, config, undefined, async () => {}, streamFn as any);
 
     expect(capturedMessages).toBeDefined();
     expect(capturedMessages!.length).toBe(0);
@@ -250,7 +278,7 @@ describe("streamAssistantResponse userContext integration", () => {
   it("convertToLlm 收到的消息应为 Message[]（无 attachment）", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test");
 
-    const context = await createMockContext();
+    const runtime = await createMockRuntime();
 
     let receivedMessages: Message[] | undefined;
     const config = createMockConfig({
@@ -277,7 +305,7 @@ describe("streamAssistantResponse userContext integration", () => {
       return stream;
     };
 
-    await streamAssistantResponse(context, config, undefined, async () => {}, streamFn as any);
+    await streamAssistantResponse(runtime, config, undefined, async () => {}, streamFn as any);
 
     expect(receivedMessages).toBeDefined();
     // convertToLlm 收到的是 normalize 后的消息，不应包含 attachment
@@ -422,14 +450,14 @@ describe("injectAtMentionAttachments", () => {
 
 describe("generateAttachments", () => {
   it("should not generate userContext attachments when disabled", async () => {
-    const context: AgentInput = { messages: [] };
+    const messages: AgentMessage[] = [];
     const config: AgentLoopConfig = {
       model: { name: "test", provider: "test" },
       convertToLlm: (m) => m as any,
       disableUserContext: true,
     } as AgentLoopConfig;
 
-    const attachments = await generateAttachments(context, config);
+    const attachments = await generateAttachments(messages, undefined, config);
 
     const hasUserContext = attachments.some(
       (a) => a.role === "attachment" && (a as any).attachment.type === "relevant_memories"
@@ -438,16 +466,13 @@ describe("generateAttachments", () => {
   });
 
   it("should not duplicate skill listing for already sent skills", async () => {
-    const context: AgentInput = {
-      messages: [],
-      sentSkillNames: new Set(["read"]),
-    };
+    const messages: AgentMessage[] = [];
     const config: AgentLoopConfig = {
       model: { name: "test", provider: "test" },
       convertToLlm: (m) => m as any,
     } as AgentLoopConfig;
 
-    const attachments = await generateAttachments(context, config);
+    const attachments = await generateAttachments(messages, new Set(["read"]), config);
 
     const skillAttachment = attachments.find(
       (a) => a.role === "attachment" && (a as any).attachment.type === "skill_listing"
