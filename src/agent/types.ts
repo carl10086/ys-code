@@ -172,8 +172,8 @@ export interface AgentTool<
   isDestructive?: boolean;
 }
 
-/** Agent 上下文快照 */
-export interface AgentContext {
+/** Agent 启动输入（纯配置，不含运行时状态） */
+export interface AgentInput {
   messages: AgentMessage[];
   tools?: AgentTool<any, any>[];
   /** 已发送的 skill 名称集合（用于去重） */
@@ -190,8 +190,8 @@ export interface InvokedSkillRecord {
   invokedAt: number;
 }
 
-/** Agent 公开状态 */
-export interface AgentState {
+/** Agent 公开视图（供 TUI 读取的只读状态） */
+export interface AgentView {
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
   tools: AgentTool<any, any>[];

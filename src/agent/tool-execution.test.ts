@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
 import { executeToolCalls } from "./tool-execution.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig, AgentTool } from "./types.js";
+import type { AgentInput, AgentEvent, AgentLoopConfig, AgentTool } from "./types.js";
 import type { AssistantMessage } from "../core/ai/types.js";
 import { Type } from "@sinclair/typebox";
 import { createGrepTool } from "./tools/grep.js";
@@ -9,7 +9,7 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
-function createMockContext(tools: AgentTool<any, any>[] = []): AgentContext {
+function createMockContext(tools: AgentTool<any, any>[] = []): AgentInput {
   return {
     messages: [],
     tools,

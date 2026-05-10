@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { Type } from "@sinclair/typebox";
 import { runAgentLoop, runAgentLoopContinue } from "./agent-loop.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "./types.js";
+import type { AgentInput, AgentEvent, AgentLoopConfig, AgentMessage, AgentTool } from "./types.js";
 import type { AssistantMessage, Message } from "../core/ai/types.js";
 import { asSystemPrompt } from "../core/ai/types.js";
 
@@ -39,7 +39,7 @@ function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason:
 
 describe("runAgentLoop", () => {
   it("完整流程：用户消息 -> assistant 回复 -> 无工具 -> 正常结束", async () => {
-    const context: AgentContext = {
+    const context: AgentInput = {
       messages: [],
       tools: [],
     };
@@ -79,7 +79,7 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在 turn 之间正确注入", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -115,7 +115,7 @@ describe("runAgentLoop", () => {
   });
 
   it("steeringMessages 在首个 turn 后到达时会触发新一轮", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -161,7 +161,7 @@ describe("runAgentLoop", () => {
       execute: async () => ({ text: "done" }),
       formatResult: () => [{ type: "text", text: "done" }],
     };
-    const context: AgentContext = { messages: [], tools: [tool] };
+    const context: AgentInput = { messages: [], tools: [tool] };
     let steeringCall = 0;
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -224,7 +224,7 @@ describe("runAgentLoop", () => {
       }),
       formatResult: () => [{ type: "text", text: "done" }],
     };
-    const context: AgentContext = { messages: [], tools: [tool] };
+    const context: AgentInput = { messages: [], tools: [tool] };
     const capturedLlmMessages: Message[][] = [];
     const config: AgentLoopConfig = {
       model: createMockModel(),
@@ -266,7 +266,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 error 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -299,7 +299,7 @@ describe("runAgentLoop", () => {
   });
 
   it("stopReason 为 aborted 时终止并发射 agent_end", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -330,7 +330,7 @@ describe("runAgentLoop", () => {
 
 describe("runAgentLoopContinue", () => {
   it("从已有上下文继续并生成新消息", async () => {
-    const context: AgentContext = {
+    const context: AgentInput = {
       messages: [createUserMessage("hello")],
       tools: [],
     };
@@ -362,7 +362,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("最后一条消息为 assistant 时抛出错误", async () => {
-    const context: AgentContext = {
+    const context: AgentInput = {
       messages: [createAssistantMessage("hi")],
       tools: [],
     };
@@ -372,7 +372,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("空消息时抛出错误", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     const config: AgentLoopConfig = { model: createMockModel(), convertToLlm: (m: any[]) => m as Message[], systemPrompt: asSystemPrompt(["test"]) } as any;
 
     expect(runAgentLoopContinue(context, config, async () => {}, undefined)).rejects.toThrow("Cannot continue: no messages in context");
@@ -380,7 +380,7 @@ describe("runAgentLoopContinue", () => {
 });
 
   it("继续时保留 sentSkillNames 和 invokedSkills 到 streamAssistantResponse", async () => {
-    const context: AgentContext = {
+    const context: AgentInput = {
       messages: [createUserMessage("hello")],
       tools: [],
       sentSkillNames: new Set(["skill-a"]),
@@ -409,7 +409,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("streamAssistantResponse 抛出异常时错误向上传播", async () => {
-    const context: AgentContext = { messages: [createUserMessage("hello")], tools: [] };
+    const context: AgentInput = { messages: [createUserMessage("hello")], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],
@@ -426,7 +426,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("turn_end 和 agent_end 每个 run 只发射一次", async () => {
-    const context: AgentContext = { messages: [], tools: [] };
+    const context: AgentInput = { messages: [], tools: [] };
     const config: AgentLoopConfig = {
       model: createMockModel(),
       convertToLlm: (m: any[]) => m as Message[],

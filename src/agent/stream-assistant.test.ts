@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { streamAssistantResponse, injectAtMentionAttachments, generateAttachments, saveAttachments, buildApiPayload } from "./stream-assistant.js";
 import { createAssistantMessageEventStream } from "../core/ai/utils/event-stream.js";
-import type { AgentContext, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
+import type { AgentInput, AgentEvent, AgentLoopConfig, AgentMessage } from "./types.js";
 import type { AssistantMessage, Message } from "../core/ai/types.js";
 import { asSystemPrompt } from "../core/ai/types.js";
 import { mkdtempSync, writeFileSync, rmSync, readdirSync } from "fs";
@@ -41,7 +41,7 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
   } as AgentLoopConfig;
 }
 
-async function createMockContext(): Promise<AgentContext> {
+async function createMockContext(): Promise<AgentInput> {
   const allCommands = await getCommands(join(process.cwd(), ".claude/skills"));
   const allNames = allCommands
     .filter((cmd): cmd is PromptCommand => cmd.type === "prompt")
@@ -422,7 +422,7 @@ describe("injectAtMentionAttachments", () => {
 
 describe("generateAttachments", () => {
   it("should not generate userContext attachments when disabled", async () => {
-    const context: AgentContext = { messages: [] };
+    const context: AgentInput = { messages: [] };
     const config: AgentLoopConfig = {
       model: { name: "test", provider: "test" },
       convertToLlm: (m) => m as any,
@@ -438,7 +438,7 @@ describe("generateAttachments", () => {
   });
 
   it("should not duplicate skill listing for already sent skills", async () => {
-    const context: AgentContext = {
+    const context: AgentInput = {
       messages: [],
       sentSkillNames: new Set(["read"]),
     };

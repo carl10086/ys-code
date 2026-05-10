@@ -6,7 +6,7 @@ import {
   type Tool,
 } from "../core/ai/index.js";
 import type {
-  AgentContext,
+  AgentInput,
   AgentEvent,
   AgentLoopConfig,
   StreamFn,
@@ -30,7 +30,7 @@ export type AgentEventSink = (event: AgentEvent) => Promise<void> | void;
  * 生成但不保存，返回需要被添加的 attachment 列表
  */
 async function generateAttachments(
-  context: AgentContext,
+  context: AgentInput,
   _config: AgentLoopConfig,
   _signal?: AbortSignal,
 ): Promise<AgentMessage[]> {
@@ -108,7 +108,7 @@ function buildApiPayload(
  * 统一处理流结束后的消息替换、追加和事件发射
  */
 async function finalizeStreamMessage(
-  context: AgentContext,
+  context: AgentInput,
   finalMessage: AssistantMessage,
   addedPartial: boolean,
   emit: AgentEventSink,
@@ -174,7 +174,7 @@ export async function injectAtMentionAttachments(
  * @returns AssistantMessage 最终消息
  */
 export async function streamAssistantResponse(
-  context: AgentContext,
+  context: AgentInput,
   config: AgentLoopConfig,
   signal: AbortSignal | undefined,
   emit: AgentEventSink,

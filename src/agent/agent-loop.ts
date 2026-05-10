@@ -4,17 +4,19 @@ import { streamAssistantResponse, type AgentEventSink } from "./stream-assistant
 import { executeToolCalls } from "./tool-execution.js";
 import { logger } from "../utils/logger.js";
 import type {
-  AgentContext,
+  AgentInput,
   AgentLoopConfig,
   AgentMessage,
+  AgentTool,
+  InvokedSkillRecord,
   StreamFn,
 } from "./types.js";
 
 interface LoopState {
   messages: AgentMessage[];
-  tools: AgentContext["tools"];
-  sentSkillNames?: AgentContext["sentSkillNames"];
-  invokedSkills?: AgentContext["invokedSkills"];
+  tools: AgentTool<any, any>[] | undefined;
+  sentSkillNames?: Set<string> | undefined;
+  invokedSkills?: Map<string, InvokedSkillRecord> | undefined;
   pendingToolNewMessages: AgentMessage[];
   pendingSteering: AgentMessage[];
   turnCount: number;
@@ -149,7 +151,7 @@ async function runLoop(
  */
 export async function runAgentLoop(
   prompts: AgentMessage[],
-  context: AgentContext,
+  context: AgentInput,
   config: AgentLoopConfig,
   emit: AgentEventSink,
   signal?: AbortSignal,
@@ -181,7 +183,7 @@ export async function runAgentLoop(
  * 要求上下文中最后一条消息不能是 assistant，且消息列表不能为空。
  */
 export async function runAgentLoopContinue(
-  context: AgentContext,
+  context: AgentInput,
   config: AgentLoopConfig,
   emit: AgentEventSink,
   signal?: AbortSignal,
