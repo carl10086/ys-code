@@ -19,7 +19,7 @@ import type {
   AgentEvent,
   AgentLoopConfig,
   AgentMessage,
-  AgentView,
+  AgentState,
   AgentTool,
   StreamFn,
   ToolExecutionMode,
@@ -57,16 +57,16 @@ const DEFAULT_MODEL = {
 type QueueMode = "all" | "one-at-a-time";
 
 /** 可变 Agent 状态 */
-type MutableAgentView = Omit<AgentView, "systemPrompt" | "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
+type MutableAgentState = Omit<AgentState, "systemPrompt" | "isStreaming" | "streamingMessage" | "pendingToolCalls" | "errorMessage"> & {
   isStreaming: boolean;
   streamingMessage?: AgentMessage;
   pendingToolCalls: Set<string>;
   errorMessage?: string;
 };
 
-function createMutableAgentView(
-  initialState?: Partial<Omit<AgentView, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>,
-): MutableAgentView {
+function createMutableAgentState(
+  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>,
+): MutableAgentState {
   let tools = initialState?.tools?.slice() ?? [];
   let messages = initialState?.messages?.slice() ?? [];
 
@@ -152,7 +152,7 @@ type ActiveRun = {
 /** Agent 构造选项 */
 export interface AgentOptions {
   /** 初始状态 */
-  initialState?: Partial<Omit<AgentView, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
+  initialState?: Partial<Omit<AgentState, "pendingToolCalls" | "isStreaming" | "streamingMessage" | "errorMessage">>;
   /** 系统提示词构建函数 */
   systemPrompt?: (context: AgentInput) => Promise<SystemPrompt>;
   /** 将 Agent 消息转换为 LLM 消息格式 */
@@ -182,7 +182,7 @@ export interface AgentOptions {
  * 状态化 Agent，封装底层 agent loop
  */
 export class Agent {
-  private _state: MutableAgentView;
+  private _state: MutableAgentState;
   private readonly listeners = new Set<(event: AgentEvent, signal: AbortSignal) => Promise<void> | void>();
   private readonly steeringQueue: PendingMessageQueue;
   private readonly fileStateCache: FileStateCache;
@@ -210,7 +210,7 @@ export class Agent {
   public toolExecution: ToolExecutionMode;
 
   constructor(options: AgentOptions = {}) {
-    this._state = createMutableAgentView(options.initialState);
+    this._state = createMutableAgentState(options.initialState);
     this.systemPrompt = options.systemPrompt ?? (async () => asSystemPrompt([""]));
     this.convertToLlm = options.convertToLlm ?? defaultConvertToLlm;
     this.streamFn = options.streamFn ?? streamSimple;
@@ -238,7 +238,7 @@ export class Agent {
   /**
    * 当前 agent 状态
    */
-  get state(): AgentView {
+  get state(): AgentState {
     return this._state;
   }
 
@@ -313,6 +313,21 @@ export class Agent {
 
   /** 原子替换当前 active messages */
   replaceMessages(messages: AgentMessage[]): void {
+    this._state.messages = messages.slice();
+  }
+
+  /** 追加消息到状态 */
+  appendMessage(message: AgentMessage): void {
+    this._state.messages = [...this._state.messages, message];
+  }
+
+  /** 注册新工具 */
+  registerTool(tool: AgentTool<any, any>): void {
+    this._state.tools = [...this._state.tools, tool];
+  }
+
+  /** 压缩/替换消息列表（compact 后使用） */
+  compactMessages(messages: AgentMessage[]): void {
     this._state.messages = messages.slice();
   }
 
