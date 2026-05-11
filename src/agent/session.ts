@@ -152,7 +152,7 @@ export class AgentSession {
         const restoredMessages = this.sessionManager.restoreMessages();
         if (restoredMessages.length > 0) {
           for (const msg of restoredMessages) {
-            this.agent.state.messages.push(msg);
+            this.agent.appendMessage(msg);
           }
           logger.info("Session restored", { messageCount: restoredMessages.length, sessionId: this.sessionManager.sessionId });
         }
@@ -183,7 +183,7 @@ export class AgentSession {
     try {
       // 传递 .claude/skills 作为 skillsBasePath 以定位 skills 目录
       const skillTool = createSkillTool(async () => getCommands(join(this.cwd, '.claude/skills')));
-      this.agent.state.tools.push(skillTool);
+      this.agent.registerTool(skillTool);
       logger.debug("SkillTool registered", { toolName: skillTool.name });
     } catch (error) {
       logger.error("Failed to initialize SkillTool", { error });
@@ -298,7 +298,7 @@ export class AgentSession {
       };
 
       this.sessionManager.replaceMessages(postCompactMessages);
-      this.agent.replaceMessages(postCompactMessages);
+      this.agent.compactMessages(postCompactMessages);
       return finalResult;
     } finally {
       this.compactInProgress = false;
