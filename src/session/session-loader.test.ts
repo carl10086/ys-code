@@ -111,7 +111,7 @@ describe("SessionLoader attachment support", () => {
     expect((messages[0] as any).attachment.skillNames).toEqual(["read"]);
   });
 
-  it("should not restore ignored attachment", () => {
+  it("should restore persisted attachment", () => {
     const baseDir = tmpdir();
     const manager = new SessionManager({ baseDir, cwd: process.cwd() });
     const originalMessage: AgentMessage = {
@@ -128,8 +128,10 @@ describe("SessionLoader attachment support", () => {
 
     manager.appendMessage(originalMessage);
 
-    // attachment 被忽略，不应被恢复
+    // attachment 应被持久化并恢复
     const restoredMessages = manager.restoreMessages();
-    expect(restoredMessages).toHaveLength(0);
+    expect(restoredMessages).toHaveLength(1);
+    expect(restoredMessages[0].role).toBe("attachment");
+    expect((restoredMessages[0] as any).attachment.type).toBe("directory");
   });
 });

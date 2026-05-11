@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findLastUsage } from "./useAgent.js";
+import { findLastUsage, deriveUIMessages } from "./useAgent.js";
 import type { AgentMessage } from "../../agent/types.js";
 import type { Usage } from "../../core/ai/index.js";
 
@@ -143,5 +143,115 @@ describe("useAgent cost accumulator (source invariant)", () => {
     expect(updaterBody).not.toContain("setLastUsage(");
     expect(updaterBody).not.toContain("setCost(");
     expect(updaterBody).not.toContain("setShouldScrollToBottom(");
+  });
+});
+
+describe("deriveUIMessages", () => {
+  it("should convert user messages to UI user messages", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "Hello", timestamp: 1000 },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(1);
+    expect(ui[0]).toEqual({ type: "user", text: "Hello" });
+  });
+
+  it("should skip meta user messages", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "meta", isMeta: true, timestamp: 1000 },
+      { role: "user", content: "normal", timestamp: 1001 },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(1);
+    expect(ui[0]).toEqual({ type: "user", text: "normal" });
+  });
+
+  it("should convert assistant message with text", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Hi there" }],
+        api: "anthropic-messages",
+        provider: "anthropic",
+        model: "claude-test",
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: 1000,
+      },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(3);
+    expect(ui[0]).toEqual({ type: "assistant_start" });
+    expect(ui[1]).toEqual({ type: "text", text: "Hi there" });
+    expect(ui[2]).toEqual({ type: "assistant_end", tokens: 2, cost: 0, timeMs: 0 });
+  });
+
+  it("should pair toolCall with toolResult", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Let me read" },
+          { type: "toolCall", id: "t1", name: "Read", arguments: { filePath: "/test.txt" } },
+        ],
+        api: "anthropic-messages",
+        provider: "anthropic",
+        model: "claude-test",
+        usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "toolUse",
+        timestamp: 1000,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "t1",
+        toolName: "Read",
+        content: [{ type: "text", text: "file content" }],
+        isError: false,
+        timestamp: 1001,
+      },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(5);
+    expect(ui[0]).toEqual({ type: "assistant_start" });
+    expect(ui[1]).toEqual({ type: "text", text: "Let me read" });
+    expect(ui[2]).toEqual({ type: "tool_start", toolName: "Read", args: { filePath: "/test.txt" } });
+    expect(ui[3]).toEqual({ type: "tool_end", toolName: "Read", isError: false, summary: "file content", timeMs: 0, renderData: undefined });
+    expect(ui[4]).toEqual({ type: "assistant_end", tokens: 15, cost: 0, timeMs: 0 });
+  });
+
+  it("should skip attachment and compact_boundary entries", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "Hello", timestamp: 1000 },
+      { role: "attachment", attachment: { type: "skill_listing" }, timestamp: 1001 } as AgentMessage,
+      { role: "compact_boundary", uuid: "c1", timestamp: 1002 } as AgentMessage,
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(1);
+    expect(ui[0]).toEqual({ type: "user", text: "Hello" });
+  });
+
+  it("should extract text from array content", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: [{ type: "text", text: "Hello " }, { type: "text", text: "world" }], timestamp: 1000 },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(1);
+    expect(ui[0]).toEqual({ type: "user", text: "Hello world" });
+  });
+
+  it("should produce empty array for compact-only messages", () => {
+    const messages: AgentMessage[] = [
+      { role: "compact_boundary", uuid: "c1", timestamp: 1000 } as AgentMessage,
+      { role: "user", content: "Summary", isMeta: true, timestamp: 1001 },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    expect(ui).toHaveLength(0);
   });
 });
