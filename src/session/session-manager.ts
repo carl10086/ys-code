@@ -2,7 +2,7 @@ import { SessionStorage } from "./session-storage.js";
 import { SessionLoader } from "./session-loader.js";
 import { CompactTrigger } from "./compact/trigger.js";
 import type { AgentMessage } from "../agent/types.js";
-import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, CompactBoundaryEntry } from "./entry-types.js";
+import type { Entry, UserEntry, AssistantEntry, ToolResultEntry, CompactBoundaryEntry, AttachmentEntry } from "./entry-types.js";
 
 /** SessionManager 配置 */
 export interface SessionManagerConfig {
@@ -53,9 +53,6 @@ export class SessionManager {
 
   /** 追加消息并持久化 */
   appendMessage(message: AgentMessage): void {
-    // attachment 消息动态生成，不需要持久化（对齐 CC 设计）
-    if (message.role === "attachment") return;
-
     const entry = this.messageToEntry(message);
     this.storage.appendEntry(this._filePath, entry);
     this._lastUuid = entry.uuid;
@@ -65,8 +62,6 @@ export class SessionManager {
   replaceMessages(messages: AgentMessage[]): void {
     let parentUuid = this._lastUuid;
     for (const message of messages) {
-      if (message.role === "attachment") continue;
-
       const entry = this.messageToEntry(message, parentUuid);
       this.storage.appendEntry(this._filePath, entry);
       parentUuid = entry.uuid;
@@ -164,6 +159,18 @@ export class SessionManager {
           isError: message.isError,
           details: message.details,
         } as ToolResultEntry;
+
+      case "attachment": {
+        const attachment = (message as any).attachment;
+        return {
+          type: "attachment",
+          uuid,
+          parentUuid,
+          timestamp,
+          attachmentType: attachment?.type ?? "unknown",
+          content: JSON.stringify(attachment),
+        } as AttachmentEntry;
+      }
 
       default:
         throw new Error(`Unsupported message role: ${(message as any).role}`);
