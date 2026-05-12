@@ -2,13 +2,108 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
 import type { AgentMessage } from "../../agent/types.js";
-import type { Model, Usage } from "../../core/ai/index.js";
+import type { Model, ToolCall, Usage } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
 // 对齐 cc utils/tokens.ts:getCurrentUsage —— 取消息列表中最后一条 assistant 的 usage（不累加）
 export function findLastUsage(messages: readonly AgentMessage[]): Usage | null {
   const last = messages.findLast((m) => m.role === "assistant");
   return last ? last.usage : null;
+}
+
+function extractText(
+  content: string | Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>,
+): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((c): c is { type: "text"; text: string } => c.type === "text")
+    .map((c) => c.text)
+    .join("");
+}
+
+/**
+ * 从 AgentMessage[] 派生完整的 UIMessage[]
+ * 用于 turn_end 时 reconciliation，确保 compact 后 UI 与 Agent 状态一致
+ */
+export function deriveUIMessages(messages: readonly AgentMessage[]): UIMessage[] {
+  const uiMessages: UIMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    switch (msg.role) {
+      case "user": {
+        if (msg.isMeta) continue; // meta 消息 UI 隐藏
+        const text = extractText(msg.content);
+        uiMessages.push({ type: "user", text });
+        break;
+      }
+
+      case "assistant": {
+        uiMessages.push({ type: "assistant_start" });
+
+        // 非 toolCall 内容（text, thinking）
+        for (const content of msg.content) {
+          if (content.type === "text") {
+            uiMessages.push({ type: "text", text: content.text });
+          } else if (content.type === "thinking") {
+            uiMessages.push({ type: "thinking", text: content.thinking });
+          }
+        }
+
+        // toolCall + toolResult 配对
+        const toolCalls = msg.content.filter((c): c is ToolCall => c.type === "toolCall");
+        for (let j = 0; j < toolCalls.length && i + 1 + j < messages.length; j++) {
+          const toolCall = toolCalls[j];
+          const nextMsg = messages[i + 1 + j];
+
+          uiMessages.push({ type: "tool_start", toolName: toolCall.name, args: toolCall.arguments });
+
+          if (nextMsg.role === "toolResult") {
+            const summary = extractText(nextMsg.content);
+            uiMessages.push({
+              type: "tool_end",
+              toolName: nextMsg.toolName,
+              isError: nextMsg.isError,
+              summary: summary || "done",
+              timeMs: 0,
+              renderData: undefined,
+            });
+          }
+        }
+        i += toolCalls.length;
+
+        uiMessages.push({
+          type: "assistant_end",
+          tokens: msg.usage.totalTokens,
+          cost: msg.usage.cost.total,
+          timeMs: 0,
+        });
+        break;
+      }
+
+      case "toolResult": {
+        // 孤立的 toolResult（正常情况下不应出现，防御性处理）
+        const summary = extractText(msg.content);
+        uiMessages.push({
+          type: "tool_end",
+          toolName: msg.toolName,
+          isError: msg.isError,
+          summary: summary || "done",
+          timeMs: 0,
+          renderData: undefined,
+        });
+        break;
+      }
+
+      case "attachment":
+      case "compact_boundary":
+        // UI 不显示
+        break;
+    }
+  }
+
+  return uiMessages;
 }
 
 export interface UseAgentOptions {
@@ -57,69 +152,79 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
   );
   const [cost, setCost] = useState(0);
   const unsubscribeRef = useRef<() => void>(null);
+  const messagesLengthAtTurnStartRef = useRef(0);
 
   const subscribeToSession = useCallback((session: AgentSession) => {
     unsubscribeRef.current?.();
     unsubscribeRef.current = session.subscribe((event: AgentSessionEvent) => {
-      setMessages((prev) => {
-        const next = [...prev];
-        switch (event.type) {
-          case "turn_start": {
-            next.push({ type: "assistant_start" });
-            break;
-          }
-          case "thinking_delta": {
-            const last = next[next.length - 1];
-            if (last && last.type === "thinking") {
-              last.text += event.text;
-            } else {
-              next.push({ type: "thinking", text: event.text });
-            }
-            break;
-          }
-          case "answer_delta": {
-            const last = next[next.length - 1];
-            if (last && last.type === "text") {
-              last.text += event.text;
-            } else {
-              next.push({ type: "text", text: event.text });
-            }
-            break;
-          }
-          case "tool_start": {
-            next.push({ type: "tool_start", toolName: event.toolName, args: event.args });
-            break;
-          }
-          case "tool_end": {
-            next.push({
-              type: "tool_end",
-              toolName: event.toolName,
-              isError: event.isError,
-              summary: event.summary,
-              timeMs: event.timeMs,
-              renderData: event.renderData,
-            });
-            break;
-          }
-          case "turn_end": {
+      if (event.type === "turn_end") {
+        // Compact 检测：如果消息总量减少，说明发生了 compact，需要重新派生
+        const hasCompacted =
+          sessionRef.current.messages.length < messagesLengthAtTurnStartRef.current;
+        if (hasCompacted) {
+          setMessages(deriveUIMessages(sessionRef.current.messages));
+        } else {
+          setMessages((prev) => {
+            const next = [...prev];
             next.push({
               type: "assistant_end",
               tokens: event.tokens,
               cost: event.cost,
               timeMs: event.timeMs,
             });
-            break;
-          }
+            return next;
+          });
         }
-        return next;
-      });
-      // turn_end 副作用：updater 必须 pure，setState 调用挪到主体
-      // 依赖 AgentSession 在 emit turn_end 之前已 push assistant message。
-      // 若契约改变（emit 在 push 之前），需要改为从 event payload 直接读 usage。
-      if (event.type === "turn_end") {
         // 对齐 cc utils/tokens.ts:getCurrentUsage —— 最近一次 API usage，不累加
         setLastUsage(findLastUsage(sessionRef.current.messages));
         setCost((prev) => prev + event.cost);
+      } else {
+        if (event.type === "turn_start") {
+          messagesLengthAtTurnStartRef.current = sessionRef.current.messages.length;
+        }
+        setMessages((prev) => {
+          const next = [...prev];
+          switch (event.type) {
+            case "turn_start": {
+              next.push({ type: "assistant_start" });
+              break;
+            }
+            case "thinking_delta": {
+              const last = next[next.length - 1];
+              if (last && last.type === "thinking") {
+                last.text += event.text;
+              } else {
+                next.push({ type: "thinking", text: event.text });
+              }
+              break;
+            }
+            case "answer_delta": {
+              const last = next[next.length - 1];
+              if (last && last.type === "text") {
+                last.text += event.text;
+              } else {
+                next.push({ type: "text", text: event.text });
+              }
+              break;
+            }
+            case "tool_start": {
+              next.push({ type: "tool_start", toolName: event.toolName, args: event.args });
+              break;
+            }
+            case "tool_end": {
+              next.push({
+                type: "tool_end",
+                toolName: event.toolName,
+                isError: event.isError,
+                summary: event.summary,
+                timeMs: event.timeMs,
+                renderData: event.renderData,
+              });
+              break;
+            }
+          }
+          return next;
+        });
       }
       setShouldScrollToBottom(true);
     });

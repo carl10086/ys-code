@@ -156,7 +156,7 @@ describe("SessionManager attachment support", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("should ignore attachment message (not persist)", () => {
+  it("should persist and restore attachment message", () => {
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -173,14 +173,17 @@ describe("SessionManager attachment support", () => {
     const entries = (manager as any).storage.readAllEntries(manager.filePath);
     const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
 
-    expect(attachmentEntry).toBeUndefined();
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry.attachmentType).toBe("skill_listing");
 
-    // restore 也不应返回 attachment
+    // restore 应返回 attachment
     const restored = manager.restoreMessages();
-    expect(restored.length).toBe(0);
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment.skillNames).toEqual(["read", "write"]);
   });
 
-  it("should ignore file attachment (not persist)", () => {
+  it("should persist and restore file attachment", () => {
     const message: AgentMessage = {
       role: "attachment",
       attachment: {
@@ -198,10 +201,13 @@ describe("SessionManager attachment support", () => {
     const entries = (manager as any).storage.readAllEntries(manager.filePath);
     const attachmentEntry = entries.find((e: any): e is AttachmentEntry => e.type === "attachment");
 
-    expect(attachmentEntry).toBeUndefined();
+    expect(attachmentEntry).toBeDefined();
+    expect(attachmentEntry.attachmentType).toBe("file");
 
-    // restore 也不应返回 attachment
+    // restore 应返回 attachment
     const restored = manager.restoreMessages();
-    expect(restored.length).toBe(0);
+    expect(restored.length).toBe(1);
+    expect(restored[0].role).toBe("attachment");
+    expect((restored[0] as any).attachment.filePath).toBe("/test/file.ts");
   });
 });

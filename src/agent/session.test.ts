@@ -461,7 +461,7 @@ describe("AgentSession", () => {
       }),
     });
 
-    agent.state.messages.push({
+    agent.appendMessage({
       role: "user",
       content: [{ type: "text", text: "late message" }],
       timestamp: 2,

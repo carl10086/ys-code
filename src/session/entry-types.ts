@@ -92,7 +92,7 @@ export interface AttachmentEntry extends SessionEntry {
   /** 条目类型 */
   type: "attachment";
   /** 附件类型 */
-  attachmentType: "relevant_memories" | "file" | "directory" | "skill_listing";
+  attachmentType: string;
   /** 附件内容（序列化后的 JSON） */
   content: string;
 }

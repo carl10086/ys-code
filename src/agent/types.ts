@@ -197,8 +197,8 @@ export interface InvokedSkillRecord {
   invokedAt: number;
 }
 
-/** Agent 公开视图（供 TUI 读取的只读状态） */
-export interface AgentView {
+/** Agent 运行时状态（内存状态，供 TUI 读取） */
+export interface AgentState {
   model: Model<any>;
   thinkingLevel: ThinkingLevel;
   tools: AgentTool<any, any>[];

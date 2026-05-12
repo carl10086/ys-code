@@ -45,6 +45,8 @@ export interface SessionDetailResponse {
     assistantCount: number;
     /** 工具结果数 */
     toolResultCount: number;
+    /** Attachment 数 */
+    attachmentCount: number;
     /** Compact 边界数 */
     compactCount: number;
     /** 总 token 数 */
@@ -253,6 +255,7 @@ export function getSession(filename: string): SessionDetailResponse | null {
   let userCount = 0;
   let assistantCount = 0;
   let toolResultCount = 0;
+  let attachmentCount = 0;
   let compactCount = 0;
   let totalTokens = 0;
 
@@ -283,6 +286,9 @@ export function getSession(filename: string): SessionDetailResponse | null {
         case "toolResult":
           toolResultCount++;
           break;
+        case "attachment":
+          attachmentCount++;
+          break;
         case "compact_boundary":
           compactCount++;
           break;
@@ -308,6 +314,7 @@ export function getSession(filename: string): SessionDetailResponse | null {
       userCount,
       assistantCount,
       toolResultCount,
+      attachmentCount,
       compactCount,
       totalTokens,
     },
