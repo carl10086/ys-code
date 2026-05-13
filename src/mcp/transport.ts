@@ -30,6 +30,7 @@ export function createMcpServerConnection(
       command: config.command!,
       args: config.args,
       env: config.env,
+      stderr: "ignore",
     });
     return new BaseMcpServerConnection(name, transport);
   }
