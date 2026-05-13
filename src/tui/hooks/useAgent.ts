@@ -244,6 +244,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
+      mcpConfigPath: process.cwd(),
     });
     // AgentSession 构造函数已生成 sessionId，无需再调用 regenerateSessionId
     subscribeToSession(sessionRef.current);
