@@ -140,6 +140,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
       cwd: process.cwd(),
       model: options.model,
       apiKey: options.apiKey,
+      mcpConfigPath: process.cwd(),
     })
   );
   // 使用 useState 管理 session，确保 resetSession 时组件重渲染

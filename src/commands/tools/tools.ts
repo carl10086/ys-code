@@ -1,6 +1,7 @@
 import type { LocalCommandCall } from "../../commands/types.js";
 
 export const call: LocalCommandCall = async (_args, context) => {
+  await context.session.mcpReady();
   const toolList = context.session.tools;
   if (toolList.length === 0) {
     return { type: "text", value: "当前没有可用工具。" };
