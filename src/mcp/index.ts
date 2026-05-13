@@ -3,6 +3,14 @@ import type { AgentTool } from "../agent/types.js";
 import { loadMcpConfig } from "./config.js";
 import { McpConnectionManager } from "./connection.js";
 import { createMcpToolAdapter } from "./tools.js";
+import {
+  createMcpListResourcesTool,
+  createMcpReadResourceTool,
+} from "./resources.js";
+import {
+  createMcpListPromptsTool,
+  createMcpGetPromptTool,
+} from "./prompts.js";
 
 export async function loadMcpServers(cwd: string): Promise<AgentTool[]> {
   const config = await loadMcpConfig(cwd);
@@ -10,8 +18,11 @@ export async function loadMcpServers(cwd: string): Promise<AgentTool[]> {
   await manager.connectAll(config);
 
   const tools: AgentTool[] = [];
+  const connections = manager.getConnections();
+  let hasResources = false;
+  let hasPrompts = false;
 
-  for (const [serverName, connection] of manager.getConnections()) {
+  for (const [serverName, connection] of connections) {
     try {
       const capabilities = connection.getCapabilities() as
         | Record<string, unknown>
@@ -25,6 +36,13 @@ export async function loadMcpServers(cwd: string): Promise<AgentTool[]> {
           );
         }
       }
+
+      if (capabilities?.resources) {
+        hasResources = true;
+      }
+      if (capabilities?.prompts) {
+        hasPrompts = true;
+      }
     } catch (error) {
       logger.warn(
         `Failed to fetch tools from MCP server "${serverName}"`,
@@ -36,6 +54,16 @@ export async function loadMcpServers(cwd: string): Promise<AgentTool[]> {
         },
       );
     }
+  }
+
+  if (hasResources) {
+    tools.push(createMcpListResourcesTool(connections));
+    tools.push(createMcpReadResourceTool(connections));
+  }
+
+  if (hasPrompts) {
+    tools.push(createMcpListPromptsTool(connections));
+    tools.push(createMcpGetPromptTool(connections));
   }
 
   if (manager.getFailures().size > 0) {
