@@ -14,6 +14,7 @@ import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
 import { SessionManager } from "../session/index.js";
+import { loadMcpServers } from "../mcp/index.js";
 import {
   compactConversation,
   type CompactSummaryRunner,
@@ -60,6 +61,8 @@ export interface AgentSessionOptions {
   compactThreshold?: number;
   /** 是否恢复最近会话（可选，默认 false） */
   restoreSession?: boolean;
+  /** MCP 配置文件路径（可选，默认 cwd/.mcp.json） */
+  mcpConfigPath?: string;
 }
 
 export class AgentSession {
@@ -105,6 +108,8 @@ export class AgentSession {
   private currentSystemPromptText = "";
   // SkillTool 初始化 Promise，用于在 prompt() 中等待初始化完成
   private skillToolInitPromise: Promise<void> | null = null;
+  // MCP 工具初始化 Promise，用于在 prompt() 中等待加载完成
+  private mcpInitPromise?: Promise<void>;
   private compactInProgress = false;
 
   /** 生成新 session ID */
@@ -176,6 +181,11 @@ export class AgentSession {
 
     // 异步初始化 SkillTool（不阻塞构造），保存 Promise 供 prompt() 等待
     this.skillToolInitPromise = this.initializeSkillTool();
+
+    // 异步初始化 MCP tools（不阻塞构造），保存 Promise 供 prompt() 等待
+    if (options.mcpConfigPath !== undefined) {
+      this.mcpInitPromise = this.initializeMcpTools(options.mcpConfigPath);
+    }
   }
 
   /** 初始化 SkillTool（懒加载方式） */
@@ -187,6 +197,19 @@ export class AgentSession {
       logger.debug("SkillTool registered", { toolName: skillTool.name });
     } catch (error) {
       logger.error("Failed to initialize SkillTool", { error });
+    }
+  }
+
+  /** 初始化 MCP tools */
+  private async initializeMcpTools(configPath: string): Promise<void> {
+    try {
+      const mcpTools = await loadMcpServers(configPath);
+      for (const tool of mcpTools) {
+        this.agent.registerTool(tool);
+      }
+      logger.info("MCP tools loaded", { count: mcpTools.length });
+    } catch (error) {
+      logger.warn("Failed to load MCP tools", { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -364,6 +387,12 @@ export class AgentSession {
     if (this.skillToolInitPromise) {
       await this.skillToolInitPromise;
       this.skillToolInitPromise = null;
+    }
+
+    // 确保 MCP tools 已加载完成
+    if (this.mcpInitPromise) {
+      await this.mcpInitPromise;
+      this.mcpInitPromise = undefined;
     }
 
     // P1: 命令级模型覆盖
