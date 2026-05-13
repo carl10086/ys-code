@@ -134,6 +134,29 @@ describe("loadMcpConfig", () => {
       }),
     );
 
-    await expect(loadMcpConfig(tempDir)).rejects.toThrow(McpConfigError);
+    expect(loadMcpConfig(tempDir)).rejects.toThrow(McpConfigError);
+  });
+
+  it("空 mcpServers 返回空对象", async () => {
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({ mcpServers: {} }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers).toEqual({});
+  });
+
+  it("未知 transport 抛出 McpConfigError", async () => {
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          custom: { command: "node", transport: "custom" as any },
+        },
+      }),
+    );
+
+    expect(loadMcpConfig(tempDir)).rejects.toThrow(McpConfigError);
   });
 });
