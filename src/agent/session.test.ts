@@ -1,7 +1,7 @@
 // src/agent/__tests__/session.test.ts
 import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import * as path from "node:path";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { AgentSession } from "./session.js";
 import { getModel, asSystemPrompt } from "../core/ai/index.js";
@@ -643,6 +643,36 @@ describe("AgentSession", () => {
 
     agent.prompt = originalPrompt;
   });
+
+  describe("mcpReady", () => {
+    it("未配置 MCP 时立即 resolve", async () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+      await expect(session.mcpReady()).resolves.toBeUndefined();
+    });
+
+    it("配置 MCP 时等待加载完成后 resolve", async () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const mcpDir = mkdtempSync(path.join(tmpdir(), "mcp-ready-test-"));
+      writeFileSync(
+        path.join(mcpDir, ".mcp.json"),
+        JSON.stringify({ mcpServers: {} }),
+      );
+
+      const session = new AgentSession({
+        cwd: "/tmp",
+        model,
+        apiKey: "test",
+        systemPrompt: async () => asSystemPrompt([""]),
+        sessionBaseDir: tmpDir,
+        mcpConfigPath: mcpDir,
+      });
+
+      await expect(session.mcpReady()).resolves.toBeUndefined();
+
+      rmSync(mcpDir, { recursive: true, force: true });
+    });
+  });
 });
 
 describe("AgentSession attachment handling", () => {
@@ -864,4 +894,5 @@ describe("AgentSession attachment handling", () => {
       invokedAt: 200,
     });
   });
+
 });

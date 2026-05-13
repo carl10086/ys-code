@@ -191,7 +191,7 @@ export async function executeCommand(
       const module = await command.load();
       const result = await module.call(args, context);
       if (result.type === "text") {
-        return { handled: true, textResult: result.value };
+        return { handled: true, textResult: result.value, skipPrompt: true };
       }
       if (result.type === "compact") {
         return { handled: true, compact: true, textResult: result.displayText };

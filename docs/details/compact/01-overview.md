@@ -75,7 +75,7 @@ compact 只改变 active context，不改变用户真实历史存在过的事实
 这带来两个重要边界：
 
 1. **模型后续看到的是压缩后的 active messages**
-   旧长历史不会继续完整进入后续 LLM payload。
+   旧长历史不会继续完整进入后续 LLM payload
 
 2. **磁盘 transcript 仍保留历史条目**
    session 文件采用 append-only 策略，compact 不等价于隐私删除或安全擦除。

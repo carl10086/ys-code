@@ -10,7 +10,9 @@ export function defineAgentTool<TParams extends TSchema, TOutput>(
     isDestructive: false,
     validateInput: async (_params, _context) => ({ ok: true }),
     checkPermissions: async () => ({ allowed: true }),
-    formatResult: (output) => [{ type: "text", text: String(output) }],
+    formatResult: (output) => [
+      { type: "text", text: typeof output === "string" ? output : JSON.stringify(output, null, 2) },
+    ],
     ...tool,
   };
 }
