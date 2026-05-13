@@ -13,11 +13,20 @@ describe("createMcpServerConnection", () => {
     expect(conn.isConnected()).toBe(false);
   });
 
+  it("为 http 配置创建 connection", () => {
+    const conn = createMcpServerConnection("test", {
+      url: "http://localhost:3000/mcp",
+      transport: "http",
+    });
+    expect(conn.name).toBe("test");
+    expect(conn.isConnected()).toBe(false);
+  });
+
   it("未实现的 transport 抛出 McpConnectionError", () => {
     expect(() =>
       createMcpServerConnection("test", {
-        url: "http://localhost:3000/mcp",
-        transport: "http",
+        url: "ws://localhost:3000",
+        transport: "ws" as any,
       }),
     ).toThrow(McpConnectionError);
   });

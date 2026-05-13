@@ -1,5 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { McpServerConfig } from "./types.js";
 import { McpConnectionError } from "./errors.js";
 
@@ -24,7 +26,19 @@ export function createMcpServerConnection(
   config: McpServerConfig,
 ): McpServerConnection {
   if (config.transport === "stdio") {
-    return new StdioMcpServerConnection(name, config);
+    const transport = new StdioClientTransport({
+      command: config.command!,
+      args: config.args,
+      env: config.env,
+    });
+    return new BaseMcpServerConnection(name, transport);
+  }
+
+  if (config.transport === "http") {
+    const transport = new StreamableHTTPClientTransport(
+      new URL(config.url!),
+    );
+    return new BaseMcpServerConnection(name, transport);
   }
 
   throw new McpConnectionError(
@@ -32,20 +46,14 @@ export function createMcpServerConnection(
   );
 }
 
-class StdioMcpServerConnection implements McpServerConnection {
+class BaseMcpServerConnection implements McpServerConnection {
   private client: Client;
-  private transport: StdioClientTransport;
   private _isConnected = false;
 
   constructor(
     public readonly name: string,
-    config: McpServerConfig,
+    private transport: Transport,
   ) {
-    this.transport = new StdioClientTransport({
-      command: config.command!,
-      args: config.args,
-      env: config.env,
-    });
     this.client = new Client(
       { name: "ys-code", version: "0.1.0" },
       { capabilities: {} },
