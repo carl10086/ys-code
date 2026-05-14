@@ -89,6 +89,39 @@ describe("McpConnectionManager", () => {
     expect(manager.getConnections().size).toBe(0);
   });
 
+  it("connect 超时后调用 disconnect() 一次", async () => {
+    const manager = new McpConnectionManager();
+    let disconnectCallCount = 0;
+
+    const conn = createMockConnection({
+      name: "slow",
+      connect: () => new Promise(() => {}), // 永不 resolve
+      disconnect: () => {
+        disconnectCallCount++;
+        return Promise.resolve();
+      },
+    });
+
+    const originalTimeout = process.env.MCP_TIMEOUT;
+    process.env.MCP_TIMEOUT = "100";
+
+    await manager.connectAll(
+      { mcpServers: { slow: { command: "node", transport: "stdio" } } },
+      () => conn,
+    );
+
+    if (originalTimeout !== undefined) {
+      process.env.MCP_TIMEOUT = originalTimeout;
+    } else {
+      delete process.env.MCP_TIMEOUT;
+    }
+
+    expect(manager.getConnections().size).toBe(0);
+    expect(manager.getFailures().size).toBe(1);
+    expect(disconnectCallCount).toBe(1);
+    expect(manager.getFailures().get("slow")?.message).toContain("timed out");
+  });
+
   it("getConnections 返回的是副本，外部修改不影响内部", async () => {
     const manager = new McpConnectionManager();
     const conn = createMockConnection({ name: "fs" });
