@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadMcpConfig } from "./config.js";
 import { McpConfigError } from "./errors.js";
+import { logger } from "../utils/logger.js";
 
 describe("loadMcpConfig", () => {
   let tempDir: string;
@@ -158,5 +159,115 @@ describe("loadMcpConfig", () => {
     );
 
     expect(loadMcpConfig(tempDir)).rejects.toThrow(McpConfigError);
+  });
+
+  it("缺失 env var 时触发 logger.warn", async () => {
+    delete process.env.TEST_MISSING_VAR;
+
+    const warnSpy = spyOn(logger, "warn");
+
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            command: "node",
+            env: { API_KEY: "${TEST_MISSING_VAR}" },
+          },
+        },
+      }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers.fs.env?.API_KEY).toBe("");
+
+    expect(warnSpy).toHaveBeenCalled();
+    const callArgs = warnSpy.mock.calls[0];
+    expect(callArgs[0]).toContain("missing environment variables");
+    expect(callArgs[1]?.vars).toContain("TEST_MISSING_VAR");
+
+    warnSpy.mockRestore();
+  });
+
+  it("支持 ${VAR:-default} 语法，未设时取 default", async () => {
+    delete process.env.TEST_DEFAULT_VAR;
+
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            command: "node",
+            env: { API_KEY: "${TEST_DEFAULT_VAR:-fallback}" },
+          },
+        },
+      }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers.fs.env?.API_KEY).toBe("fallback");
+  });
+
+  it("支持 ${VAR:-default} 语法，已设时取 env 值", async () => {
+    process.env.TEST_DEFAULT_VAR = "real-value";
+
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            command: "node",
+            env: { API_KEY: "${TEST_DEFAULT_VAR:-fallback}" },
+          },
+        },
+      }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers.fs.env?.API_KEY).toBe("real-value");
+
+    delete process.env.TEST_DEFAULT_VAR;
+  });
+
+  it("非 string 的 env 值被强制转 string 处理", async () => {
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            command: "node",
+            env: { PORT: 3000, DEBUG: true },
+          },
+        },
+      }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers.fs.env?.PORT).toBe("3000");
+    expect(config.mcpServers.fs.env?.DEBUG).toBe("true");
+  });
+
+  it("缺失 env 不阻断 loadMcpConfig 返回", async () => {
+    delete process.env.TEST_MISSING_VAR;
+    const warnSpy = spyOn(logger, "warn");
+
+    writeFileSync(
+      join(tempDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          fs: {
+            command: "node",
+            env: { API_KEY: "${TEST_MISSING_VAR}" },
+          },
+        },
+      }),
+    );
+
+    const config = await loadMcpConfig(tempDir);
+    expect(config.mcpServers).toBeDefined();
+    expect(config.mcpServers.fs).toBeDefined();
+    expect(config.mcpServers.fs.command).toBe("node");
+
+    warnSpy.mockRestore();
   });
 });
