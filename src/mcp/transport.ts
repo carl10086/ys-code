@@ -20,6 +20,7 @@ export interface McpServerConnection {
   readResource(uri: string): Promise<unknown>;
   listPrompts(): Promise<Array<{ name: string; description?: string }>>;
   getPrompt(name: string, args?: unknown): Promise<unknown>;
+  onClose?: () => void;
 }
 
 export function createMcpServerConnection(
@@ -54,6 +55,8 @@ class BaseMcpServerConnection implements McpServerConnection {
   private stderrBuffer = "";
   private readonly STDERR_CAP = 64 * 1024;
   private stderrListener?: (chunk: Buffer | string) => void;
+  private originalOnClose?: () => void;
+  onClose?: () => void;
 
   constructor(
     public readonly name: string,
@@ -95,6 +98,14 @@ class BaseMcpServerConnection implements McpServerConnection {
     }
 
     this.logStderr();
+
+    // Wrap transport.onclose AFTER client.connect() so we don't get overwritten
+    // by the client's own handler installation.
+    this.originalOnClose = this.transport.onclose;
+    this.transport.onclose = () => {
+      this.originalOnClose?.();
+      this.onClose?.();
+    };
   }
 
   async disconnect(): Promise<void> {
@@ -105,6 +116,10 @@ class BaseMcpServerConnection implements McpServerConnection {
       stdioTransport.stderr.removeListener("data", this.stderrListener);
       this.stderrListener = undefined;
     }
+
+    // Restore original onclose to avoid calling our handler during intentional disconnect
+    this.transport.onclose = this.originalOnClose;
+    this.originalOnClose = undefined;
 
     await this.client.close();
     this._isConnected = false;
