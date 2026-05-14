@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { McpServerConfig } from "./types.js";
 import { McpConnectionError } from "./errors.js";
+import { logger } from "../utils/logger.js";
 
 export interface McpServerConnection {
   readonly name: string;
@@ -30,7 +31,7 @@ export function createMcpServerConnection(
       command: config.command!,
       args: config.args,
       env: config.env,
-      stderr: "ignore",
+      stderr: "pipe",
     });
     return new BaseMcpServerConnection(name, transport);
   }
@@ -50,6 +51,9 @@ export function createMcpServerConnection(
 class BaseMcpServerConnection implements McpServerConnection {
   private client: Client;
   private _isConnected = false;
+  private stderrBuffer = "";
+  private readonly STDERR_CAP = 64 * 1024;
+  private stderrListener?: (chunk: Buffer | string) => void;
 
   constructor(
     public readonly name: string,
@@ -62,13 +66,56 @@ class BaseMcpServerConnection implements McpServerConnection {
   }
 
   async connect(): Promise<void> {
-    await this.client.connect(this.transport);
-    this._isConnected = true;
+    this.stderrBuffer = "";
+
+    // StdioClientTransport exposes stderr as a ReadableStream, but the base
+    // Transport type does not declare it. We assert to attach the listener.
+    const stdioTransport = this.transport as {
+      stderr?: NodeJS.ReadableStream | null;
+    };
+    const stderrStream = stdioTransport.stderr;
+
+    if (stderrStream) {
+      this.stderrListener = (chunk: Buffer | string) => {
+        const str = chunk.toString();
+        const remaining = this.STDERR_CAP - this.stderrBuffer.length;
+        if (remaining > 0) {
+          this.stderrBuffer += str.slice(0, remaining);
+        }
+      };
+      stderrStream.on("data", this.stderrListener);
+    }
+
+    try {
+      await this.client.connect(this.transport);
+      this._isConnected = true;
+    } catch (error) {
+      this.logStderr();
+      throw error;
+    }
+
+    this.logStderr();
   }
 
   async disconnect(): Promise<void> {
+    const stdioTransport = this.transport as {
+      stderr?: NodeJS.ReadableStream | null;
+    };
+    if (stdioTransport.stderr && this.stderrListener) {
+      stdioTransport.stderr.removeListener("data", this.stderrListener);
+      this.stderrListener = undefined;
+    }
+
     await this.client.close();
     this._isConnected = false;
+  }
+
+  private logStderr(): void {
+    if (this.stderrBuffer.length > 0) {
+      logger.warn(`MCP server "${this.name}" stderr output`, {
+        stderr: this.stderrBuffer,
+      });
+    }
   }
 
   isConnected(): boolean {
