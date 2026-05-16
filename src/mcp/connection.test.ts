@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { McpConnectionManager, calculateBackoffDelay } from "./connection.js";
+import { McpConnectionManager, calculateBackoffDelay, getConnectTimeoutMs } from "./connection.js";
 import type { McpServerConnection } from "./transport.js";
 
 function createMockConnection(
@@ -117,21 +117,23 @@ describe("McpConnectionManager", () => {
     const originalTimeout = process.env.MCP_TIMEOUT;
     process.env.MCP_TIMEOUT = "100";
 
-    await manager.connectAll(
-      { mcpServers: { slow: { command: "node", transport: "stdio" } } },
-      () => conn,
-    );
+    try {
+      await manager.connectAll(
+        { mcpServers: { slow: { command: "node", transport: "stdio" } } },
+        () => conn,
+      );
 
-    if (originalTimeout !== undefined) {
-      process.env.MCP_TIMEOUT = originalTimeout;
-    } else {
-      delete process.env.MCP_TIMEOUT;
+      expect(manager.getConnections().size).toBe(0);
+      expect(manager.getFailures().size).toBe(1);
+      expect(disconnectCallCount).toBe(1);
+      expect(manager.getFailures().get("slow")?.message).toContain("timed out");
+    } finally {
+      if (originalTimeout !== undefined) {
+        process.env.MCP_TIMEOUT = originalTimeout;
+      } else {
+        delete process.env.MCP_TIMEOUT;
+      }
     }
-
-    expect(manager.getConnections().size).toBe(0);
-    expect(manager.getFailures().size).toBe(1);
-    expect(disconnectCallCount).toBe(1);
-    expect(manager.getFailures().get("slow")?.message).toContain("timed out");
   });
 
   it("getConnections 返回的是副本，外部修改不影响内部", async () => {
@@ -330,12 +332,18 @@ describe("McpConnectionManager", () => {
     expect(manager.getConnections().has("api")).toBe(true);
   });
 
-  it("reconnect() 遇 401 错误进入 needs-auth 状态", async () => {
+  it("reconnect() 从 needs-auth 状态恢复为 connected", async () => {
     const manager = new McpConnectionManager();
+    let shouldFail = true;
+
     const conn = createMockConnection({
       name: "api",
-      connect: () =>
-        Promise.reject(new Error("401 Unauthorized: invalid token")),
+      connect: () => {
+        if (shouldFail) {
+          return Promise.reject(new Error("401 Unauthorized"));
+        }
+        return Promise.resolve();
+      },
     });
 
     await manager.connectAll(
@@ -346,11 +354,46 @@ describe("McpConnectionManager", () => {
     expect(manager.getStates().get("api")?.kind).toBe("failed");
 
     await manager.reconnect("api");
+    expect(manager.getStates().get("api")?.kind).toBe("needs-auth");
 
-    const state = manager.getStates().get("api");
-    expect(state?.kind).toBe("needs-auth");
-    if (state?.kind === "needs-auth") {
-      expect(state.reason).toContain("Unauthorized");
+    shouldFail = false;
+    await manager.reconnect("api");
+
+    expect(manager.getStates().get("api")?.kind).toBe("connected");
+    expect(manager.getConnections().has("api")).toBe(true);
+  });
+
+  it("reconnect() 对不存在的 server 抛出错误", async () => {
+    const manager = new McpConnectionManager();
+    await expect(manager.reconnect("missing")).rejects.toThrow("not found");
+  });
+
+  it("reconnect() 对已连接的 server 是 no-op", async () => {
+    const manager = new McpConnectionManager();
+    const conn = createMockConnection({ name: "api" });
+
+    await manager.connectAll(
+      { mcpServers: { api: { url: "http://localhost:3000", transport: "http" } } },
+      () => conn,
+    );
+
+    expect(manager.getStates().get("api")?.kind).toBe("connected");
+    await manager.reconnect("api");
+    expect(manager.getStates().get("api")?.kind).toBe("connected");
+  });
+
+  it("getConnectTimeoutMs 处理非法 env 值", () => {
+    const originalTimeout = process.env.MCP_TIMEOUT;
+    process.env.MCP_TIMEOUT = "abc";
+
+    try {
+      expect(getConnectTimeoutMs()).toBe(30000);
+    } finally {
+      if (originalTimeout !== undefined) {
+        process.env.MCP_TIMEOUT = originalTimeout;
+      } else {
+        delete process.env.MCP_TIMEOUT;
+      }
     }
   });
 });

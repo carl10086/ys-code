@@ -48,4 +48,11 @@ describe("mcp remove", () => {
       cmd.parseAsync(["node", "script", "missing"]),
     ).rejects.toThrow("not found");
   });
+
+  it("非法 name（含空格）被拒绝", async () => {
+    const cmd = createRemoveCommand();
+    await expect(
+      cmd.parseAsync(["node", "script", "demo server"]),
+    ).rejects.toThrow("Invalid server name");
+  });
 });

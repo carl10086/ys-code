@@ -142,6 +142,16 @@ describe("jsonSchemaToTypeBox", () => {
     expect(result).toEqual(Type.Literal("fixed-value"));
   });
 
+  it("转换 number const 为 Type.Literal(number)", () => {
+    const result = jsonSchemaToTypeBox({ const: 42 });
+    expect(result).toEqual(Type.Literal(42));
+  });
+
+  it("转换 boolean const 为 Type.Literal(boolean)", () => {
+    const result = jsonSchemaToTypeBox({ const: true });
+    expect(result).toEqual(Type.Literal(true));
+  });
+
   it("转换 nullable: true 为 Type.Union([T, Type.Null()])", () => {
     const result = jsonSchemaToTypeBox({
       type: "string",

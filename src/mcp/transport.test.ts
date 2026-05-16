@@ -69,4 +69,38 @@ describe("BaseMcpServerConnection stderr handling", () => {
     const buffer = connAny.stderrBuffer as string;
     expect(buffer.length).toBeLessThanOrEqual(64 * 1024);
   });
+
+  it("disconnect 后移除 stderr listener", async () => {
+    const conn = createMcpServerConnection("test-listener", {
+      command: "node",
+      args: ["-e", "setTimeout(() => {}, 1000)"],
+      transport: "stdio",
+    });
+
+    // 连接后再断开
+    try {
+      await conn.connect();
+    } catch {
+      // 某些环境可能无法真正连接，但 listener 应该已注册
+    }
+
+    const connAny = conn as any;
+    const listenerBefore = connAny.stderrListener;
+    expect(listenerBefore).toBeDefined();
+
+    await conn.disconnect();
+
+    const listenerAfter = connAny.stderrListener;
+    expect(listenerAfter).toBeUndefined();
+  });
+
+  it("http transport 没有 stderr stream", () => {
+    const conn = createMcpServerConnection("test-http", {
+      url: "http://localhost:3000",
+      transport: "http",
+    });
+
+    const connAny = conn as any;
+    expect(connAny.stderrListener).toBeUndefined();
+  });
 });

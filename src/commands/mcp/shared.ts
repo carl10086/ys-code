@@ -1,6 +1,7 @@
 import { writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import type { McpConfig } from "../../mcp/types.js";
 
 const VALID_NAME = /^[a-zA-Z0-9_-]+$/;
@@ -23,7 +24,7 @@ export async function writeMcpJson(
   config: McpConfig,
 ): Promise<void> {
   const configPath = join(cwd, ".mcp.json");
-  const tmpPath = join(tmpdir(), `.mcp.json.tmp.${Date.now()}`);
+  const tmpPath = join(tmpdir(), `.mcp.json.tmp.${randomUUID()}`);
   await writeFile(tmpPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
   await rename(tmpPath, configPath);
 }

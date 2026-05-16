@@ -112,7 +112,7 @@ function expandEnvVars(env: Record<string, string>): {
       (_, varExpr: string) => {
         const [varName, defaultValue] = varExpr.split(":-", 2);
         const envValue = process.env[varName];
-        if (envValue === undefined || envValue === "") {
+        if (envValue === undefined) {
           if (defaultValue !== undefined) {
             return defaultValue;
           }
