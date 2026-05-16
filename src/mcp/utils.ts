@@ -9,7 +9,8 @@ export function jsonSchemaToTypeBox(schema: unknown): TSchema {
 
   // Handle const before enum/type check
   if ("const" in s) {
-    return Type.Literal(s.const as string);
+    const constValue = s.const as string | number | boolean;
+    return Type.Literal(constValue);
   }
 
   // Handle enum before type check

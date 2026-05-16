@@ -9,7 +9,7 @@ import { createMcpServerConnection } from "./transport.js";
 import { McpConnectionError } from "./errors.js";
 import { logger } from "../utils/logger.js";
 
-function getConnectTimeoutMs(): number {
+export function getConnectTimeoutMs(): number {
   const env = process.env.MCP_TIMEOUT;
   if (env) {
     const parsed = Number(env);
@@ -98,7 +98,11 @@ export class McpConnectionManager {
           };
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
-          await connection?.disconnect().catch(() => {});
+          await connection?.disconnect().catch((disconnectErr) => {
+            logger.warn(`MCP server "${name}" disconnect after connect error failed`, {
+              error: disconnectErr instanceof Error ? disconnectErr.message : String(disconnectErr),
+            });
+          });
 
           this.states.set(name, {
             kind: "failed",
@@ -207,7 +211,11 @@ export class McpConnectionManager {
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      await connection?.disconnect().catch(() => {});
+      await connection?.disconnect().catch((disconnectErr) => {
+        logger.warn(`MCP server "${name}" disconnect after reconnect error failed`, {
+          error: disconnectErr instanceof Error ? disconnectErr.message : String(disconnectErr),
+        });
+      });
 
       if (isAuthError(err)) {
         this.states.set(name, {
@@ -228,7 +236,7 @@ export class McpConnectionManager {
   async reconnect(name: string): Promise<void> {
     const state = this.states.get(name);
     if (!state) {
-      throw new Error(`MCP server "${name}" not found`);
+      throw new McpConnectionError(`MCP server "${name}" not found`);
     }
     if (state.kind === "connected") {
       return;
@@ -255,13 +263,16 @@ export class McpConnectionManager {
       connectedStates.map(async (state) => {
         try {
           await state.connection.disconnect();
-        } catch {
-          // ignore disconnect errors
+        } catch (error) {
+          logger.warn(`MCP server "${state.name}" disconnect failed during disconnectAll`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }),
     );
 
     this.states.clear();
+    this.factory = undefined;
   }
 
   private clearAllReconnectTimers(): void {

@@ -59,4 +59,11 @@ describe("mcp list", () => {
 
     expect(logs.some((line) => line.includes("No MCP servers"))).toBe(true);
   });
+
+  it("缺少 .mcp.json 时输出空配置提示", async () => {
+    const cmd = createListCommand();
+    await cmd.parseAsync(["node", "script"]);
+
+    expect(logs.some((line) => line.includes("No MCP servers"))).toBe(true);
+  });
 });

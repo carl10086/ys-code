@@ -115,4 +115,40 @@ describe("mcp add", () => {
       cmd.parseAsync(["node", "script", "demo", "echo"]),
     ).rejects.toThrow("already exists");
   });
+
+  it("解析 -H KEY=VALUE 为 headers", async () => {
+    const cmd = createAddCommand();
+    await cmd.parseAsync([
+      "node",
+      "script",
+      "api",
+      "http://localhost:3000",
+      "-H",
+      "Authorization=Bearer token",
+      "-H",
+      "X-Custom=header",
+    ]);
+
+    const content = readFileSync(join(tmpDir, ".mcp.json"), "utf-8");
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers.api.headers).toEqual({
+      Authorization: "Bearer token",
+      "X-Custom": "header",
+    });
+  });
+
+  it("https:// URL 自动识别为 http transport", async () => {
+    const cmd = createAddCommand();
+    await cmd.parseAsync([
+      "node",
+      "script",
+      "secure-api",
+      "https://localhost:3443/mcp",
+    ]);
+
+    const content = readFileSync(join(tmpDir, ".mcp.json"), "utf-8");
+    const parsed = JSON.parse(content);
+    expect(parsed.mcpServers["secure-api"].transport).toBe("http");
+    expect(parsed.mcpServers["secure-api"].url).toBe("https://localhost:3443/mcp");
+  });
 });
