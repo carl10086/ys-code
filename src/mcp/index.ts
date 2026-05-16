@@ -66,11 +66,20 @@ export async function loadMcpServers(cwd: string): Promise<AgentTool[]> {
     tools.push(createMcpGetPromptTool(connections));
   }
 
-  if (manager.getFailures().size > 0) {
-    for (const [name, error] of manager.getFailures()) {
+  const states = manager.getStates();
+  for (const [name, state] of states) {
+    if (state.kind === "failed") {
       logger.warn(`MCP server "${name}" connection failed`, {
-        error: error.message,
+        error: state.error.message,
       });
+    }
+    if (state.kind === "needs-auth") {
+      logger.warn(`MCP server "${name}" needs authentication`, {
+        reason: state.reason,
+      });
+    }
+    if (state.kind === "pending") {
+      logger.info(`MCP server "${name}" is reconnecting`);
     }
   }
 

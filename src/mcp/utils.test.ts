@@ -93,13 +93,81 @@ describe("jsonSchemaToTypeBox", () => {
     );
   });
 
-  it("不支持的类型 fallback 到 Type.Any()", () => {
+  it("转换 null 类型", () => {
     const result = jsonSchemaToTypeBox({ type: "null" });
+    expect(result).toEqual(Type.Null());
+  });
+
+  it("不支持的类型 fallback 到 Type.Any()", () => {
+    const result = jsonSchemaToTypeBox({ type: "unknown" });
     expect(result).toEqual(Type.Any());
   });
 
   it("缺少 type 时 fallback 到 Type.Any()", () => {
     const result = jsonSchemaToTypeBox({ description: "no type" });
+    expect(result).toEqual(Type.Any());
+  });
+
+  it("转换 oneOf 为 Type.Union", () => {
+    const result = jsonSchemaToTypeBox({
+      oneOf: [{ type: "string" }, { type: "number" }],
+    });
+    expect(result).toEqual(Type.Union([Type.String(), Type.Number()]));
+  });
+
+  it("转换 anyOf 为 Type.Union", () => {
+    const result = jsonSchemaToTypeBox({
+      anyOf: [{ type: "boolean" }, { type: "null" }],
+    });
+    expect(result).toEqual(Type.Union([Type.Boolean(), Type.Null()]));
+  });
+
+  it("转换 allOf 为 Type.Intersect", () => {
+    const result = jsonSchemaToTypeBox({
+      allOf: [
+        { type: "object", properties: { name: { type: "string" } } },
+        { type: "object", properties: { age: { type: "number" } } },
+      ],
+    });
+    expect(result).toEqual(
+      Type.Intersect([
+        Type.Object({ name: Type.Optional(Type.String()) }),
+        Type.Object({ age: Type.Optional(Type.Number()) }),
+      ]),
+    );
+  });
+
+  it("转换 const 为 Type.Literal", () => {
+    const result = jsonSchemaToTypeBox({ const: "fixed-value" });
+    expect(result).toEqual(Type.Literal("fixed-value"));
+  });
+
+  it("转换 nullable: true 为 Type.Union([T, Type.Null()])", () => {
+    const result = jsonSchemaToTypeBox({
+      type: "string",
+      nullable: true,
+    });
+    expect(result).toEqual(Type.Union([Type.String(), Type.Null()]));
+  });
+
+  it("转换 object 时保留 additionalProperties", () => {
+    const result = jsonSchemaToTypeBox({
+      type: "object",
+      properties: {
+        known: { type: "string" },
+      },
+      additionalProperties: true,
+    });
+    expect(result).toEqual(
+      Type.Object(
+        { known: Type.Optional(Type.String()) },
+        { additionalProperties: true },
+      ),
+    );
+  });
+
+  it("不支持的 combinator $ref 退化为 Type.Any()", () => {
+    const result = jsonSchemaToTypeBox({ $ref: "#/definitions/Foo" });
     expect(result).toEqual(Type.Any());
   });
 });

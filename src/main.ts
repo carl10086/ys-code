@@ -2,13 +2,26 @@ import { Command } from "@commander-js/extra-typings";
 import { createWebServer, stopWebServer } from "./web/index.js";
 import { startTUI } from "./tui/index.js";
 import { logger } from "./utils/logger.js";
+import { createMcpCommand } from "./commands/mcp/index.js";
 
 const program = new Command()
   .name("ys-code")
   .description("ys-code - AI-powered coding assistant")
-  .option("--web", "启动时同时开启 Web 预览");
+  .option("--web", "启动时同时开启 Web 预览")
+  .addCommand(createMcpCommand());
 
 async function main() {
+  const args = process.argv.slice(2);
+  const subcommandName = args.find((arg) => !arg.startsWith("-"));
+
+  if (
+    subcommandName &&
+    program.commands.some((cmd) => cmd.name() === subcommandName)
+  ) {
+    await program.parseAsync(process.argv);
+    return;
+  }
+
   program.parse();
   const options = program.opts();
 
