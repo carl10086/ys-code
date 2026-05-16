@@ -7,6 +7,11 @@ export function jsonSchemaToTypeBox(schema: unknown): TSchema {
 
   const s = schema as Record<string, unknown>;
 
+  // Handle const before enum/type check
+  if ("const" in s) {
+    return Type.Literal(s.const as string);
+  }
+
   // Handle enum before type check
   if (Array.isArray(s.enum)) {
     const literals = s.enum.map((value) => Type.Literal(value as string));
@@ -15,39 +20,91 @@ export function jsonSchemaToTypeBox(schema: unknown): TSchema {
     return Type.Union(literals);
   }
 
+  // Handle combinators before type check
+  if (Array.isArray(s.oneOf)) {
+    const schemas = s.oneOf.map((item) => jsonSchemaToTypeBox(item));
+    if (schemas.length === 0) return Type.Any();
+    if (schemas.length === 1) return schemas[0];
+    return Type.Union(schemas);
+  }
+
+  if (Array.isArray(s.anyOf)) {
+    const schemas = s.anyOf.map((item) => jsonSchemaToTypeBox(item));
+    if (schemas.length === 0) return Type.Any();
+    if (schemas.length === 1) return schemas[0];
+    return Type.Union(schemas);
+  }
+
+  if (Array.isArray(s.allOf)) {
+    const schemas = s.allOf.map((item) => jsonSchemaToTypeBox(item));
+    if (schemas.length === 0) return Type.Any();
+    if (schemas.length === 1) return schemas[0];
+    return Type.Intersect(schemas);
+  }
+
+  // Handle $ref fallback
+  if ("$ref" in s) {
+    return Type.Any();
+  }
+
+  let result: TSchema;
+
   switch (s.type) {
     case "string":
-      return Type.String();
+      result = Type.String();
+      break;
     case "number":
     case "integer":
-      return Type.Number();
+      result = Type.Number();
+      break;
     case "boolean":
-      return Type.Boolean();
+      result = Type.Boolean();
+      break;
+    case "null":
+      result = Type.Null();
+      break;
     case "array": {
       const items = s.items ? jsonSchemaToTypeBox(s.items) : Type.Any();
-      return Type.Array(items);
+      result = Type.Array(items);
+      break;
     }
     case "object": {
       if (!s.properties || typeof s.properties !== "object") {
-        return Type.Object({});
-      }
+        result = Type.Object({});
+      } else {
+        const properties: Record<string, TSchema> = {};
+        const required = new Set<string>(
+          Array.isArray(s.required) ? (s.required as string[]) : [],
+        );
 
-      const properties: Record<string, TSchema> = {};
-      const required = new Set<string>(
-        Array.isArray(s.required) ? (s.required as string[]) : [],
-      );
-
-      for (const [key, value] of Object.entries(s.properties)) {
-        let fieldSchema = jsonSchemaToTypeBox(value);
-        if (!required.has(key)) {
-          fieldSchema = Type.Optional(fieldSchema);
+        for (const [key, value] of Object.entries(s.properties)) {
+          let fieldSchema = jsonSchemaToTypeBox(value);
+          if (!required.has(key)) {
+            fieldSchema = Type.Optional(fieldSchema);
+          }
+          properties[key] = fieldSchema;
         }
-        properties[key] = fieldSchema;
-      }
 
-      return Type.Object(properties);
+        const objectOptions: Record<string, unknown> = {};
+        if ("additionalProperties" in s) {
+          objectOptions.additionalProperties = s.additionalProperties;
+        }
+
+        result =
+          Object.keys(objectOptions).length > 0
+            ? Type.Object(properties, objectOptions)
+            : Type.Object(properties);
+      }
+      break;
     }
     default:
       return Type.Any();
   }
+
+  // Handle nullable: wrap in Union with Null
+  if (s.nullable === true) {
+    result = Type.Union([result, Type.Null()]);
+  }
+
+  return result;
 }
