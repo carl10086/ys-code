@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ys-code MCP ↔ claude-code Align Spec · Terminal Evidence Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0a0a0a; --surface:#0a0a0a;
+  --surface-container-lowest:#0a0a0a;
+  --surface-container-low:#0d160d;
+  --surface-container:#102610;
+  --surface-container-high:#153315;
+  --primary:#33ff00; --secondary:#ffb000;
+  --muted:#1f521f; --accent:#33ff00;
+  --error:#ff3333; --border:#1f521f; --border-strong:#33ff00;
+  --fg-1:#33ff00; --fg-2:#b7ff9a; --fg-muted:#1f521f; --on-primary:#050505;
+  --green:#33ff00; --yellow:#ffb000; --red:#ff3333; --blue:#72d5ff;
+  --font-mono:'JetBrains Mono','Fira Code','SF Mono',Menlo,Consolas,monospace;
+  --space-xs:4px; --space-sm:8px; --space-md:12px;
+  --space-lg:16px; --space-xl:20px; --space-2xl:24px;
+  --space-3xl:32px; --space-4xl:48px; --space-5xl:64px;
+  --radius-sm:0;
+  --text-glow:0 0 5px rgba(51,255,0,.5);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg-1);font-family:var(--font-mono);font-size:14px;line-height:1.55}
+body{min-height:100vh;text-shadow:var(--text-glow)}
+a{color:var(--blue);text-decoration:underline dotted;text-underline-offset:3px}
+a:hover{color:var(--green)}
+::selection{background:var(--green);color:#050505;text-shadow:none}
+
+/* CRT scanline overlay */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,
+    rgba(51,255,0,.04) 0px,
+    rgba(51,255,0,.04) 1px,
+    transparent 1px,
+    transparent 3px);
+  mix-blend-mode:screen;
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
+  background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+}
+
+.dev-shell{max-width:1400px;margin:0 auto;padding:var(--space-xl) var(--space-2xl) var(--space-5xl)}
+@media (max-width:720px){.dev-shell{padding:var(--space-lg) var(--space-md) var(--space-3xl)}}
+
+/* Prompt / finding bar */
+.finding-bar{
+  border:1px solid var(--border-strong);
+  background:var(--surface-container-low);
+  padding:var(--space-md) var(--space-lg);
+  margin-bottom:var(--space-lg);
+}
+.terminal-prompt{font-weight:700;color:var(--green);white-space:pre-wrap;word-break:break-word}
+.terminal-prompt .host{color:var(--fg-2)}
+.terminal-prompt .path{color:var(--yellow)}
+.terminal-prompt .cmd{color:var(--green)}
+.terminal-cursor{display:inline-block;width:0.55em;height:1.05em;background:var(--green);vertical-align:-2px;margin-left:2px;animation:blink 1.1s steps(2,end) infinite}
+@keyframes blink{50%{opacity:0}}
+.bar-meta{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:var(--space-sm) var(--space-lg);
+  margin-top:var(--space-md);
+  padding-top:var(--space-md);
+  border-top:1px dashed var(--border);
+  font-size:13px;
+}
+.bar-meta .k{color:var(--fg-muted);text-transform:uppercase;letter-spacing:.05em;font-size:11px}
+.bar-meta .v{color:var(--fg-2)}
+
+/* Status pill row */
+.status-row{display:flex;flex-wrap:wrap;gap:var(--space-sm);margin-top:var(--space-md)}
+.status-code{
+  display:inline-block;border:1px solid var(--border);
+  padding:2px 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+}
+.status-code.ok{color:var(--green);border-color:var(--green)}
+.status-code.warn{color:var(--yellow);border-color:var(--yellow);text-shadow:0 0 4px rgba(255,176,0,.45)}
+.status-code.err{color:var(--red);border-color:var(--red);text-shadow:0 0 4px rgba(255,51,51,.5)}
+.status-code.hyp{color:var(--blue);border-color:var(--blue);text-shadow:0 0 4px rgba(114,213,255,.45)}
+.status-code.muted{color:var(--fg-muted);border-color:var(--fg-muted);text-shadow:none}
+
+/* Pane grid */
+.pane-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--space-lg)}
+@media (max-width:900px){.pane-grid{grid-template-columns:1fr}}
+.col-6{grid-column:span 6}.col-4{grid-column:span 4}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+@media (max-width:900px){.col-6,.col-4,.col-8,.col-12{grid-column:span 1}}
+
+.terminal-pane{
+  border:1px solid var(--border);
+  background:var(--surface-container-lowest);
+  margin-bottom:var(--space-lg);
+}
+.pane-title{
+  font-size:12px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--fg-2);
+  padding:var(--space-sm) var(--space-md);
+  border-bottom:1px solid var(--border);
+  background:var(--surface-container-low);
+  display:flex;justify-content:space-between;align-items:center;gap:var(--space-md);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pane-title::before{content:"+--- ";color:var(--fg-muted)}
+.pane-title::after{content:" ---+";color:var(--fg-muted)}
+.pane-title .right{color:var(--fg-muted);font-size:11px;text-transform:none;letter-spacing:0}
+.pane-body{padding:var(--space-md) var(--space-lg);overflow:auto}
+
+/* Phase cards = hotspot map */
+.hotspot-map{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-md)}
+@media (max-width:900px){.hotspot-map{grid-template-columns:1fr}}
+.hotspot{
+  border:1px solid var(--border);
+  padding:var(--space-md);
+  background:var(--surface);
+  position:relative;
+}
+.hotspot:hover{border-color:var(--green);box-shadow:inset 0 0 0 1px rgba(51,255,0,.18)}
+.hotspot h3{margin:0 0 var(--space-xs);font-size:14px;letter-spacing:.04em;color:var(--green)}
+.hotspot .sub{color:var(--fg-muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.hotspot ul{margin:var(--space-sm) 0 0;padding-left:1.2em;color:var(--fg-2);font-size:13px}
+.hotspot li{margin:2px 0}
+.hotspot .badge{position:absolute;top:8px;right:8px}
+
+/* Risk checklist */
+.risk-checklist{list-style:none;margin:0;padding:0}
+.risk-checklist li{
+  display:grid;grid-template-columns:64px 1fr auto;gap:var(--space-md);
+  padding:var(--space-sm) 0;border-bottom:1px dashed var(--border);
+  align-items:start;
+}
+.risk-checklist li:last-child{border-bottom:0}
+.risk-checklist .code{font-weight:700}
+.risk-checklist .desc{color:var(--fg-2)}
+.risk-checklist .desc .ev{color:var(--fg-muted);font-size:12px;display:block;margin-top:2px}
+.risk-checklist .sev{font-size:11px;color:var(--fg-muted);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.risk-checklist .sev.p0{color:var(--red)}
+.risk-checklist .sev.p1{color:var(--yellow)}
+.risk-checklist .sev.note{color:var(--blue)}
+
+/* ASCII divider */
+.ascii-divider{color:var(--fg-muted);white-space:pre;font-size:12px;margin:var(--space-md) 0;letter-spacing:.05em;overflow-x:auto}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px dashed var(--border);text-align:left;vertical-align:top}
+th{color:var(--fg-muted);text-transform:uppercase;letter-spacing:.05em;font-size:11px;font-weight:600;border-bottom:1px solid var(--border)}
+td.mono{font-family:var(--font-mono)}
+tr:hover td{background:var(--surface-container-low)}
+.cell-ok{color:var(--green)}.cell-warn{color:var(--yellow)}.cell-err{color:var(--red)}.cell-muted{color:var(--fg-muted)}
+
+/* Filter / controls */
+.controls{display:flex;flex-wrap:wrap;gap:var(--space-sm);margin-bottom:var(--space-md)}
+.control-btn,.copy-handoff{
+  font-family:var(--font-mono);font-size:12px;
+  background:transparent;color:var(--fg-2);
+  border:1px solid var(--border);padding:6px 12px;
+  cursor:pointer;text-transform:uppercase;letter-spacing:.05em;
+}
+.control-btn::before,.copy-handoff::before{content:"[ "}
+.control-btn::after,.copy-handoff::after{content:" ]"}
+.control-btn:hover,.control-btn.active,.copy-handoff:hover{
+  background:var(--green);color:#050505;border-color:var(--green);text-shadow:none;
+}
+.control-btn:focus-visible,.copy-handoff:focus-visible{outline:1px solid var(--green);outline-offset:2px}
+
+/* Raw artifact (collapsible) */
+details.raw-artifact{
+  border:1px solid var(--border);
+  background:var(--surface);
+  margin-bottom:var(--space-md);
+}
+details.raw-artifact > summary{
+  list-style:none;cursor:pointer;
+  padding:var(--space-sm) var(--space-md);
+  background:var(--surface-container-low);
+  border-bottom:1px solid var(--border);
+  color:var(--fg-2);font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+}
+details.raw-artifact > summary::-webkit-details-marker{display:none}
+details.raw-artifact > summary::before{content:"[+] ";color:var(--fg-muted)}
+details.raw-artifact[open] > summary::before{content:"[-] ";color:var(--green)}
+details.raw-artifact > summary:hover{color:var(--green)}
+details.raw-artifact pre{margin:0;padding:var(--space-md);font-size:12px;color:var(--fg-2);overflow-x:auto;white-space:pre;line-height:1.6}
+details.raw-artifact pre .ln{display:inline-block;width:3ch;text-align:right;color:var(--fg-muted);margin-right:var(--space-md);user-select:none}
+details.raw-artifact pre .add{color:var(--green)}
+details.raw-artifact pre .del{color:var(--red)}
+details.raw-artifact pre .com{color:var(--fg-muted)}
+details.raw-artifact pre .kw{color:var(--yellow)}
+details.raw-artifact pre .str{color:var(--blue)}
+
+/* Frame stack list */
+.frame-stack{list-style:none;margin:0;padding:0;font-size:13px}
+.frame-stack li{
+  display:grid;grid-template-columns:auto 1fr auto;gap:var(--space-md);
+  padding:6px 0;border-bottom:1px dashed var(--border);
+}
+.frame-stack li:last-child{border-bottom:0}
+.frame-stack .idx{color:var(--fg-muted);width:3ch}
+.frame-stack .file{color:var(--fg-2)}
+.frame-stack .file b{color:var(--green);font-weight:600}
+.frame-stack .meta{color:var(--fg-muted);font-size:12px}
+
+/* Bars */
+.bar-row{display:grid;grid-template-columns:120px 1fr 60px;gap:var(--space-md);align-items:center;font-size:13px;padding:4px 0}
+.bar-label{color:var(--fg-2)}
+.bar-track{font-family:var(--font-mono);color:var(--green);letter-spacing:.05em;white-space:pre}
+.bar-track .dim{color:var(--fg-muted)}
+.bar-value{color:var(--fg-2);text-align:right}
+
+/* Copy handoff */
+.copy-block{
+  border:1px solid var(--border);
+  background:var(--surface);
+  padding:var(--space-md);
+  font-size:12px;color:var(--fg-2);
+  white-space:pre-wrap;
+  margin-top:var(--space-md);
+}
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--green);color:#050505;
+  border:1px solid var(--green);
+  padding:8px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+  text-shadow:none;
+  opacity:0;transform:translateY(10px);transition:opacity .18s, transform .18s;
+  z-index:100;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+@media (prefers-reduced-motion: reduce){
+  .terminal-cursor{animation:none}
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<main class="dev-shell">
+
+  <!-- ===== Prompt / Finding bar ===== -->
+  <section class="finding-bar" aria-label="Status prompt">
+    <div class="terminal-prompt">
+      <span class="host">review@ys-code</span>:<span class="path">~/docs/ys-powers/specs</span>$ <span class="cmd" id="cmd-line">cat 2026-05-14-mcp-cc-align-design.md | scan --align cc --phases 3</span><span class="terminal-cursor" aria-hidden="true"></span>
+    </div>
+    <div class="bar-meta">
+      <div><div class="k">spec</div><div class="v">mcp-cc-align-design</div></div>
+      <div><div class="k">date</div><div class="v">2026-05-14</div></div>
+      <div><div class="k">branch</div><div class="v">feat/mcp-cc-align</div></div>
+      <div><div class="k">type</div><div class="v">渐进式对齐 spec</div></div>
+      <div><div class="k">upstream</div><div class="v">refer/claude-code-haha/src/services/mcp/</div></div>
+      <div><div class="k">sop</div><div class="v">sop-20260513-001-mcp-tui-integration</div></div>
+    </div>
+    <div class="status-row" aria-label="High-level signals">
+      <span class="status-code err">[ERR] STDERR LEAK</span>
+      <span class="status-code err">[ERR] TIMEOUT NO-CLEANUP</span>
+      <span class="status-code warn">[WARN] ENV ${VAR} SILENT</span>
+      <span class="status-code warn">[WARN] HTTP NO-RETRY</span>
+      <span class="status-code hyp">[HYP] SCHEMA DROP-FIELD</span>
+      <span class="status-code muted">[OK] CLI SCOPE = project</span>
+    </div>
+  </section>
+
+  <!-- ===== Phase hotspot map ===== -->
+  <article class="terminal-pane">
+    <header class="pane-title">PHASE / HOTSPOT MAP<span class="right">3 phases · P0 → P1 → P1 · 互不阻塞</span></header>
+    <div class="pane-body">
+      <div class="hotspot-map">
+
+        <div class="hotspot" tabindex="0">
+          <span class="status-code err badge">P0</span>
+          <h3>Phase 1 · 一阶段合入</h3>
+          <div class="sub">stderr → logger · timeout disconnect · env warn</div>
+          <ul>
+            <li>stdio stderr 管道捕获，写 logger.warn</li>
+            <li>connect timeout 后 transport.close()</li>
+            <li>${VAR} 缺失累积 missingVars 并 warn</li>
+            <li>${VAR:-default} 语法支持</li>
+            <li>loadMcpServers() 签名不变</li>
+          </ul>
+        </div>
+
+        <div class="hotspot" tabindex="0">
+          <span class="status-code warn badge">P1</span>
+          <h3>Phase 2 · 状态机 + 重连</h3>
+          <div class="sub">discriminated union · HTTP 指数退避</div>
+          <ul>
+            <li>4 状态：pending / connected / failed / needs-auth</li>
+            <li>HTTP onclose → 重连，1·2·4·8·16s 退避</li>
+            <li>5 次失败永久 failed</li>
+            <li>stdio crash 直接 failed（不重连）</li>
+            <li>401 → needs-auth（占位，无 UI）</li>
+          </ul>
+        </div>
+
+        <div class="hotspot" tabindex="0">
+          <span class="status-code warn badge">P1</span>
+          <h3>Phase 3 · schema + CLI</h3>
+          <div class="sub">jsonSchemaToTypeBox · ys mcp add/remove/list</div>
+          <ul>
+            <li>oneOf / anyOf / allOf / const / nullable</li>
+            <li>format / pattern 透传</li>
+            <li>$ref / if-then-else → Type.Any()</li>
+            <li>ys mcp add|remove|list（project scope）</li>
+            <li>writeMcpJson 原子写（tmp + rename）</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </article>
+
+  <!-- ===== Risk checklist + Hypothesis stack ===== -->
+  <div class="pane-grid">
+
+    <article class="terminal-pane col-8">
+      <header class="pane-title">RISK CHECKLIST<span class="right">--severity p0,p1 · 6 findings</span></header>
+      <div class="pane-body">
+        <div class="controls" role="toolbar" aria-label="Severity filter">
+          <button class="control-btn active" data-sev="all">all</button>
+          <button class="control-btn" data-sev="p0">--p0</button>
+          <button class="control-btn" data-sev="p1">--p1</button>
+          <button class="control-btn" data-sev="note">--note</button>
+        </div>
+        <ul class="risk-checklist" id="risk-list">
+
+          <li data-sev="p0">
+            <span class="code"><span class="status-code err">[ERR]</span></span>
+            <span class="desc">
+              stdio stderr 被吞，启动失败只剩一行 timeout，无 root cause
+              <span class="ev">evidence · ys src/mcp/transport.ts:33 vs cc client.ts:L957 L966-L982</span>
+            </span>
+            <span class="sev p0">P0 · phase 1</span>
+          </li>
+
+          <li data-sev="p0">
+            <span class="code"><span class="status-code err">[ERR]</span></span>
+            <span class="desc">
+              connect 超时未调用 transport.close()，子进程 / socket 泄露
+              <span class="ev">evidence · ys src/mcp/connection.ts:L8-L15 vs cc client.ts:L1048-L1066</span>
+            </span>
+            <span class="sev p0">P0 · phase 1</span>
+          </li>
+
+          <li data-sev="p0">
+            <span class="code"><span class="status-code warn">[WARN]</span></span>
+            <span class="desc">
+              ${VAR} 缺失静默生成空串，没有任何 warning，配置错误难定位
+              <span class="ev">evidence · ys src/mcp/config.ts:L91 vs cc envExpansion.ts:L24-L31</span>
+            </span>
+            <span class="sev p0">P0 · phase 1</span>
+          </li>
+
+          <li data-sev="p1">
+            <span class="code"><span class="status-code warn">[WARN]</span></span>
+            <span class="desc">
+              HTTP server 抖动不重连，长会话被打断需要用户手动重启
+              <span class="ev">evidence · cc useManageMCPConnections.ts:L87-L90 L371-L460</span>
+            </span>
+            <span class="sev p1">P1 · phase 2</span>
+          </li>
+
+          <li data-sev="p1">
+            <span class="code"><span class="status-code hyp">[HYP]</span></span>
+            <span class="desc">
+              jsonSchemaToTypeBox 未识别的 combinator 直接 Type.Any()，filesystem / postgres 等 server 字段被丢
+              <span class="ev">hypothesis · ys src/mcp/utils.ts:L51 · 需 fixture 验证</span>
+            </span>
+            <span class="sev p1">P1 · phase 3</span>
+          </li>
+
+          <li data-sev="p1">
+            <span class="code"><span class="status-code warn">[WARN]</span></span>
+            <span class="desc">
+              缺 CLI 子命令，用户需手写 .mcp.json，无校验、无原子写
+              <span class="ev">evidence · 对照 cc commands/mcp/addCommand.ts:L33-L279</span>
+            </span>
+            <span class="sev p1">P1 · phase 3</span>
+          </li>
+
+          <li data-sev="note">
+            <span class="code"><span class="status-code muted">[NOTE]</span></span>
+            <span class="desc">
+              范围外：reconnect 命令 / user-local scope / OAuth / SSE-WS / TUI 连接状态展示 — 留 P2+
+              <span class="ev">scope · 见 §1.3 边界条件</span>
+            </span>
+            <span class="sev note">scope · later</span>
+          </li>
+
+        </ul>
+      </div>
+    </article>
+
+    <article class="terminal-pane col-4">
+      <header class="pane-title">HYPOTHESIS / DECISION<span class="right">--ask-first</span></header>
+      <div class="pane-body">
+        <ul class="frame-stack" aria-label="Open questions">
+          <li>
+            <span class="idx">#01</span>
+            <span class="file"><b>MCP_TIMEOUT</b> 默认值是否调整？<div class="meta">现 30s · 对齐 cc · 慢启动 server 再议</div></span>
+            <span class="meta">[HYP]</span>
+          </li>
+          <li>
+            <span class="idx">#02</span>
+            <span class="file"><b>user / local scope</b> 是否要支持？<div class="meta">本期只 project · 留 P2</div></span>
+            <span class="meta">[HYP]</span>
+          </li>
+          <li>
+            <span class="idx">#03</span>
+            <span class="file"><b>needs-auth</b> 是否给 TUI 提示？<div class="meta">phase 2 仅识别 401 · 不弹 UI</div></span>
+            <span class="meta">[HYP]</span>
+          </li>
+          <li>
+            <span class="idx">#04</span>
+            <span class="file"><b>ys mcp reconnect</b> 命令？<div class="meta">phase 2 暂不提供</div></span>
+            <span class="meta">[HYP]</span>
+          </li>
+          <li>
+            <span class="idx">#05</span>
+            <span class="file"><b>oneOf</b> 严格 discriminator？<div class="meta">先用 Type.Union 宽松 · 校验失败再切</div></span>
+            <span class="meta">[HYP]</span>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ===== Success criteria as test ledger ===== -->
+  <article class="terminal-pane">
+    <header class="pane-title">SUCCESS CRITERIA · test ledger<span class="right">bun test src/mcp/ · bun test src/commands/mcp/</span></header>
+    <div class="pane-body">
+      <div class="pane-grid">
+
+        <div class="col-4">
+          <div class="bar-row"><span class="bar-label">Phase 1 · P0</span><span class="bar-track">[<span>|||||</span><span class="dim">.....</span>]</span><span class="bar-value">5 / 10</span></div>
+          <ul class="risk-checklist" style="margin-top:var(--space-sm)">
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">stderr 内容可见于 logger，不是只一行 timeout</span><span class="sev">cmd · false / nonexistent</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">lsof 无残留子进程 · disconnect() 调 1 次</span><span class="sev">unit + lsof</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">${MISSING_KEY} 触发 warn 含变量名</span><span class="sev">logger.warn</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">${VAR:-default} 取 default</span><span class="sev">config.test</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">loadMcpServers() 签名不变</span><span class="sev">api compat</span></li>
+          </ul>
+        </div>
+
+        <div class="col-4">
+          <div class="bar-row"><span class="bar-label">Phase 2 · 状态机</span><span class="bar-track">[<span>||||</span><span class="dim">......</span>]</span><span class="bar-value">4 / 10</span></div>
+          <ul class="risk-checklist" style="margin-top:var(--space-sm)">
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">4 状态转换路径单测全覆盖</span><span class="sev">state.test</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">HTTP kill 后 1+2+4+8+16s 内重连</span><span class="sev">backoff seq</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">5 次失败 → failed 永久</span><span class="sev">MAX_RECONNECT_ATTEMPTS</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">stdio crash → failed（不重连）</span><span class="sev">align cc</span></li>
+          </ul>
+        </div>
+
+        <div class="col-4">
+          <div class="bar-row"><span class="bar-label">Phase 3 · schema/CLI</span><span class="bar-track">[<span>|||||</span><span class="dim">.....</span>]</span><span class="bar-value">5 / 10</span></div>
+          <ul class="risk-checklist" style="margin-top:var(--space-sm)">
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">jsonSchemaToTypeBox 支持 oneOf/anyOf/allOf/const/nullable/format/pattern</span><span class="sev">utils.test</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">filesystem fixture 不丢顶层字段</span><span class="sev">fixture</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">ys mcp add demo -- echo hello 写入 .mcp.json</span><span class="sev">cli + atomic</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">ys mcp remove / list 正常</span><span class="sev">cli</span></li>
+            <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">非法 server 名称被拒绝</span><span class="sev">/^[a-zA-Z0-9_-]+$/</span></li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </article>
+
+  <!-- ===== Commands ===== -->
+  <article class="terminal-pane">
+    <header class="pane-title">COMMANDS · phase 3 cli<span class="right">scope = &lt;cwd&gt;/.mcp.json · user/local → P2</span></header>
+    <div class="pane-body">
+      <pre style="margin:0;color:var(--fg-2);font-size:13px;overflow-x:auto">
+<span style="color:var(--green)">ys mcp add</span> <span style="color:var(--yellow)">&lt;name&gt; &lt;commandOrUrl&gt; [args...]</span>
+  <span style="color:var(--fg-muted)">-t, --transport &lt;type&gt;      stdio | http（默认 stdio）</span>
+  <span style="color:var(--fg-muted)">-e, --env &lt;KEY=VALUE&gt;       注入环境变量（可重复）</span>
+  <span style="color:var(--fg-muted)">-H, --header &lt;KEY=VALUE&gt;    HTTP transport 自定义 header（可重复）</span>
+
+<span style="color:var(--green)">ys mcp remove</span> <span style="color:var(--yellow)">&lt;name&gt;</span>          从 .mcp.json 移除指定 server
+<span style="color:var(--green)">ys mcp list</span>                   列出 .mcp.json 中所有 server（不查运行时状态）
+      </pre>
+      <div class="ascii-divider">// rules ----------------------------------------</div>
+      <ul class="risk-checklist">
+        <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">name 必须匹配 <code>/^[a-zA-Z0-9_-]+$/</code></span><span class="sev">validation</span></li>
+        <li><span class="code"><span class="status-code warn">[WARN]</span></span><span class="desc">commandOrUrl 以 http(s):// 开头但 -t 非 http → 警告用错 transport</span><span class="sev">heuristic</span></li>
+        <li><span class="code"><span class="status-code muted">[NOTE]</span></span><span class="desc">mcp list 不查运行时连接状态，仅输出配置</span><span class="sev">scope</span></li>
+        <li><span class="code"><span class="status-code muted">[NOTE]</span></span><span class="desc">默认操作 &lt;cwd&gt;/.mcp.json，不支持 --scope=user</span><span class="sev">P2</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ===== Project structure ===== -->
+  <div class="pane-grid">
+
+    <article class="terminal-pane col-6">
+      <header class="pane-title">PROJECT TREE · phase 1<span class="right">touch only 4 files + 3 tests</span></header>
+      <div class="pane-body">
+        <pre style="margin:0;font-size:12px;color:var(--fg-2);overflow-x:auto;line-height:1.7;">
+<span style="color:var(--fg-muted)">src/mcp/</span>
+├── <span style="color:var(--green)">transport.ts</span>        <span style="color:var(--fg-muted)"># stderr: "pipe" + listener → logger</span>
+├── <span style="color:var(--green)">connection.ts</span>       <span style="color:var(--fg-muted)"># withTimeout 加 disconnect · MCP_TIMEOUT</span>
+├── <span style="color:var(--green)">config.ts</span>           <span style="color:var(--fg-muted)"># expandEnvVars → { env, missingVars }</span>
+├── <span style="color:var(--green)">index.ts</span>            <span style="color:var(--fg-muted)"># 处理 missingVars warning</span>
+│
+├── <span style="color:var(--yellow)">transport.test.ts</span>   <span style="color:var(--fg-muted)"># stderr 捕获 · 64KB 上限</span>
+├── <span style="color:var(--yellow)">connection.test.ts</span>  <span style="color:var(--fg-muted)"># timeout disconnect 1×</span>
+└── <span style="color:var(--yellow)">config.test.ts</span>      <span style="color:var(--fg-muted)"># missing var · default 语法</span>
+        </pre>
+      </div>
+    </article>
+
+    <article class="terminal-pane col-6">
+      <header class="pane-title">PROJECT TREE · phase 2 + 3<span class="right">state machine · schema · cli</span></header>
+      <div class="pane-body">
+        <pre style="margin:0;font-size:12px;color:var(--fg-2);overflow-x:auto;line-height:1.7;">
+<span style="color:var(--fg-muted)">src/mcp/</span>
+├── <span style="color:var(--green)">types.ts</span>            <span style="color:var(--fg-muted)"># McpServerState union</span>
+├── <span style="color:var(--green)">state.ts</span>            <span style="color:var(--fg-muted)"># transitionTo() 纯函数</span>
+├── <span style="color:var(--green)">connection.ts</span>       <span style="color:var(--fg-muted)"># Map&lt;name, State&gt; · reconnect()</span>
+├── <span style="color:var(--green)">utils.ts</span>            <span style="color:var(--fg-muted)"># jsonSchemaToTypeBox 扩展</span>
+└── <span style="color:var(--fg-muted)">__fixtures__/</span>
+    └── <span style="color:var(--yellow)">filesystem-inputs.json</span>
+
+<span style="color:var(--fg-muted)">src/commands/mcp/</span>
+├── <span style="color:var(--green)">index.ts</span>            <span style="color:var(--fg-muted)"># 子命令注册</span>
+├── <span style="color:var(--green)">add.ts</span>              <span style="color:var(--fg-muted)"># ys mcp add</span>
+├── <span style="color:var(--green)">remove.ts</span>           <span style="color:var(--fg-muted)"># ys mcp remove</span>
+├── <span style="color:var(--green)">list.ts</span>             <span style="color:var(--fg-muted)"># ys mcp list</span>
+└── <span style="color:var(--green)">shared.ts</span>           <span style="color:var(--fg-muted)"># writeMcpJson 原子写</span>
+        </pre>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ===== Boundaries ===== -->
+  <div class="pane-grid">
+
+    <article class="terminal-pane col-4">
+      <header class="pane-title">ALWAYS DO<span class="right">--guardrail</span></header>
+      <div class="pane-body">
+        <ul class="risk-checklist">
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">stderr 必须经 logger（pino 写文件）<span class="ev">SOP-001 硬约束 · 永不污染 TTY</span></span><span class="sev">always</span></li>
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">transport.close() 失败必须 catch 吞掉<span class="ev">cc client.ts:L1048-L1066 .catch(() =&gt; {})</span></span><span class="sev">always</span></li>
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">新增/修改必须有 bun test<span class="ev">本地通过</span></span><span class="sev">always</span></li>
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">.mcp.json 原子写（tmp + rename）<span class="ev">cc config.ts:L88-L131 · 防 partial write</span></span><span class="sev">always</span></li>
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">状态变化必须经状态机方法<span class="ev">禁止外部 mutate state.kind</span></span><span class="sev">always</span></li>
+          <li><span class="code"><span class="status-code ok">[OK]</span></span><span class="desc">CLI 注册前做 name 校验<span class="ev">/^[a-zA-Z0-9_-]+$/</span></span><span class="sev">always</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="terminal-pane col-4">
+      <header class="pane-title">ASK FIRST<span class="right">--clarify</span></header>
+      <div class="pane-body">
+        <ul class="risk-checklist">
+          <li><span class="code"><span class="status-code hyp">[HYP]</span></span><span class="desc">MCP_TIMEOUT 默认 30s 是否调整？</span><span class="sev">ask</span></li>
+          <li><span class="code"><span class="status-code hyp">[HYP]</span></span><span class="desc">user / local scope 是否支持？</span><span class="sev">P2</span></li>
+          <li><span class="code"><span class="status-code hyp">[HYP]</span></span><span class="desc">needs-auth 是否要 TUI 提示？</span><span class="sev">phase 2 = 否</span></li>
+          <li><span class="code"><span class="status-code hyp">[HYP]</span></span><span class="desc">5 次失败后是否允许手动重连？</span><span class="sev">phase 2 = 否</span></li>
+          <li><span class="code"><span class="status-code hyp">[HYP]</span></span><span class="desc">oneOf/anyOf 严格 discriminator？</span><span class="sev">union 宽松</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="terminal-pane col-4">
+      <header class="pane-title">NEVER DO<span class="right">--redline</span></header>
+      <div class="pane-body">
+        <ul class="risk-checklist">
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不 <code>stderr: 'inherit'</code><span class="ev">污染 Ink 渲染</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不 console.log / console.error<span class="ev">MCP 调用路径必须走 logger</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不静默吞 env 缺失<span class="ev">至少 logger.warn</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不省略 connect 超时后的 transport.close()<span class="ev">长会话句柄泄露</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不在状态机外部修改 state.kind<span class="ev">用 transitionTo()</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不 mock 真实 stderr 行为<span class="ev">用 sh -c 'echo ... 1&gt;&amp;2'</span></span><span class="sev p0">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不修改本 spec 范围外的文件<span class="ev">不顺手重构 src/agent/ · src/utils/logger.ts</span></span><span class="sev p1">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不引入新 npm 依赖<span class="ev">CLAUDE.md 已锁定核心依赖</span></span><span class="sev p1">never</span></li>
+          <li><span class="code"><span class="status-code err">[ERR]</span></span><span class="desc">永不为 P2 项预留半成品代码<span class="ev">严格分阶段交付</span></span><span class="sev p1">never</span></li>
+        </ul>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ===== Raw artifact drill-down ===== -->
+  <article class="terminal-pane">
+    <header class="pane-title">RAW ARTIFACT DRILL-DOWN<span class="right">tail -f spec sections · click [+] to expand</span></header>
+    <div class="pane-body">
+
+      <details class="raw-artifact">
+        <summary>types.ts · phase 2 state machine (excerpt §3.4)</summary>
+<pre><span class="ln">01</span><span class="com">// src/mcp/types.ts 新增</span>
+<span class="ln">02</span><span class="kw">export type</span> McpServerState =
+<span class="ln">03</span>  | { kind: <span class="str">"pending"</span>; name: <span class="kw">string</span>; config: McpServerConfig }
+<span class="ln">04</span>  | { kind: <span class="str">"connected"</span>; name: <span class="kw">string</span>; connection: McpServerConnection }
+<span class="ln">05</span>  | { kind: <span class="str">"failed"</span>; name: <span class="kw">string</span>; error: Error; attempts: <span class="kw">number</span> }
+<span class="ln">06</span>  | { kind: <span class="str">"needs-auth"</span>; name: <span class="kw">string</span>; reason: <span class="kw">string</span> };
+<span class="ln">07</span>
+<span class="ln">08</span><span class="com">// 退避常量（与 cc 一致）</span>
+<span class="ln">09</span><span class="kw">export const</span> MAX_RECONNECT_ATTEMPTS = <span class="str">5</span>;
+<span class="ln">10</span><span class="kw">export const</span> INITIAL_BACKOFF_MS    = <span class="str">1000</span>;
+<span class="ln">11</span><span class="kw">export const</span> MAX_BACKOFF_MS        = <span class="str">30000</span>;</pre>
+      </details>
+
+      <details class="raw-artifact">
+        <summary>cc 关键文件证据矩阵 · §7.1 references</summary>
+<pre><span class="com">| 关注点          | cc 文件                                                              | 关键行                |</span>
+<span class="com">|-----------------|---------------------------------------------------------------------|----------------------|</span>
+| stderr 累积      | refer/claude-code-haha/src/services/mcp/<span class="add">client.ts</span>                    | L957, L966-L982      |
+| connect timeout  | refer/claude-code-haha/src/services/mcp/<span class="add">client.ts</span>                    | L1048-L1066          |
+| env 展开         | refer/claude-code-haha/src/services/mcp/<span class="add">envExpansion.ts</span>              | L24-L31              |
+| 5 状态机          | refer/claude-code-haha/src/services/mcp/<span class="add">types.ts</span>                     | 全文                  |
+| 退避重连          | refer/claude-code-haha/src/services/mcp/<span class="add">useManageMCPConnections.ts</span>   | L87-L90, L371-L460   |
+| 原子写            | refer/claude-code-haha/src/services/mcp/<span class="add">config.ts</span>                    | L88-L131             |
+| CLI add          | refer/claude-code-haha/src/commands/mcp/<span class="add">addCommand.ts</span>                | L33-L279             |</pre>
+      </details>
+
+      <details class="raw-artifact">
+        <summary>ys-code 当前实现 hotspots · §7.2 current state</summary>
+<pre><span class="com">| 关注点          | ys 文件                                       | 关键行         | 状态</span>
+<span class="com">|-----------------|----------------------------------------------|---------------|--------</span>
+| stderr ignore    | src/mcp/<span class="del">transport.ts</span>                          | L33           | <span class="del">[ERR] 吞掉</span>
+| timeout 不清理    | src/mcp/<span class="del">connection.ts</span>                         | L8-L15        | <span class="del">[ERR] 泄露</span>
+| env 空串兜底      | src/mcp/<span class="del">config.ts</span>                             | L91           | <span class="del">[WARN] 静默</span>
+| schema 退化      | src/mcp/<span class="del">utils.ts</span>                              | L51           | <span class="del">[HYP] 丢字段</span></pre>
+      </details>
+
+      <details class="raw-artifact">
+        <summary>code-style hard rules · §4</summary>
+<pre><span class="ln">·</span> 语言：TypeScript，与现有 ys-code 风格一致
+<span class="ln">·</span> 日志：所有 MCP 相关日志走 <span class="kw">logger.{warn,info,debug}</span>
+<span class="ln">·</span>       <span class="del">严禁 console.log / console.error / process.stderr 直接写</span>
+<span class="ln">·</span> 错误：自定义类 <span class="kw">McpConnectionError</span>，错误信息含 server 名
+<span class="ln">·</span> 状态修改：只通过 <span class="kw">transitionTo(currentState, nextKind, payload)</span> 纯函数
+<span class="ln">·</span> CLI 输出：用户可见走 <span class="kw">console.log</span>（CLI 正常 stdout，与 logger 区分）
+<span class="ln">·</span> 文件原子写：<span class="kw">writeMcpJson</span> 必须 tmp + <span class="kw">fs.renameSync</span>
+<span class="ln">·</span> schema 转换：未识别 combinator → <span class="kw">Type.Any()</span> + logger.debug 记录降级
+<span class="ln">·</span> 测试：新增/修改函数必须有对应单测，bun test 通过</pre>
+      </details>
+
+      <details class="raw-artifact">
+        <summary>testing strategy ledger · §5</summary>
+<pre><span class="com"># Phase 1</span>
+src/mcp/transport.test.ts
+  <span class="add">+ test("stdio stderr 被捕获并写入 logger.warn（不污染 TTY）")</span>
+  <span class="add">+ test("stderr 累积上限 64KB（避免无界增长）")</span>
+
+src/mcp/connection.test.ts
+  <span class="add">+ test("连接超时必须调用 transport.close()，防止子进程泄露")</span>
+  <span class="add">+ test("MCP_TIMEOUT env 覆盖默认 30s")</span>
+
+src/mcp/config.test.ts
+  <span class="add">+ test("${VAR} 缺失时 missingVars 累积，loadMcpConfig 触发 logger.warn")</span>
+  <span class="add">+ test("${VAR:-default} 在 VAR 未设时取 default")</span>
+  <span class="add">+ test("缺失 env 不阻断 loadMcpConfig 返回")</span>
+
+<span class="com"># Phase 2 · state machine</span>
+src/mcp/state.test.ts
+  <span class="add">+ test("初始 pending → connect 成功 → connected")</span>
+  <span class="add">+ test("connected → transport.onclose → pending（HTTP）→ retry")</span>
+  <span class="add">+ test("connected → transport.onclose → failed（stdio，不重连）")</span>
+  <span class="add">+ test("HTTP 401 → needs-auth（不进入退避）")</span>
+  <span class="add">+ test("重试达 MAX_RECONNECT_ATTEMPTS=5 → failed 永久")</span>
+src/mcp/connection.test.ts
+  <span class="add">+ test("退避序列符合 1s/2s/4s/8s/16s（指数 + 上限 30s）")</span>
+
+<span class="com"># Phase 3 · schema + CLI</span>
+src/mcp/utils.test.ts
+  <span class="add">+ oneOf → Type.Union · anyOf → Type.Union · allOf → Type.Intersect</span>
+  <span class="add">+ const → Type.Literal · nullable → Union([T, Null])</span>
+  <span class="add">+ format/pattern 透传 · $ref → Type.Any() + logger.debug</span>
+  <span class="add">+ filesystem fixture 转换不丢顶层字段</span>
+src/commands/mcp/*.test.ts
+  <span class="add">+ add: write .mcp.json · 非法 name 拒绝 · URL 误用警告 · env 解析 · -t http 要 url</span>
+  <span class="add">+ remove: 移除存在 · 不存在报清晰错误</span>
+  <span class="add">+ list: NAME/TRANSPORT/TARGET 三列 · 空配置 'no MCP servers configured'</span>
+  <span class="add">+ shared: writeMcpJson 用 tmp + rename 原子写</span></pre>
+      </details>
+
+      <details class="raw-artifact">
+        <summary>CI gate matrix · §5.4</summary>
+<pre>每个 PR     → bun test src/mcp/  ·  bun test src/commands/mcp/  ·  bun run typecheck
+Phase 3 后  → fixture 测试覆盖至少 5 个真实 MCP server schema
+<span class="del">不引入</span>      → 启真实 MCP server 的 e2e 测试（成本高 · 网络依赖）
+            用 mock transport / 子进程模拟覆盖即可</pre>
+      </details>
+
+    </div>
+  </article>
+
+  <!-- ===== Copy handoff ===== -->
+  <article class="terminal-pane">
+    <header class="pane-title">COPYABLE HANDOFF · summary for PR / ticket<span class="right">--format markdown</span></header>
+    <div class="pane-body">
+      <button class="copy-handoff" id="copy-btn">copy summary</button>
+      <pre class="copy-block" id="copy-content">spec: ys-code MCP ↔ claude-code 渐进式对齐
+date: 2026-05-14   branch: feat/mcp-cc-align
+target: 把 MCP 模块的安全性 / 诊断 / 恢复 / 可用性逐步对齐到 cc 水平
+
+phase 1 [P0]  — stderr→logger · connect timeout disconnect · env ${VAR} warn
+phase 2 [P1]  — 4 状态机（pending/connected/failed/needs-auth）+ HTTP 1/2/4/8/16s 退避
+phase 3 [P1]  — jsonSchemaToTypeBox 扩展 + ys mcp add|remove|list（project scope）
+
+非目标: reconnect 命令 · user/local scope · OAuth · SSE/WS · 动态热重载 · TUI 状态展示
+
+ack:
+[OK] stderr 经 logger 永不污染 TTY            (SOP-001)
+[OK] transport.close() 失败必须 catch         (cc client.ts:L1048)
+[OK] .mcp.json 原子写 tmp + rename            (cc config.ts:L88)
+[OK] 状态变化只走 transitionTo() 纯函数
+[OK] CLI name 校验 /^[a-zA-Z0-9_-]+$/
+[OK] 不引入新 npm 依赖
+</pre>
+    </div>
+  </article>
+
+  <footer style="margin-top:var(--space-2xl);color:var(--fg-muted);font-size:12px;border-top:1px dashed var(--border);padding-top:var(--space-md)">
+    <div>review@ys-code:~$ exit 0 <span class="terminal-cursor" aria-hidden="true"></span></div>
+    <div style="margin-top:var(--space-xs)">source · docs/ys-powers/specs/2026-05-14-mcp-cc-align-design.md · sop-20260513-001-mcp-tui-integration</div>
+  </footer>
+
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite">copied to clipboard</div>
+
+<script>
+(function(){
+  // Severity filter
+  var buttons = document.querySelectorAll('.control-btn[data-sev]');
+  var rows = document.querySelectorAll('#risk-list li[data-sev]');
+  buttons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      buttons.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var sev = btn.getAttribute('data-sev');
+      rows.forEach(function(r){
+        var match = sev === 'all' || r.getAttribute('data-sev') === sev;
+        r.style.display = match ? '' : 'none';
+      });
+    });
+  });
+
+  // Copy handoff
+  var copyBtn = document.getElementById('copy-btn');
+  var copyContent = document.getElementById('copy-content');
+  var toast = document.getElementById('toast');
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(function(){ toast.classList.remove('show'); }, 1600);
+  }
+  copyBtn.addEventListener('click', function(){
+    var text = copyContent.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){
+        showToast('copied to clipboard');
+      }).catch(function(){
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  });
+  function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('copied'); }
+    catch (e) { showToast('copy failed'); }
+    document.body.removeChild(ta);
+  }
+
+  // Typewriter reveal on the main command (respect reduced motion)
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduce) {
+    var el = document.getElementById('cmd-line');
+    if (el) {
+      var full = el.textContent;
+      el.textContent = '';
+      var i = 0;
+      function tick(){
+        if (i <= full.length) {
+          el.textContent = full.slice(0, i);
+          i++;
+          setTimeout(tick, 14);
+        }
+      }
+      tick();
+    }
+  }
+
+  // Click hotspot → focus its checklist entry by phase keyword
+  document.querySelectorAll('.hotspot').forEach(function(card){
+    card.addEventListener('click', function(){
+      var sev = card.querySelector('.badge') && card.querySelector('.badge').textContent.trim().toLowerCase();
+      var map = { 'p0':'p0', 'p1':'p1' };
+      var target = map[sev];
+      if (target) {
+        var btn = document.querySelector('.control-btn[data-sev="'+target+'"]');
+        if (btn) btn.click();
+        document.getElementById('risk-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
