@@ -9,6 +9,7 @@ import { dispatchCommandResult } from "./command-utils.js";
 import { MessageList } from "./components/MessageList.js";
 import { PromptInput } from "./components/PromptInput.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { TodoPanel } from "./components/TodoPanel.js";
 import { useAgent } from "./hooks/useAgent.js";
 import { gitBranchProvider } from "../utils/git-branch-provider.js";
 import { setDebugAgentSession } from "../web/debug/debug-context.js";
@@ -36,7 +37,7 @@ export function App({ webUrl }: AppProps): React.ReactElement {
     return unsubscribe;
   }, []);
 
-  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, lastUsage } = useAgent({
+  const { session, messages, shouldScrollToBottom, markScrolled, appendUserMessage, appendSystemMessage, resetSession, lastUsage, todos } = useAgent({
     model,
     apiKey,
   });
@@ -111,6 +112,7 @@ export function App({ webUrl }: AppProps): React.ReactElement {
   return (
     <Box flexDirection="column" height="100%">
       <MessageList messages={messages} shouldScrollToBottom={shouldScrollToBottom} onScrolled={markScrolled} />
+      <TodoPanel todos={todos} />
       <PromptInput disabled={false} onSubmit={handleSubmit} onCommand={handleCommand} commands={commands} />
       <StatusBar
         status={status}
