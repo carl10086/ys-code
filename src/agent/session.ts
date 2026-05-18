@@ -9,7 +9,9 @@ import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool, createTodoWriteTool } from "./tools/index.js";
+import { TodoStore } from "./todo/store.js";
+import type { TodoList } from "./todo/types.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
@@ -39,7 +41,8 @@ export type AgentSessionEvent =
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
   | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
-  | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string };
+  | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string }
+  | { type: "todo_update"; oldTodos: TodoList; newTodos: TodoList };
 
 /** AgentSession 构造选项 */
 export interface AgentSessionOptions {
@@ -71,6 +74,7 @@ export class AgentSession {
   private readonly listeners = new Set<(event: AgentSessionEvent) => void>();
   private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
   private readonly sessionManager: SessionManager;
+  private readonly todoStore = new TodoStore();
   /** 会话 ID，用于标识一次会话 */
   private _sessionId = crypto.randomUUID();
 
@@ -128,6 +132,7 @@ export class AgentSession {
       createGlobTool(options.cwd),
       createGrepTool(options.cwd),
       createWebFetchTool(),
+      createTodoWriteTool(this.todoStore),
     ];
     this.agent = new Agent({
       systemPrompt: async () => asSystemPrompt([""]),
@@ -178,6 +183,10 @@ export class AgentSession {
     }
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
+
+    this.todoStore.subscribe((event) => {
+      this.emit({ type: "todo_update", oldTodos: event.oldTodos, newTodos: event.newTodos });
+    });
 
     // 异步初始化 SkillTool（不阻塞构造），保存 Promise 供 prompt() 等待
     this.skillToolInitPromise = this.initializeSkillTool();
@@ -249,6 +258,11 @@ export class AgentSession {
   /** 当前可用工具列表（只读） */
   get tools(): readonly AgentTool<any, any>[] {
     return this.agent.state.tools;
+  }
+
+  /** 当前 todo 列表（只读快照） */
+  get todos(): TodoList {
+    return this.todoStore.get();
   }
 
   /** 等待 MCP tools 初始化完成（如果已配置） */
@@ -453,6 +467,7 @@ export class AgentSession {
   reset(): void {
     logger.info("Session reset");
     this.agent.reset();
+    this.todoStore.reset();
     this.clearTurnState();
   }
 
