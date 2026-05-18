@@ -13,6 +13,7 @@ import type {
 import type { Static, TSchema } from "@sinclair/typebox";
 import type { StructuredPatchHunk } from "diff";
 import type { FileStateCache } from "./file-state.js";
+import type { TodoList } from "./todo/types.js";
 
 /** 流函数类型 */
 export type StreamFn = (
@@ -56,7 +57,8 @@ export type ToolRenderResult =
       appliedOffset?: number;
       truncated?: boolean;
       truncatedReason?: "line_limit" | "byte_limit" | "timeout";
-    };
+    }
+  | { type: "todo_list"; oldTodos: TodoList; newTodos: TodoList };
 
 /** 工具执行结果
  * @template T 详细信息类型
