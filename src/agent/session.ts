@@ -7,7 +7,7 @@ import { asSystemPrompt } from "../core/ai/index.js";
 import { findModelById } from "../core/ai/models.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
-import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
+import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, InvokedSkillRecord, ThinkingLevel, ToolRenderResult } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
 import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool, createTodoWriteTool } from "./tools/index.js";
 import { TodoStore } from "./todo/store.js";
@@ -40,7 +40,7 @@ export type AgentSessionEvent =
   | { type: "thinking_delta"; text: string; isFirst: boolean }
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: ToolRenderResult }
   | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string }
   | { type: "todo_update"; oldTodos: TodoList; newTodos: TodoList };
 
@@ -84,7 +84,7 @@ export class AgentSession {
   }
 
   /** 将 Agent 消息转换为 LLM 消息格式（只读） */
-  get convertToLlm(): (messages: import("./types.js").AgentMessage[]) => import("../core/ai/index.js").Message[] | Promise<import("../core/ai/index.js").Message[]> {
+  get convertToLlm(): (messages: AgentMessage[]) => import("../core/ai/index.js").Message[] | Promise<import("../core/ai/index.js").Message[]> {
     return this.agent.convertToLlm;
   }
 
@@ -97,7 +97,7 @@ export class AgentSession {
   }
 
   /** 已调用的 skill 内容记录（只读） */
-  get invokedSkills(): Map<string, import("./types.js").InvokedSkillRecord> {
+  get invokedSkills(): Map<string, InvokedSkillRecord> {
     if (!this.agent.state.invokedSkills) {
       this.agent.state.invokedSkills = new Map();
     }

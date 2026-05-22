@@ -32,8 +32,8 @@ export function TodoPanel({ todos }: TodoPanelProps): React.ReactElement | null 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
       <Text dimColor>Tasks ({completedCount}/{todos.length})</Text>
-      {todos.map((item, index) => (
-        <Text key={index} color={COLORS[item.status]}>
+      {todos.map((item) => (
+        <Text key={item.content} color={COLORS[item.status]}>
           {SYMBOLS[item.status]} {renderItemText(item)}
         </Text>
       ))}
