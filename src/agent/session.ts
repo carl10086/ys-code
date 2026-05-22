@@ -7,9 +7,11 @@ import { asSystemPrompt } from "../core/ai/index.js";
 import { findModelById } from "../core/ai/models.js";
 import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
-import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, ThinkingLevel } from "./types.js";
+import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, InvokedSkillRecord, ThinkingLevel, ToolRenderResult } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool, createTodoWriteTool } from "./tools/index.js";
+import { TodoStore } from "./todo/store.js";
+import type { TodoList } from "./todo/types.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
@@ -38,8 +40,9 @@ export type AgentSessionEvent =
   | { type: "thinking_delta"; text: string; isFirst: boolean }
   | { type: "answer_delta"; text: string; isFirst: boolean }
   | { type: "tool_start"; toolCallId: string; toolName: string; args: unknown; isFirst: boolean }
-  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: import("./types.js").ToolRenderResult }
-  | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string };
+  | { type: "tool_end"; toolCallId: string; toolName: string; isError: boolean; summary: string; timeMs: number; renderData?: ToolRenderResult }
+  | { type: "turn_end"; tokens: number; cost: number; timeMs: number; errorMessage?: string }
+  | { type: "todo_update"; oldTodos: TodoList; newTodos: TodoList };
 
 /** AgentSession 构造选项 */
 export interface AgentSessionOptions {
@@ -71,6 +74,7 @@ export class AgentSession {
   private readonly listeners = new Set<(event: AgentSessionEvent) => void>();
   private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
   private readonly sessionManager: SessionManager;
+  private readonly todoStore = new TodoStore();
   /** 会话 ID，用于标识一次会话 */
   private _sessionId = crypto.randomUUID();
 
@@ -80,7 +84,7 @@ export class AgentSession {
   }
 
   /** 将 Agent 消息转换为 LLM 消息格式（只读） */
-  get convertToLlm(): (messages: import("./types.js").AgentMessage[]) => import("../core/ai/index.js").Message[] | Promise<import("../core/ai/index.js").Message[]> {
+  get convertToLlm(): (messages: AgentMessage[]) => import("../core/ai/index.js").Message[] | Promise<import("../core/ai/index.js").Message[]> {
     return this.agent.convertToLlm;
   }
 
@@ -93,7 +97,7 @@ export class AgentSession {
   }
 
   /** 已调用的 skill 内容记录（只读） */
-  get invokedSkills(): Map<string, import("./types.js").InvokedSkillRecord> {
+  get invokedSkills(): Map<string, InvokedSkillRecord> {
     if (!this.agent.state.invokedSkills) {
       this.agent.state.invokedSkills = new Map();
     }
@@ -128,6 +132,7 @@ export class AgentSession {
       createGlobTool(options.cwd),
       createGrepTool(options.cwd),
       createWebFetchTool(),
+      createTodoWriteTool(this.todoStore),
     ];
     this.agent = new Agent({
       systemPrompt: async () => asSystemPrompt([""]),
@@ -178,6 +183,10 @@ export class AgentSession {
     }
 
     this.agent.subscribe((event) => this.handleAgentEvent(event));
+
+    this.todoStore.subscribe((event) => {
+      this.emit({ type: "todo_update", oldTodos: event.oldTodos, newTodos: event.newTodos });
+    });
 
     // 异步初始化 SkillTool（不阻塞构造），保存 Promise 供 prompt() 等待
     this.skillToolInitPromise = this.initializeSkillTool();
@@ -249,6 +258,11 @@ export class AgentSession {
   /** 当前可用工具列表（只读） */
   get tools(): readonly AgentTool<any, any>[] {
     return this.agent.state.tools;
+  }
+
+  /** 当前 todo 列表（只读快照） */
+  get todos(): TodoList {
+    return this.todoStore.get();
   }
 
   /** 等待 MCP tools 初始化完成（如果已配置） */
@@ -453,6 +467,7 @@ export class AgentSession {
   reset(): void {
     logger.info("Session reset");
     this.agent.reset();
+    this.todoStore.reset();
     this.clearTurnState();
   }
 

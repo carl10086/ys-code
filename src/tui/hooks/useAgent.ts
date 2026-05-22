@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
 import type { AgentMessage } from "../../agent/types.js";
+import type { TodoList } from "../../agent/todo/types.js";
 import type { Model, ToolCall, Usage } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
 
@@ -132,6 +133,8 @@ export interface UseAgentResult {
   lastUsage: Usage | null;
   /** 累计费用（美元） */
   cost: number;
+  /** 当前 todo 列表 */
+  todos: TodoList;
 }
 
 export function useAgent(options: UseAgentOptions): UseAgentResult {
@@ -152,12 +155,17 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     findLastUsage(sessionRef.current.messages)
   );
   const [cost, setCost] = useState(0);
+  const [todos, setTodos] = useState<TodoList>(() => sessionRef.current.todos);
   const unsubscribeRef = useRef<() => void>(null);
   const messagesLengthAtTurnStartRef = useRef(0);
 
   const subscribeToSession = useCallback((session: AgentSession) => {
     unsubscribeRef.current?.();
     unsubscribeRef.current = session.subscribe((event: AgentSessionEvent) => {
+      if (event.type === "todo_update") {
+        setTodos(event.newTodos);
+        return;
+      }
       if (event.type === "turn_end") {
         // Compact 检测：如果消息总量减少，说明发生了 compact，需要重新派生
         const hasCompacted =
@@ -253,6 +261,7 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     setMessages([]);
     setLastUsage(null);
     setCost(0);
+    setTodos([]);
   }, [options.model, options.apiKey, subscribeToSession]);
 
   return {
@@ -271,5 +280,6 @@ export function useAgent(options: UseAgentOptions): UseAgentResult {
     resetSession,
     lastUsage,
     cost,
+    todos,
   };
 }

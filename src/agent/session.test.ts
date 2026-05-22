@@ -30,7 +30,8 @@ describe("AgentSession", () => {
     expect(session.messages).toEqual([]);
     expect(session.model).toBe(model);
     expect(session.tools.map((tool) => tool.name)).toContain("Grep");
-    expect(session.tools).toHaveLength(8); // 7 个默认工具 + SkillTool
+    expect(session.tools.map((tool) => tool.name)).toContain("TodoWrite");
+    expect(session.tools).toHaveLength(9); // 8 个默认工具 + SkillTool
   });
 
   it("should emit turn_start when agent emits turn_start", () => {
@@ -671,6 +672,51 @@ describe("AgentSession", () => {
       await expect(session.mcpReady()).resolves.toBeUndefined();
 
       rmSync(mcpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe("TodoWrite 集成", () => {
+    it("session.todos 初始为空数组", () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+      expect(session.todos).toEqual([]);
+    });
+
+    it("todoStore.set 通过 session 发出 todo_update 事件", () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+      const events: any[] = [];
+      session.subscribe((e) => events.push(e));
+
+      const todoStore = (session as any).todoStore;
+      todoStore.set([{ content: "A", status: "pending", activeForm: "Doing A" }]);
+
+      const todoEvents = events.filter((e) => e.type === "todo_update");
+      expect(todoEvents).toHaveLength(1);
+      expect(todoEvents[0].newTodos).toEqual([{ content: "A", status: "pending", activeForm: "Doing A" }]);
+      expect(todoEvents[0].oldTodos).toEqual([]);
+    });
+
+    it("session.todos 反映 todoStore 当前状态", () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+
+      const todoStore = (session as any).todoStore;
+      todoStore.set([{ content: "A", status: "in_progress", activeForm: "Doing A" }]);
+
+      expect(session.todos).toEqual([{ content: "A", status: "in_progress", activeForm: "Doing A" }]);
+    });
+
+    it("session.reset() 清空 todos", () => {
+      const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+      const session = new AgentSession({ cwd: "/tmp", model, apiKey: "test", systemPrompt: async () => asSystemPrompt([""]), sessionBaseDir: tmpDir });
+
+      const todoStore = (session as any).todoStore;
+      todoStore.set([{ content: "A", status: "pending", activeForm: "Doing A" }]);
+      expect(session.todos).toHaveLength(1);
+
+      session.reset();
+      expect(session.todos).toEqual([]);
     });
   });
 });
