@@ -10,19 +10,7 @@ const program = new Command()
   .option("--web", "启动时同时开启 Web 预览")
   .addCommand(createMcpCommand());
 
-async function main() {
-  const args = process.argv.slice(2);
-  const subcommandName = args.find((arg) => !arg.startsWith("-"));
-
-  if (
-    subcommandName &&
-    program.commands.some((cmd) => cmd.name() === subcommandName)
-  ) {
-    await program.parseAsync(process.argv);
-    return;
-  }
-
-  program.parse();
+program.action(async () => {
   const options = program.opts();
 
   let webServer: ReturnType<typeof createWebServer> | undefined;
@@ -47,6 +35,10 @@ async function main() {
   });
 
   await startTUI({ webUrl: webServer?.url });
+});
+
+async function main() {
+  await program.parseAsync(process.argv);
 }
 
 main().catch((err) => {
