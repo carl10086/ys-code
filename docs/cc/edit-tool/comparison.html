@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EditTool 实现对比分析 — ys-code vs cc</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Brand */
+      --primary: #a03b00;
+      --primary-container: #c94c00;
+      --primary-fixed: #ffdbcd;
+      --primary-fixed-dim: #ffb597;
+      --on-primary: #ffffff;
+      --accent-glow: #E8400D;
+
+      /* Secondary / tertiary */
+      --secondary: #d5baff;
+      --secondary-container: #7b40e0;
+      --tertiary: #4d44e3;
+      --accent-cyan: #00D4FF;
+
+      /* Surfaces */
+      --bg: #fff8f6;
+      --surface: #fff8f6;
+      --surface-container-lowest: #ffffff;
+      --surface-container-low: #fbf2ef;
+      --surface-container: #f5ece9;
+      --surface-container-high: #efe6e3;
+
+      /* Text */
+      --fg-1: #1e1b19;
+      --fg-2: #594138;
+      --fg-muted: #8d7166;
+
+      /* Borders */
+      --border: rgba(0, 0, 0, 0.06);
+      --border-strong: rgba(0, 0, 0, 0.12);
+      --outline-variant: #e1bfb2;
+
+      /* Status */
+      --green: #10b981;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+
+      /* Typography */
+      --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+
+      /* Spacing (4px base) */
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+
+      /* Radius */
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+      --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+      --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+      --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #060B18;
+        --surface: #0B1426;
+        --surface-container-lowest: #101D35;
+        --surface-container-low: #101D35;
+        --surface-container: #162544;
+        --surface-container-high: #1c2d52;
+        --fg-1: #F8FAFC;
+        --fg-2: #CBD5E1;
+        --fg-muted: #64748B;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --primary: #FF6B35;
+        --accent-glow: #00D4FF;
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* Document Shell */
+    .document-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-3xl) var(--space-xl);
+    }
+
+    /* Cover / Masthead */
+    .cover {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4xl);
+      margin-bottom: var(--space-3xl);
+      box-shadow: var(--shadow-md);
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+
+    .cover-meta .badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-pill);
+      background: var(--primary-fixed);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .cover h1 {
+      font-family: var(--font-headline);
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: var(--space-lg);
+      color: var(--fg-1);
+      letter-spacing: -0.01em;
+    }
+
+    .cover .subtitle {
+      font-size: 1.1rem;
+      color: var(--fg-2);
+      margin-bottom: var(--space-xl);
+      line-height: 1.5;
+    }
+
+    .deck {
+      background: var(--surface-container);
+      border-left: 4px solid var(--primary);
+      padding: var(--space-lg) var(--space-xl);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      margin-top: var(--space-xl);
+    }
+
+    .deck p {
+      margin: 0;
+      font-weight: 500;
+      color: var(--fg-1);
+    }
+
+    .deck .stats {
+      display: flex;
+      gap: var(--space-3xl);
+      margin-top: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .deck .stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .deck .stat-value {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .deck .stat-label {
+      font-size: 12px;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Reader Rail */
+    .reader-rail {
+      position: sticky;
+      top: var(--space-xl);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-3xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .reader-rail h3 {
+      font-family: var(--font-headline);
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    .reader-rail ul {
+      list-style: none;
+    }
+
+    .reader-rail li {
+      margin-bottom: var(--space-xs);
+    }
+
+    .reader-rail a {
+      color: var(--fg-2);
+      text-decoration: none;
+      font-size: 14px;
+      display: block;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+
+    .reader-rail a:hover {
+      background: var(--surface-container);
+      color: var(--primary);
+    }
+
+    .reader-rail a.active {
+      background: var(--primary-fixed);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Layout Grid */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: var(--space-3xl);
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .reader-rail {
+        position: static;
+      }
+    }
+
+    /* Body Sections */
+    .body-section {
+      margin-bottom: var(--space-4xl);
+    }
+
+    .body-section h2 {
+      font-family: var(--font-headline);
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: var(--space-lg);
+      color: var(--fg-1);
+      letter-spacing: -0.01em;
+      padding-bottom: var(--space-sm);
+      border-bottom: 2px solid var(--border);
+    }
+
+    .body-section h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: var(--space-2xl) 0 var(--space-md);
+      color: var(--fg-1);
+    }
+
+    .body-section h4 {
+      font-family: var(--font-headline);
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: var(--space-xl) 0 var(--space-sm);
+      color: var(--fg-2);
+    }
+
+    .body-section p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    .body-section ul, .body-section ol {
+      margin-left: var(--space-xl);
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    .body-section li {
+      margin-bottom: var(--space-xs);
+    }
+
+    /* Comparison Tables */
+    .fact-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--space-lg) 0 var(--space-xl);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      font-size: 14px;
+    }
+
+    .fact-table thead {
+      background: var(--surface-container-high);
+    }
+
+    .fact-table th {
+      text-align: left;
+      padding: var(--space-md) var(--space-lg);
+      font-family: var(--font-headline);
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--fg-muted);
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    .fact-table td {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .fact-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .fact-table tr:hover {
+      background: var(--surface-container-low);
+    }
+
+    .fact-table .status {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      display: inline-block;
+    }
+
+    .fact-table .status.aligned {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--green);
+    }
+
+    .fact-table .status.partial {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--yellow);
+    }
+
+    .fact-table .status.missing {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .fact-table .status.extension {
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--blue);
+    }
+
+    /* Code Blocks */
+    .code-block, pre {
+      background: var(--surface-container-high);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      margin: var(--space-md) 0 var(--space-xl);
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--fg-1);
+    }
+
+    .code-block .comment {
+      color: var(--fg-muted);
+    }
+
+    .code-block .keyword {
+      color: var(--primary);
+    }
+
+    .code-block .string {
+      color: var(--green);
+    }
+
+    /* Evidence Margin */
+    .evidence-margin {
+      background: var(--surface-container-low);
+      border-left: 3px solid var(--accent-cyan);
+      padding: var(--space-md) var(--space-lg);
+      margin: var(--space-md) 0 var(--space-xl);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 14px;
+      color: var(--fg-2);
+    }
+
+    .evidence-margin strong {
+      color: var(--fg-1);
+    }
+
+    /* Claim Cards */
+    .claim-card {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin: var(--space-md) 0 var(--space-xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .claim-card .claim-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .claim-card .claim-priority {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+    }
+
+    .claim-card .claim-priority.p0 {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--red);
+    }
+
+    .claim-card .claim-priority.p1 {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--yellow);
+    }
+
+    .claim-card .claim-priority.p2 {
+      background: rgba(100, 116, 139, 0.15);
+      color: var(--fg-muted);
+    }
+
+    .claim-card h4 {
+      margin: 0;
+      font-family: var(--font-headline);
+      font-size: 1.1rem;
+    }
+
+    .claim-card p {
+      margin: var(--space-sm) 0;
+      color: var(--fg-2);
+      font-size: 14px;
+    }
+
+    .claim-card .recommendation {
+      background: var(--surface-container);
+      padding: var(--space-md);
+      border-radius: var(--radius-sm);
+      margin-top: var(--space-md);
+      font-size: 14px;
+      border-left: 3px solid var(--primary);
+    }
+
+    /* Caveat Box */
+    .caveat-box {
+      background: var(--surface-container);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin: var(--space-xl) 0;
+      font-size: 14px;
+      color: var(--fg-muted);
+    }
+
+    .caveat-box strong {
+      color: var(--fg-2);
+    }
+
+    /* Question Panel */
+    .question-panel {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-top: var(--space-4xl);
+    }
+
+    .question-panel h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      margin-bottom: var(--space-md);
+    }
+
+    .question-panel ul {
+      list-style: none;
+      margin-left: 0;
+    }
+
+    .question-panel li {
+      padding: var(--space-sm) 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--fg-2);
+    }
+
+    .question-panel li:last-child {
+      border-bottom: none;
+    }
+
+    /* Source Spread */
+    .source-spread {
+      margin-top: var(--space-4xl);
+    }
+
+    .source-spread h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      margin-bottom: var(--space-lg);
+    }
+
+    /* ASCII Art */
+    .ascii-art {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      background: var(--surface-container-high);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      color: var(--fg-2);
+      margin: var(--space-md) 0 var(--space-xl);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .document-shell {
+        padding: var(--space-xl) var(--space-md);
+      }
+      .cover {
+        padding: var(--space-xl);
+      }
+      .cover h1 {
+        font-size: 1.75rem;
+      }
+      .deck .stats {
+        gap: var(--space-xl);
+      }
+      .fact-table {
+        font-size: 13px;
+      }
+      .fact-table th, .fact-table td {
+        padding: var(--space-sm);
+      }
+    }
+
+    /* Print styles */
+    @media print {
+      .reader-rail {
+        display: none;
+      }
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      body {
+        background: white;
+        color: black;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="document-shell">
+    <!-- Cover / Masthead -->
+    <header class="cover">
+      <div class="cover-meta">
+        <span class="badge">技术对比</span>
+        <span class="badge">v2</span>
+        <span class="badge">2026-04-23</span>
+      </div>
+      <h1>EditTool 实现对比分析</h1>
+      <p class="subtitle">
+        全面对比 claude-code-haha（cc）的 FileEditTool 与当前项目（ys-code）的 EditTool 实现，
+        识别差异、评估对齐状态、给出优先级建议。
+      </p>
+      <div class="deck">
+        <p><strong>核心结论：</strong>ys-code 已实现 cc EditTool 约 71% 的核心功能。基础安全机制（Read-before-Write、脏写检测、引号规范化）已完全对齐。主要差距集中在 UI 渲染层、LSP 集成、权限规则系统等高级功能。</p>
+        <div class="stats">
+          <div class="stat">
+            <span class="stat-value">71%</span>
+            <span class="stat-label">功能对齐度</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">~732</span>
+            <span class="stat-label">ys-code 行数</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">~1030</span>
+            <span class="stat-label">cc 行数</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">10</span>
+            <span class="stat-label">优先级建议</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="layout">
+      <!-- Reader Rail -->
+      <nav class="reader-rail">
+        <h3>目录</h3>
+        <ul>
+          <li><a href="#background" class="active">1. 背景与定位</a></li>
+          <li><a href="#principles">2. 核心原理</a></li>
+          <li><a href="#implementation">3. 源码实现</a></li>
+          <li><a href="#comparison">4. 与 ys-code 对比</a></li>
+          <li><a href="#recommendations">5. 可借鉴点与建议</a></li>
+          <li><a href="#references">6. 参考链接</a></li>
+        </ul>
+      </nav>
+
+      <!-- Body Sheet -->
+      <main>
+        <!-- Section 1: Background -->
+        <section class="body-section" id="background">
+          <h2>1. 背景与定位</h2>
+
+          <h3>1.1 对比对象</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>定位</th>
+                <th>技术栈</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>cc (claude-code-haha)</strong></td>
+                <td>Anthropic 官方 Claude Code CLI 的参考实现</td>
+                <td>Bun + TypeScript + Zod + React/JSX</td>
+              </tr>
+              <tr>
+                <td><strong>ys-code</strong></td>
+                <td>分阶段逼近 Claude Code 的可控实现项目</td>
+                <td>Bun + TypeScript + TypeBox + Ink</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>1.2 分析范围</h3>
+          <p>本次对比覆盖以下维度：</p>
+          <ul>
+            <li>工具框架与架构设计</li>
+            <li>输入输出 Schema 定义</li>
+            <li>校验逻辑（validateInput）</li>
+            <li>执行逻辑（call / execute）</li>
+            <li>UI 渲染与用户体验</li>
+            <li>安全机制与错误处理</li>
+            <li>代码量与复杂度</li>
+          </ul>
+
+          <h3>1.3 核心结论（前置）</h3>
+          <div class="evidence-margin">
+            <strong>ys-code 现状：</strong>基础安全机制已对齐，代码量从 ~155 行增长至 ~732 行，达到 cc 的 71%。
+          </div>
+        </section>
+
+        <!-- Section 2: Core Principles -->
+        <section class="body-section" id="principles">
+          <h2>2. 核心原理</h2>
+
+          <h3>2.1 架构对比</h3>
+          <div class="ascii-art">
+cc 的 EditTool 架构:
+┌─────────────────────────────────────────┐
+│  buildTool({ ... })                     │
+│  ├── strict: true                       │
+│  ├── inputSchema (Zod)                  │
+│  ├── outputSchema (Zod)                 │
+│  ├── backfillObservableInput            │
+│  ├── checkPermissions                   │
+│  ├── validateInput                      │
+│  ├── call                               │
+│  ├── renderToolUseMessage               │
+│  ├── renderToolResultMessage            │
+│  └── renderToolUseRejectedMessage       │
+└─────────────────────────────────────────┘
+
+ys-code 的 EditTool 架构:
+┌─────────────────────────────────────────┐
+│  defineAgentTool({ ... })               │
+│  ├── parameters (TypeBox)               │
+│  ├── outputSchema (TypeBox)             │
+│  ├── validateInput                      │
+│  ├── execute                            │
+│  ├── formatResult                       │
+│  └── renderResult                       │
+└─────────────────────────────────────────┘
+          </div>
+
+          <p><strong>关键差异：</strong></p>
+          <ul>
+            <li>cc 使用集中式 <code>buildTool</code> 工厂，支持 20+ 个配置项</li>
+            <li>ys-code 使用轻量级 <code>defineAgentTool</code>，聚焦核心功能</li>
+            <li>cc 的 UI 渲染与工具定义耦合，ys-code 分离了 <code>formatResult</code> 和 <code>renderResult</code></li>
+          </ul>
+
+          <h3>2.2 数据流对比</h3>
+          <div class="ascii-art">
+cc 的数据流:
+ReadTool → FileStateCache → validateInput → UI 预览 → 用户确认 → call → LSP 通知 → VSCode 通知 → 更新 Cache
+
+ys-code 的数据流:
+ReadTool → FileStateCache → validateInput → execute → 更新 Cache → formatResult/renderResult
+          </div>
+
+          <p><strong>关键差异：</strong></p>
+          <ul>
+            <li>cc 有"用户确认"环节（UI 预览 + 回车确认），ys-code 直接执行</li>
+            <li>cc 编辑后通知 LSP 和 VSCode，ys-code 无 IDE 集成</li>
+            <li>两者都维护 FileStateCache，实现 Read-before-Write 和脏写检测</li>
+          </ul>
+        </section>
+
+        <!-- Section 3: Implementation -->
+        <section class="body-section" id="implementation">
+          <h2>3. 源码实现</h2>
+
+          <h3>3.1 工具框架对比</h3>
+
+          <h4>3.1.1 定义方式</h4>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>cc</th>
+                <th>ys-code</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Schema 库</strong></td>
+                <td>Zod (zod/v4)</td>
+                <td>TypeBox (@sinclair/typebox)</td>
+              </tr>
+              <tr>
+                <td><strong>构建函数</strong></td>
+                <td><code>buildTool({ ... })</code> — 集中式工具工厂</td>
+                <td><code>defineAgentTool({ ... })</code> — 简单对象合并</td>
+              </tr>
+              <tr>
+                <td><strong>类型定义</strong></td>
+                <td><code>ToolDef&lt;Input, Output&gt;</code> + <code>BuiltTool&lt;D&gt;</code></td>
+                <td><code>AgentTool&lt;TParameters, TOutput&gt;</code> 接口</td>
+              </tr>
+              <tr>
+                <td><strong>默认值机制</strong></td>
+                <td><code>TOOL_DEFAULTS</code> 提供 fail-closed 默认值</td>
+                <td><code>defineAgentTool</code> 中用展开运算符提供基础默认值</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4>3.1.2 框架能力矩阵</h4>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>能力</th>
+                <th>cc</th>
+                <th>ys-code</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>输入校验 (validateInput)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>权限检查 (checkPermissions)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐（基础）</span></td>
+              </tr>
+              <tr>
+                <td>参数预处理 (backfillObservableInput)</td>
+                <td>✅</td>
+                <td>✅ (prepareArguments)</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>输入等价比较 (inputsEquivalent)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>并发安全标记 (isConcurrencySafe)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>只读标记 (isReadOnly)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>破坏性标记 (isDestructive)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>UI 渲染 (renderToolResultMessage 等)</td>
+                <td>✅ 完整 React/JSX</td>
+                <td>❌ 仅文本返回</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>进度消息 (renderToolUseProgressMessage)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>拒绝消息渲染 (renderToolUseRejectedMessage)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>错误消息渲染 (renderToolUseErrorMessage)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>工具使用摘要 (getToolUseSummary)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>活动描述 (getActivityDescription)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>严格模式 (strict)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>结果大小限制 (maxResultSizeChars)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>3.2 输入输出 Schema 对比</h3>
+
+          <h4>3.2.1 输入参数</h4>
+          <p><strong>cc (FileEditInput)：</strong></p>
+          <div class="code-block">{
+  file_path: string,      // 绝对路径
+  old_string: string,     // 要替换的文本
+  new_string: string,     // 替换后的文本（必须不同于 old_string）
+  replace_all: boolean    // 是否替换所有匹配（默认 false）
+}</div>
+
+          <p><strong>ys-code (EditInput)：</strong></p>
+          <div class="code-block">{
+  file_path: string,      // 文件路径（相对于 cwd 解析）
+  old_string: string,     // 要替换的文本
+  new_string: string,     // 替换后的文本
+  replace_all?: boolean   // 是否替换所有匹配（可选）
+}</div>
+
+          <div class="evidence-margin">
+            <strong>差异：</strong>cc 使用 <code>z.strictObject</code>，拒绝未知字段；ys-code 使用 <code>Type.Object</code>，允许额外字段。cc 的 <code>replace_all</code> 通过 <code>semanticBoolean</code> 预处理，支持语义化布尔值；ys-code 直接使用布尔值。cc 的路径在 <code>backfillObservableInput</code> 中通过 <code>expandPath</code> 展开为绝对路径；ys-code 在 <code>validateInput</code> 中解析。
+          </div>
+
+          <h4>3.2.2 输出参数</h4>
+          <p><strong>cc (FileEditOutput)：</strong></p>
+          <div class="code-block">{
+  filePath: string,
+  oldString: string,
+  newString: string,
+  originalFile: string,      // 编辑前的完整文件内容
+  structuredPatch: Hunk[],   // 结构化 diff patch
+  userModified: boolean,     // 用户是否修改了建议的变更
+  replaceAll: boolean,
+  gitDiff?: GitDiff          // 可选的 Git diff 信息
+}</div>
+
+          <p><strong>ys-code (EditOutput)：</strong></p>
+          <div class="code-block">{
+  filePath: string,
+  oldString: string,
+  newString: string,
+  originalFile: string,
+  replaceAll: boolean,
+  structuredPatch: StructuredPatchHunk[]  // 结构化 diff patch
+}</div>
+
+          <div class="evidence-margin">
+            <strong>差异：</strong>cc 包含 <code>userModified</code>（支持用户在权限提示中修改变更）和 <code>gitDiff</code>（远程模式下的 Git diff 信息）。ys-code 已包含 <code>structuredPatch</code>（与 cc 对齐）。
+          </div>
+
+          <h3>3.3 校验逻辑对比</h3>
+
+          <h4>3.3.1 validateInput 步骤对比</h4>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>校验项</th>
+                <th>cc</th>
+                <th>ys-code</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>old_string === new_string</code></td>
+                <td>✅ 返回错误码 1</td>
+                <td>✅ 返回错误码 1</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>团队内存文件 secrets 检查</td>
+                <td>✅ <code>checkTeamMemSecrets</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>权限规则检查（deny）</td>
+                <td>✅ <code>matchingRuleForInput</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>UNC 路径安全检查</td>
+                <td>✅ 跳过文件系统操作</td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>文件大小限制（1GB）</td>
+                <td>✅ 防止 OOM</td>
+                <td>✅ <code>checkFileSize</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件不存在 + <code>old_string === ""</code></td>
+                <td>✅ 允许创建</td>
+                <td>✅ 允许创建</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件存在 + <code>old_string === ""</code></td>
+                <td>✅ 仅当文件为空时允许</td>
+                <td>⚠️ 直接拒绝</td>
+                <td><span class="status partial">部分对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件不存在 + <code>old_string !== ""</code></td>
+                <td>✅ 提示相似文件建议</td>
+                <td>✅ 提示相似文件建议</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>Jupyter Notebook 保护</td>
+                <td>✅ 拒绝，提示使用 NotebookEditTool</td>
+                <td>✅ 拒绝</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td><strong>必须先读取文件</strong></td>
+                <td>✅ <strong>强制要求</strong></td>
+                <td>✅ <strong>强制要求</strong></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件修改时间戳检查</td>
+                <td>✅ 防止脏写</td>
+                <td>✅ 双层检测</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>字符串匹配检查</td>
+                <td>✅ <code>findActualString</code>（支持引号规范化）</td>
+                <td>✅ <code>findActualString</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>多匹配检测</td>
+                <td>✅ 支持 <code>replace_all</code></td>
+                <td>✅ 支持 <code>replace_all</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>设置文件编辑验证</td>
+                <td>✅ <code>validateInputForSettingsFileEdit</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>JSON 合法性校验</td>
+                <td>❌ 无</td>
+                <td>✅ <code>JSON.parse</code> 预览</td>
+                <td><span class="status extension">ys-code 扩展</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>3.4 执行逻辑对比</h3>
+
+          <h4>3.4.1 执行步骤对比</h4>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>执行步骤</th>
+                <th>cc</th>
+                <th>ys-code</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>技能目录发现</td>
+                <td>✅ <code>discoverSkillDirsForPaths</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>诊断跟踪（LSP）</td>
+                <td>✅ <code>diagnosticTracker.beforeFileEdited</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>父目录创建</td>
+                <td>✅ <code>fs.mkdir(dirname)</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>文件历史备份</td>
+                <td>✅ <code>fileHistoryTrackEdit</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>原子性保证</td>
+                <td>✅ 强调避免异步操作穿插</td>
+                <td>⚠️ 简单读写</td>
+                <td><span class="status partial">部分对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件编码处理</td>
+                <td>✅ 检测 utf16le / utf8</td>
+                <td>✅ <code>readFileWithEncoding</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>行尾符处理</td>
+                <td>✅ CRLF → LF</td>
+                <td>✅ <code>detectLineEndings</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>引号规范化</td>
+                <td>✅ <code>findActualString</code> + <code>preserveQuoteStyle</code></td>
+                <td>✅ 已对齐</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>Patch 生成</td>
+                <td>✅ <code>getPatchForEdit</code></td>
+                <td>✅ <code>generatePatch</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>LSP 通知</td>
+                <td>✅ <code>didChange</code> + <code>didSave</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>VSCode 通知</td>
+                <td>✅ <code>notifyVscodeFileUpdated</code></td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>读取时间戳更新</td>
+                <td>✅ 更新 <code>readFileState</code></td>
+                <td>✅ <code>recordEdit</code></td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>Git diff 获取</td>
+                <td>✅ 远程模式下可选</td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>分析日志</td>
+                <td>✅ 多维度事件日志</td>
+                <td>❌ 无</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>3.5 UI 渲染对比</h3>
+
+          <h4>3.5.1 cc 的 UI 渲染</h4>
+          <p>源码路径：<code>src/tools/FileEditTool/UI.tsx</code></p>
+          <div class="code-block">// 根据输入返回用户可见的操作名称
+export function userFacingName(input): string {
+  if (!input) return 'Update'
+  if (input.file_path?.startsWith(getPlansDirectory())) return 'Updated plan'
+  if (input.edits != null) return 'Update'
+  if (input.old_string === '') return 'Create'
+  return 'Update'
+}
+
+// 返回工具使用的摘要（文件路径）
+export function getToolUseSummary(input): string | null {
+  if (!input?.file_path) return null
+  return getDisplayPath(input.file_path)
+}
+
+// 活动描述（状态栏/进度显示）
+getActivityDescription(input) {
+  const summary = getToolUseSummary(input)
+  return summary ? `Editing ${summary}` : 'Editing file'
+}</div>
+
+          <h4>3.5.2 ys-code 的 UI 渲染</h4>
+          <div class="code-block">formatResult(output, _toolCallId) {
+  const baseMessage = output.replaceAll
+    ? `The file ${output.filePath} has been updated. All occurrences were successfully replaced.`
+    : `The file ${output.filePath} has been updated successfully.`;
+  const text = formatResultWithDiff(output.filePath, output.structuredPatch ?? [], baseMessage);
+  return [{ type: "text" as const, text }];
+},
+
+renderResult(output, _toolCallId) {
+  if (!output.structuredPatch || output.structuredPatch.length === 0) {
+    return { type: "plain", text: "File updated (no diff available)" };
+  }
+  return {
+    type: "structured_diff",
+    filePath: output.filePath,
+    hunks: output.structuredPatch,
+  };
+}</div>
+
+          <div class="evidence-margin">
+            <strong>差异：</strong>cc 支持动态操作名称（Create / Update / Updated plan），有完整的 React/JSX 渲染层，支持 diff 预览。ys-code 仅返回文本或结构化 diff，无动态 UI。
+          </div>
+        </section>
+
+        <!-- Section 4: Comparison -->
+        <section class="body-section" id="comparison">
+          <h2>4. 与 ys-code 对比</h2>
+
+          <h3>4.1 功能对齐状态总览</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>功能模块</th>
+                <th>cc</th>
+                <th>ys-code</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="4" style="background: var(--surface-container-high); font-weight: 600;">基础安全机制</td>
+              </tr>
+              <tr>
+                <td>Read-before-Write</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>脏写检测（双层）</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>引号规范化</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>多匹配检测</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>文件大小限制</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td colspan="4" style="background: var(--surface-container-high); font-weight: 600;">文件处理</td>
+              </tr>
+              <tr>
+                <td>编码检测（utf8/utf16le）</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>行尾符保持（CRLF/LF）</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>相似文件建议</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>新文件创建</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>Jupyter Notebook 保护</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>JSON 合法性校验</td>
+                <td>❌</td>
+                <td>✅</td>
+                <td><span class="status extension">ys-code 扩展</span></td>
+              </tr>
+              <tr>
+                <td colspan="4" style="background: var(--surface-container-high); font-weight: 600;">框架能力</td>
+              </tr>
+              <tr>
+                <td>输入校验 (validateInput)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>权限检查 (checkPermissions)</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐（基础）</span></td>
+              </tr>
+              <tr>
+                <td>参数预处理</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>严格模式 (strict)</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>结果大小限制</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td colspan="4" style="background: var(--surface-container-high); font-weight: 600;">UI 与集成</td>
+              </tr>
+              <tr>
+                <td>结构化 Patch 生成</td>
+                <td>✅</td>
+                <td>✅</td>
+                <td><span class="status aligned">已对齐</span></td>
+              </tr>
+              <tr>
+                <td>UI 渲染层（React/JSX）</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>LSP 通知（didChange/didSave）</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>VSCode 通知</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>文件历史备份</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>Git diff 获取</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td colspan="4" style="background: var(--surface-container-high); font-weight: 600;">高级功能</td>
+              </tr>
+              <tr>
+                <td>团队 secrets 检查</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>权限规则系统（allow/deny/ask）</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>设置文件特殊校验</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>技能目录发现</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+              <tr>
+                <td>诊断跟踪</td>
+                <td>✅</td>
+                <td>❌</td>
+                <td><span class="status missing">未实现</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>4.2 代码量对比（更新后）</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>cc 行数</th>
+                <th>ys-code 行数</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>主工具文件</td>
+                <td>~625 (FileEditTool.ts)</td>
+                <td>~385 (edit.ts)</td>
+                <td>ys-code 已大幅增长</td>
+              </tr>
+              <tr>
+                <td>FileStateCache</td>
+                <td>~35 (fileStateCache.ts)</td>
+                <td>~118 (file-state.ts)</td>
+                <td>ys-code 更完整</td>
+              </tr>
+              <tr>
+                <td>文件编码处理</td>
+                <td>~120 (fileIO.ts)</td>
+                <td>~87 (file-encoding.ts)</td>
+                <td>基本对齐</td>
+              </tr>
+              <tr>
+                <td>Diff 生成</td>
+                <td>~200 (utils.ts)</td>
+                <td>~95 (diff-formatter.ts)</td>
+                <td>ys-code 更精简</td>
+              </tr>
+              <tr>
+                <td>文件大小保护</td>
+                <td>~50 (fileGuard.ts)</td>
+                <td>~47 (file-guard.ts)</td>
+                <td>基本对齐</td>
+              </tr>
+              <tr style="background: var(--surface-container-high); font-weight: 600;">
+                <td>合计</td>
+                <td>~1030 行</td>
+                <td>~732 行</td>
+                <td>ys-code 已达 cc 的 71%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="evidence-margin">
+            <strong>ys-code 现状：</strong>代码量从 ~155 行增长至 ~732 行，核心安全机制已完全对齐。
+          </div>
+        </section>
+
+        <!-- Section 5: Recommendations -->
+        <section class="body-section" id="recommendations">
+          <h2>5. 可借鉴点与建议</h2>
+
+          <h3>5.1 P0（高优先级，建议尽快引入）</h3>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p0">P0</span>
+              <h4>严格模式（strict: true）</h4>
+            </div>
+            <p><strong>问题：</strong>ys-code 使用 <code>Type.Object</code>，允许额外字段通过，模型可能误传参数。</p>
+            <p><strong>cc 做法：</strong><code>z.strictObject</code> 拒绝未知字段。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>在 <code>defineAgentTool</code> 中增加 <code>strict</code> 选项，使用 <code>Type.Object({ ... }, { additionalProperties: false })</code> 实现。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p0">P0</span>
+              <h4>设置文件特殊校验</h4>
+            </div>
+            <p><strong>问题：</strong>编辑 <code>.vscode/settings.json</code>、<code>.gitignore</code> 等配置文件时，格式错误可能导致工具失效。</p>
+            <p><strong>cc 做法：</strong><code>validateInputForSettingsFileEdit</code> 对特定文件类型做额外校验。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>为 JSON、YAML、INI 等配置文件增加格式校验，确保编辑后仍是合法配置。
+            </div>
+          </div>
+
+          <h3>5.2 P1（中优先级，后续逐步引入）</h3>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p1">P1</span>
+              <h4>LSP 集成</h4>
+            </div>
+            <p><strong>问题：</strong>编辑 TypeScript 文件后，类型检查器不知道文件已变更，导致诊断信息滞后。</p>
+            <p><strong>cc 做法：</strong>编辑后发送 <code>didChange</code> + <code>didSave</code> 通知 LSP 服务器。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>接入 <code>vscode-languageserver-types</code> 和 <code>vscode-jsonrpc</code>，实现 LSP 通知。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p1">P1</span>
+              <h4>文件历史备份</h4>
+            </div>
+            <p><strong>问题：</strong>编辑错误后无法恢复，用户可能丢失重要代码。</p>
+            <p><strong>cc 做法：</strong><code>fileHistoryTrackEdit</code> 在编辑前备份原始内容。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>在 <code>execute</code> 中增加文件历史备份机制，支持后续恢复。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p1">P1</span>
+              <h4>团队 Secrets 检查</h4>
+            </div>
+            <p><strong>问题：</strong>模型可能不小心将密钥、token 写入代码文件。</p>
+            <p><strong>cc 做法：</strong><code>checkTeamMemSecrets</code> 检查新字符串是否包含敏感信息。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>增加简单的 secrets 检测（正则匹配 API key、password 等模式）。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p1">P1</span>
+              <h4>空文件编辑支持</h4>
+            </div>
+            <p><strong>问题：</strong>cc 允许编辑空文件（<code>old_string === ''</code> 且文件内容为空），ys-code 直接拒绝。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>允许编辑空文件，与 cc 行为一致。
+            </div>
+          </div>
+
+          <h3>5.3 P2（低优先级，根据需求决定）</h3>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p2">P2</span>
+              <h4>UI 渲染层</h4>
+            </div>
+            <p><strong>cc 做法：</strong>完整的 React/JSX UI，支持 diff 预览、verbose/condensed 模式。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>Ink 界面成熟后，再引入结构化 diff 渲染。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p2">P2</span>
+              <h4>权限规则系统</h4>
+            </div>
+            <p><strong>cc 做法：</strong>支持 alwaysAllow / alwaysDeny / alwaysAsk 三级规则，基于路径模式匹配。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>当前基础权限检查已够用，复杂规则后续按需引入。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p2">P2</span>
+              <h4>技能目录发现</h4>
+            </div>
+            <p><strong>cc 做法：</strong><code>discoverSkillDirsForPaths</code> 自动发现并加载技能目录。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>与项目的 skill 系统集成时引入。
+            </div>
+          </div>
+
+          <div class="claim-card">
+            <div class="claim-header">
+              <span class="claim-priority p2">P2</span>
+              <h4>Git diff 获取</h4>
+            </div>
+            <p><strong>cc 做法：</strong>远程模式下获取单文件的 git diff 信息。</p>
+            <div class="recommendation">
+              <strong>建议：</strong>与 git 工作流集成时引入。
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 6: References -->
+        <section class="body-section" id="references">
+          <h2>6. 参考链接</h2>
+
+          <h3>6.1 cc 源码路径</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>主工具定义</td>
+                <td><code>src/tools/FileEditTool/FileEditTool.ts</code></td>
+                <td>buildTool 注册、validateInput、call</td>
+              </tr>
+              <tr>
+                <td>类型定义</td>
+                <td><code>src/tools/FileEditTool/types.ts</code></td>
+                <td>Input/Output Schema、Zod 定义</td>
+              </tr>
+              <tr>
+                <td>工具函数</td>
+                <td><code>src/tools/FileEditTool/utils.ts</code></td>
+                <td>findActualString、preserveQuoteStyle、getPatchForEdit</td>
+              </tr>
+              <tr>
+                <td>UI 渲染</td>
+                <td><code>src/tools/FileEditTool/UI.tsx</code></td>
+                <td>React/JSX 组件、userFacingName、renderToolResultMessage</td>
+              </tr>
+              <tr>
+                <td>Prompt</td>
+                <td><code>src/tools/FileEditTool/prompt.ts</code></td>
+                <td>getEditToolDescription、getPreReadInstruction</td>
+              </tr>
+              <tr>
+                <td>常量</td>
+                <td><code>src/tools/FileEditTool/constants.ts</code></td>
+                <td>FILE_EDIT_TOOL_NAME、MAX_EDIT_FILE_SIZE</td>
+              </tr>
+              <tr>
+                <td>FileStateCache</td>
+                <td><code>src/utils/fileStateCache.ts</code></td>
+                <td>LRUCache 封装、dump/load</td>
+              </tr>
+              <tr>
+                <td>文件 IO</td>
+                <td><code>src/utils/fileIO.ts</code></td>
+                <td>readFileForEdit、writeTextContent、编码检测</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>6.2 ys-code 源码路径</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>文件</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>EditTool</td>
+                <td><code>src/agent/tools/edit.ts</code></td>
+                <td>defineAgentTool 注册、validateInput、execute</td>
+              </tr>
+              <tr>
+                <td>FileStateCache</td>
+                <td><code>src/agent/file-state.ts</code></td>
+                <td>LRUCache 封装、recordRead/canEdit/recordEdit</td>
+              </tr>
+              <tr>
+                <td>文件编码</td>
+                <td><code>src/agent/tools/file-encoding.ts</code></td>
+                <td>readFileWithEncoding、writeFileWithEncoding</td>
+              </tr>
+              <tr>
+                <td>Diff 生成</td>
+                <td><code>src/agent/tools/diff-formatter.ts</code></td>
+                <td>generatePatch、formatPatchToText</td>
+              </tr>
+              <tr>
+                <td>文件保护</td>
+                <td><code>src/agent/tools/file-guard.ts</code></td>
+                <td>checkFileSize、DIRTY_WRITE_MESSAGE</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>6.3 历史文档</h3>
+          <table class="fact-table">
+            <thead>
+              <tr>
+                <th>文档</th>
+                <th>路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>原始源码分析</td>
+                <td><code>docs/cc/2026-04-23-cc-EditTool-源码分析.md</code></td>
+                <td>第一版 cc 源码分析（时序流）</td>
+              </tr>
+              <tr>
+                <td>原始对比分析</td>
+                <td><code>docs/cc/edit-tool-comparison.md</code></td>
+                <td>第一版对比分析（ys-code 仅 ~155 行）</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Question Panel -->
+        <div class="question-panel">
+          <h3>后续审查清单</h3>
+          <ul>
+            <li>严格模式（strict）是否已在 defineAgentTool 中实现？</li>
+            <li>设置文件编辑校验是否已覆盖 JSON/YAML/INI 格式？</li>
+            <li>LSP 集成是否已接入 vscode-languageserver-types？</li>
+            <li>文件历史备份机制是否已支持编辑恢复？</li>
+            <li>Secrets 检查是否已覆盖常见敏感信息模式？</li>
+            <li>空文件编辑支持是否与 cc 行为一致？</li>
+            <li>UI 渲染层是否已在 Ink TUI 中实现 diff 预览？</li>
+          </ul>
+        </div>
+
+        <!-- Caveat Box -->
+        <div class="caveat-box">
+          <strong>范围说明：</strong>此对比分析基于 cc 和 ys-code 的当前源码（截至 2026-04-23），提供功能对齐状态评估和优先级建议。随着两个项目的演进，部分结论可能需要更新。建议定期重新评估对齐状态。
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Active nav tracking
+    const sections = document.querySelectorAll('.body-section');
+    const navLinks = document.querySelectorAll('.reader-rail a');
+
+    function updateActiveNav() {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (scrollY >= sectionTop - 200) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+          link.classList.add('active');
+        }
+      });
+    }
+
+    window.addEventListener('scroll', updateActiveNav);
+    updateActiveNav();
+
+    // Smooth scroll for nav links
+    navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = document.querySelector(link.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

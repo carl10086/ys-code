@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="dashboard">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compact 系统后续问题跟踪</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #a03b00;
+      --primary-container: #c94c00;
+      --primary-fixed: #ffdbcd;
+      --primary-fixed-dim: #ffb597;
+      --on-primary: #ffffff;
+      --accent-glow: #E8400D;
+      --secondary: #d5baff;
+      --secondary-container: #7b40e0;
+      --tertiary: #4d44e3;
+      --accent-cyan: #00D4FF;
+      --bg: #fff8f6;
+      --surface: #fff8f6;
+      --surface-container-lowest: #ffffff;
+      --surface-container-low: #fbf2ef;
+      --surface-container: #f5ece9;
+      --surface-container-high: #efe6e3;
+      --fg-1: #1e1b19;
+      --fg-2: #594138;
+      --fg-muted: #8d7166;
+      --border: rgba(0, 0, 0, 0.06);
+      --border-strong: rgba(0, 0, 0, 0.12);
+      --outline-variant: #e1bfb2;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+      --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+      --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+      --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+      --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #060B18;
+        --surface: #0B1426;
+        --surface-container-lowest: #101D35;
+        --surface-container-low: #101D35;
+        --surface-container: #162544;
+        --surface-container-high: #1c2d52;
+        --fg-1: #F8FAFC;
+        --fg-2: #CBD5E1;
+        --fg-muted: #64748B;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --primary: #FF6B35;
+        --accent-glow: #00D4FF;
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .ops-shell {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    /* Command Bar */
+    .command-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-lg) var(--space-xl);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .command-bar h1 {
+      font-family: var(--font-headline);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--fg-1);
+      letter-spacing: -0.01em;
+      flex: 1 1 200px;
+    }
+
+    .command-bar .meta {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      font-family: var(--font-mono);
+    }
+
+    .command-bar .search-box {
+      position: relative;
+      flex: 1 1 280px;
+      min-width: 200px;
+    }
+
+    .command-bar .search-box input {
+      width: 100%;
+      padding: var(--space-sm) var(--space-md);
+      padding-left: var(--space-xl);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill);
+      background: var(--surface-container);
+      color: var(--fg-1);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .command-bar .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(160, 59, 0, 0.1);
+    }
+
+    .command-bar .search-box::before {
+      content: "🔍";
+      position: absolute;
+      left: var(--space-md);
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      opacity: 0.5;
+    }
+
+    .filter-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+
+    .filter-chip {
+      padding: var(--space-xs) var(--space-md);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--surface-container);
+      color: var(--fg-2);
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+
+    .filter-chip:hover, .filter-chip.active {
+      background: var(--primary);
+      color: var(--on-primary);
+      border-color: var(--primary);
+    }
+
+    /* KPI Rail */
+    .kpi-rail {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: var(--space-md);
+      margin-bottom: var(--space-xl);
+    }
+
+    .kpi-cell {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .kpi-cell:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .kpi-cell .kpi-value {
+      font-family: var(--font-headline);
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.2;
+    }
+
+    .kpi-cell .kpi-label {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      margin-top: var(--space-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Work Surface */
+    .work-surface {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-xl);
+      margin-bottom: var(--space-xl);
+    }
+
+    @media (min-width: 1024px) {
+      .work-surface {
+        grid-template-columns: 2fr 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .panel h2 {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--fg-1);
+      margin-bottom: var(--space-lg);
+      letter-spacing: -0.01em;
+    }
+
+    /* Priority Chart */
+    .priority-chart {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .priority-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .priority-bar .label {
+      width: 60px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .priority-bar .bar-track {
+      flex: 1;
+      height: 28px;
+      background: var(--surface-container);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .priority-bar .bar-fill {
+      height: 100%;
+      border-radius: var(--radius-sm);
+      transition: width 0.8s ease;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: var(--space-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: white;
+    }
+
+    .priority-bar.p1 .bar-fill { background: var(--red); }
+    .priority-bar.p2 .bar-fill { background: var(--yellow); color: var(--fg-1); }
+    .priority-bar.p3 .bar-fill { background: var(--blue); }
+
+    /* Phase Timeline */
+    .phase-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .phase-item {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--surface-container);
+      border-left: 3px solid var(--primary);
+    }
+
+    .phase-item.phase-2 { border-left-color: var(--yellow); }
+    .phase-item.phase-3 { border-left-color: var(--blue); }
+
+    .phase-item .phase-num {
+      font-family: var(--font-headline);
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--primary);
+      min-width: 24px;
+    }
+
+    .phase-item.phase-2 .phase-num { color: var(--yellow); }
+    .phase-item.phase-3 .phase-num { color: var(--blue); }
+
+    .phase-item .phase-content {
+      flex: 1;
+    }
+
+    .phase-item .phase-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      margin-bottom: var(--space-xs);
+    }
+
+    .phase-item .phase-issues {
+      font-size: 0.8125rem;
+      color: var(--fg-muted);
+      line-height: 1.5;
+    }
+
+    /* Flag Queue */
+    .flag-queue {
+      margin-bottom: var(--space-xl);
+    }
+
+    .flag-queue h2 {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--space-lg);
+    }
+
+    .flag-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .flag-card {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+
+    .flag-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .flag-card .flag-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-sm);
+    }
+
+    .flag-card .flag-id {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      background: var(--surface-container);
+      color: var(--fg-muted);
+    }
+
+    .flag-card .flag-priority {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .flag-card .flag-priority.p1 {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--red);
+    }
+
+    .flag-card .flag-priority.p2 {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--yellow);
+    }
+
+    .flag-card .flag-priority.p3 {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--blue);
+    }
+
+    .flag-card .flag-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      margin-bottom: var(--space-xs);
+      color: var(--fg-1);
+    }
+
+    .flag-card .flag-desc {
+      font-size: 0.8125rem;
+      color: var(--fg-muted);
+      line-height: 1.5;
+      margin-bottom: var(--space-sm);
+    }
+
+    .flag-card .flag-meta {
+      display: flex;
+      gap: var(--space-md);
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+    }
+
+    .flag-card .flag-meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    /* Data Grid */
+    .data-grid-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .data-grid-section h2 {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--space-lg);
+    }
+
+    .data-grid {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .data-grid table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .data-grid th {
+      background: var(--surface-container);
+      padding: var(--space-md) var(--space-lg);
+      text-align: left;
+      font-weight: 600;
+      color: var(--fg-2);
+      font-size: 0.8125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .data-grid td {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--border);
+      color: var(--fg-1);
+      vertical-align: top;
+    }
+
+    .data-grid tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-grid tr:hover td {
+      background: var(--surface-container-low);
+    }
+
+    .data-grid .col-id {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--fg-muted);
+      white-space: nowrap;
+    }
+
+    .data-grid .col-priority {
+      font-weight: 600;
+      font-size: 0.8125rem;
+    }
+
+    .data-grid .col-priority.p1 { color: var(--red); }
+    .data-grid .col-priority.p2 { color: var(--yellow); }
+    .data-grid .col-priority.p3 { color: var(--blue); }
+
+    .data-grid .col-status {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(239, 68, 68, 0.08);
+      color: var(--red);
+    }
+
+    .data-grid .col-scope {
+      font-size: 0.8125rem;
+      color: var(--fg-2);
+    }
+
+    .data-grid .col-effort {
+      font-size: 0.8125rem;
+      color: var(--fg-muted);
+      white-space: nowrap;
+    }
+
+    /* Issue Detail Panels */
+    .issue-detail {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-bottom: var(--space-xl);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .issue-detail h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--fg-1);
+      margin-bottom: var(--space-md);
+      letter-spacing: -0.01em;
+    }
+
+    .issue-detail h4 {
+      font-family: var(--font-headline);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--fg-2);
+      margin-top: var(--space-lg);
+      margin-bottom: var(--space-sm);
+    }
+
+    .issue-detail p {
+      font-size: 0.9375rem;
+      color: var(--fg-2);
+      line-height: 1.7;
+      margin-bottom: var(--space-md);
+    }
+
+    .issue-detail ul {
+      margin-left: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+
+    .issue-detail li {
+      font-size: 0.9375rem;
+      color: var(--fg-2);
+      line-height: 1.7;
+      margin-bottom: var(--space-xs);
+    }
+
+    .issue-detail blockquote {
+      border-left: 3px solid var(--primary);
+      padding-left: var(--space-md);
+      margin: var(--space-md) 0;
+      color: var(--fg-muted);
+      font-style: italic;
+    }
+
+    .issue-detail code {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      background: var(--surface-container);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      color: var(--fg-1);
+    }
+
+    .issue-detail pre {
+      background: var(--surface-container);
+      padding: var(--space-lg);
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin: var(--space-md) 0;
+    }
+
+    .issue-detail pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+    }
+
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+
+    .checklist li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-xs) 0;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      color: var(--fg-muted);
+      font-size: 1rem;
+    }
+
+    /* Related Files Table */
+    .files-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin-top: var(--space-md);
+    }
+
+    .files-table th, .files-table td {
+      padding: var(--space-md) var(--space-lg);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .files-table th {
+      background: var(--surface-container);
+      font-weight: 600;
+      color: var(--fg-2);
+      font-size: 0.8125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .files-table td {
+      color: var(--fg-1);
+    }
+
+    .files-table tr:hover td {
+      background: var(--surface-container-low);
+    }
+
+    .files-table code {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      background: var(--surface-container);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .ops-shell {
+        padding: var(--space-md);
+      }
+
+      .command-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .command-bar h1 {
+        font-size: 1.25rem;
+      }
+
+      .command-bar .search-box {
+        width: 100%;
+      }
+
+      .kpi-rail {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .flag-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .data-grid {
+        overflow-x: auto;
+      }
+
+      .data-grid table {
+        min-width: 700px;
+      }
+
+      .priority-bar .label {
+        width: 50px;
+        font-size: 0.8125rem;
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ops-shell">
+    <!-- Command Bar -->
+    <div class="command-bar">
+      <div>
+        <h1>Compact 系统后续问题跟踪</h1>
+        <div class="meta">基于 docs/cc/persistence-compact-followup.md | 创建: 2026-04-22 | 更新: 2026-05-23</div>
+      </div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="搜索问题、影响范围、文件..." />
+      </div>
+      <div class="filter-strip">
+        <div class="filter-chip active" data-filter="all">全部</div>
+        <div class="filter-chip" data-filter="p1">P1 紧急</div>
+        <div class="filter-chip" data-filter="p2">P2 重要</div>
+        <div class="filter-chip" data-filter="p3">P3 一般</div>
+      </div>
+    </div>
+
+    <!-- KPI Rail -->
+    <div class="kpi-rail">
+      <div class="kpi-cell">
+        <div class="kpi-value">8</div>
+        <div class="kpi-label">总问题数</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-value" style="color: var(--red);">3</div>
+        <div class="kpi-label">P1 紧急</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-value" style="color: var(--yellow);">3</div>
+        <div class="kpi-label">P2 重要</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-value" style="color: var(--blue);">2</div>
+        <div class="kpi-label">P3 一般</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-value" style="color: var(--fg-muted);">0</div>
+        <div class="kpi-label">已解决</div>
+      </div>
+      <div class="kpi-cell">
+        <div class="kpi-value" style="color: var(--fg-muted);">0/8</div>
+        <div class="kpi-label">实现进度</div>
+      </div>
+    </div>
+
+    <!-- Work Surface -->
+    <div class="work-surface">
+      <div class="panel">
+        <h2>优先级分布</h2>
+        <div class="priority-chart">
+          <div class="priority-bar p1">
+            <div class="label">P1</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 37.5%">3</div>
+            </div>
+          </div>
+          <div class="priority-bar p2">
+            <div class="label">P2</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 37.5%">3</div>
+            </div>
+          </div>
+          <div class="priority-bar p3">
+            <div class="label">P3</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: 25%">2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>修复阶段规划</h2>
+        <div class="phase-timeline">
+          <div class="phase-item">
+            <div class="phase-num">1</div>
+            <div class="phase-content">
+              <div class="phase-title">MVP 必备</div>
+              <div class="phase-issues">ISSUE-1 摘要质量, ISSUE-2 文件锁, ISSUE-4 cwd 过滤</div>
+            </div>
+          </div>
+          <div class="phase-item phase-2">
+            <div class="phase-num">2</div>
+            <div class="phase-content">
+              <div class="phase-title">下个迭代</div>
+              <div class="phase-issues">ISSUE-5 类型系统, ISSUE-6 多级压缩, ISSUE-8 熔断机制</div>
+            </div>
+          </div>
+          <div class="phase-item phase-3">
+            <div class="phase-num">3</div>
+            <div class="phase-content">
+              <div class="phase-title">高级功能</div>
+              <div class="phase-issues">ISSUE-3 分支选择策略, ISSUE-7 缓存复用</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flag Queue -->
+    <div class="flag-queue">
+      <h2>问题卡片</h2>
+      <div class="flag-grid" id="flagGrid">
+        <div class="flag-card" data-priority="p1" data-issue="issue-1">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-1</span>
+            <span class="flag-priority p1">P1</span>
+          </div>
+          <div class="flag-title">Compact 摘要质量仅为占位级</div>
+          <div class="flag-desc">当前摘要取前3条消息的前200字符，而非最近消息，导致压缩后上下文丢失关键信息。</div>
+          <div class="flag-meta">
+            <span>影响: 上下文压缩效果</span>
+            <span>工作量: 中等</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p1" data-issue="issue-2">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-2</span>
+            <span class="flag-priority p1">P1</span>
+          </div>
+          <div class="flag-title">SessionStorage 缺少文件锁</div>
+          <div class="flag-desc">appendFileSync 不保证原子性，多进程并发写入可能导致 JSONL 文件损坏。</div>
+          <div class="flag-meta">
+            <span>影响: 数据完整性</span>
+            <span>工作量: 小</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p1" data-issue="issue-6">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-6</span>
+            <span class="flag-priority p1">P1</span>
+          </div>
+          <div class="flag-title">缺少多级压缩策略</div>
+          <div class="flag-desc">仅考虑单一全量压缩，未实现 microCompact → sessionMemoryCompact → compactConversation 多级策略。</div>
+          <div class="flag-meta">
+            <span>影响: 压缩效率</span>
+            <span>工作量: 中等</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p2" data-issue="issue-3">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-3</span>
+            <span class="flag-priority p2">P2</span>
+          </div>
+          <div class="flag-title">findActiveBranch 叶子节点选择策略</div>
+          <div class="flag-desc">多叶子节点时按数组顺序选择最后一个，策略不可预测，无法显式指定恢复分支。</div>
+          <div class="flag-meta">
+            <span>影响: 多分支恢复</span>
+            <span>工作量: 小</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p2" data-issue="issue-4">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-4</span>
+            <span class="flag-priority p2">P2</span>
+          </div>
+          <div class="flag-title">findLatestSessionFile 不区分 cwd</div>
+          <div class="flag-desc">返回全局最新文件，不检查 cwd 匹配，跨项目恢复可能注入错误上下文。</div>
+          <div class="flag-meta">
+            <span>影响: 跨项目恢复</span>
+            <span>工作量: 小</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p2" data-issue="issue-8">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-8</span>
+            <span class="flag-priority p2">P2</span>
+          </div>
+          <div class="flag-title">缺少熔断机制</div>
+          <div class="flag-desc">连续压缩失败后无停止机制，可能导致无限重试，浪费 API 调用并严重劣化用户体验。</div>
+          <div class="flag-meta">
+            <span>影响: 系统稳定性</span>
+            <span>工作量: 小</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p3" data-issue="issue-5">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-5</span>
+            <span class="flag-priority p3">P3</span>
+          </div>
+          <div class="flag-title">AgentMessage 类型系统不完整</div>
+          <div class="flag-desc">缺少 SystemMessage 类型，多处使用 as unknown as AgentMessage 绕过类型检查。</div>
+          <div class="flag-meta">
+            <span>影响: 类型安全</span>
+            <span>工作量: 中等</span>
+          </div>
+        </div>
+
+        <div class="flag-card" data-priority="p3" data-issue="issue-7">
+          <div class="flag-header">
+            <span class="flag-id">ISSUE-7</span>
+            <span class="flag-priority p3">P3</span>
+          </div>
+          <div class="flag-title">缺少缓存复用机制</div>
+          <div class="flag-desc">无 Forked Agent 机制复用 prompt cache，每次压缩产生完整 LLM 调用成本。</div>
+          <div class="flag-meta">
+            <span>影响: 压缩成本</span>
+            <span>工作量: 大</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Grid -->
+    <div class="data-grid-section">
+      <h2>问题清单总览</h2>
+      <div class="data-grid">
+        <table id="issuesTable">
+          <thead>
+            <tr>
+              <th>编号</th>
+              <th>问题</th>
+              <th>优先级</th>
+              <th>影响范围</th>
+              <th>ys-code 状态</th>
+              <th>预计工作量</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-priority="p1">
+              <td class="col-id">ISSUE-1</td>
+              <td>Compact 摘要质量仅为占位级</td>
+              <td class="col-priority p1">P1</td>
+              <td class="col-scope">上下文压缩效果</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">中等</td>
+            </tr>
+            <tr data-priority="p1">
+              <td class="col-id">ISSUE-2</td>
+              <td>SessionStorage 缺少文件锁</td>
+              <td class="col-priority p1">P1</td>
+              <td class="col-scope">数据完整性</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">小</td>
+            </tr>
+            <tr data-priority="p2">
+              <td class="col-id">ISSUE-3</td>
+              <td>findActiveBranch 叶子节点选择策略</td>
+              <td class="col-priority p2">P2</td>
+              <td class="col-scope">多分支恢复</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">小</td>
+            </tr>
+            <tr data-priority="p2">
+              <td class="col-id">ISSUE-4</td>
+              <td>findLatestSessionFile 不区分 cwd</td>
+              <td class="col-priority p2">P2</td>
+              <td class="col-scope">跨项目恢复</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">小</td>
+            </tr>
+            <tr data-priority="p3">
+              <td class="col-id">ISSUE-5</td>
+              <td>AgentMessage 类型系统不完整</td>
+              <td class="col-priority p3">P3</td>
+              <td class="col-scope">类型安全</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">中等</td>
+            </tr>
+            <tr data-priority="p1">
+              <td class="col-id">ISSUE-6</td>
+              <td>缺少多级压缩策略</td>
+              <td class="col-priority p1">P1</td>
+              <td class="col-scope">压缩效率</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">中等</td>
+            </tr>
+            <tr data-priority="p3">
+              <td class="col-id">ISSUE-7</td>
+              <td>缺少缓存复用机制</td>
+              <td class="col-priority p3">P3</td>
+              <td class="col-scope">压缩成本</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">大</td>
+            </tr>
+            <tr data-priority="p2">
+              <td class="col-id">ISSUE-8</td>
+              <td>缺少熔断机制</td>
+              <td class="col-priority p2">P2</td>
+              <td class="col-scope">系统稳定性</td>
+              <td class="col-status">未实现</td>
+              <td class="col-effort">小</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Issue Details -->
+    <div id="issueDetails">
+      <div class="issue-detail" id="issue-1">
+        <h3>ISSUE-1: Compact 摘要质量仅为占位级</h3>
+        <p><strong>问题描述:</strong> <code>CompactTrigger.createCompactBoundary()</code> 当前的摘要实现极其简单，取的是<strong>前 3 条</strong>消息的前 200 字符，而非最近的消息。这导致长会话中早期无关的寒暄被保留，最近的关键工具调用结果和决策被丢弃，摘要几乎无法保留有效上下文。</p>
+
+        <p><strong>影响:</strong> Compact 机制形同虚设。压缩后 LLM 获得的 "摘要" 不包含最近对话的核心信息，导致用户需要重复描述问题，工具调用结果丢失，整体体验劣于不压缩。</p>
+
+        <blockquote>ys-code 现状: 未实现。当前无 compact 机制，无摘要生成逻辑。</blockquote>
+
+        <h4>建议修复方案</h4>
+        <ul>
+          <li><strong>方案 A（短期）:</strong> 改为取<strong>最后 N 条</strong>消息（如最近 5 条），保留最近的用户指令、assistant 回复和工具结果</li>
+          <li><strong>方案 B（中期）:</strong> 按消息角色分类统计，生成 "已执行 X、Y、Z 工具，当前在解决 Q 问题" 的结构化摘要</li>
+          <li><strong>方案 C（长期）:</strong> 注入 <code>summarizeFn</code> 依赖到 <code>CompactTrigger</code>，调用 LLM 生成真正的语义摘要</li>
+        </ul>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>摘要包含最近 5 条消息的关键信息</li>
+          <li>工具调用结果被正确提取和呈现</li>
+          <li>测试：压缩后恢复的消息能让 LLM 理解上下文</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-2">
+        <h3>ISSUE-2: SessionStorage 缺少文件锁</h3>
+        <p><strong>问题描述:</strong> <code>SessionStorage.appendEntry()</code> 使用裸 <code>fs.appendFileSync</code> 写入 JSONL 文件。Node.js 的 <code>appendFileSync</code> 在操作系统层面<strong>不保证原子性</strong>。如果两个进程/线程同时写入同一文件，可能出现行交错。</p>
+
+        <p><strong>影响:</strong> 低概率场景下（用户同时启动两个 ys-code 实例），JSONL 文件可能损坏，行格式被破坏，导致 <code>readAllEntries()</code> 跳过损坏行时丢失数据。</p>
+
+        <blockquote>ys-code 现状: 未实现。当前无 SessionStorage，无持久化层。proper-lockfile 已在 package.json 依赖列表中预留。</blockquote>
+
+        <h4>建议修复方案</h4>
+        <p>在 <code>SessionStorage</code> 中集成 <code>proper-lockfile</code>:</p>
+        <pre><code>import * as lockfile from "proper-lockfile";
+
+appendEntry(filePath: string, entry: Entry): void {
+  const release = lockfile.lockSync(filePath);
+  try {
+    const line = JSON.stringify(entry) + "\n";
+    fs.appendFileSync(filePath, line, { encoding: "utf-8" });
+  } finally {
+    release();
+  }
+}</code></pre>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>appendEntry 和 createSession 使用 proper-lockfile 保护</li>
+          <li>并发写入测试：模拟两个进程同时写入，验证文件完整性</li>
+          <li>锁异常处理：锁获取失败时有合理降级策略</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-3">
+        <h3>ISSUE-3: findActiveBranch 叶子节点选择策略</h3>
+        <p><strong>问题描述:</strong> <code>SessionLoader.findActiveBranch()</code> 在多个叶子节点时，<strong>按数组顺序选择最后一个</strong>。数组顺序取决于 <code>readAllEntries()</code> 的读取顺序，即磁盘上 entry 的写入顺序。这导致多个分支时选择策略不可预测，无法显式指定要恢复哪个分支。</p>
+
+        <p><strong>影响:</strong> 当前影响较小（fork 功能未实现），但一旦支持分支，用户无法恢复到期望的分支，可能需要重放整个会话才能到达目标分支。</p>
+
+        <h4>建议修复方案</h4>
+        <ul>
+          <li><strong>短期:</strong> 增加显式叶子选择参数 <code>leafUuid?: string</code></li>
+          <li><strong>长期:</strong> SessionManager 记录当前活跃分支的叶子 UUID，提供 <code>switchBranch(leafUuid)</code> API，UI 层展示分支树供用户选择</li>
+        </ul>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>restoreMessages 支持传入 leafUuid 参数</li>
+          <li>多个叶子节点时，无 leafUuid 抛出明确错误（而非静默选择）</li>
+          <li>测试：多分支场景下能正确恢复指定分支</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-4">
+        <h3>ISSUE-4: findLatestSessionFile 不区分 cwd</h3>
+        <p><strong>问题描述:</strong> <code>SessionStorage.findLatestSessionFile()</code> 返回全局最新修改的 <code>.jsonl</code> 文件，<strong>不检查 cwd 是否匹配</strong>。这意味着用户在 /projectA 工作后切换到 /projectB，<code>restoreLatest</code> 可能恢复 /projectA 的会话，导致错误的上下文被注入。</p>
+
+        <p><strong>影响:</strong> 跨项目使用时的用户体验问题，可能导致敏感信息泄露（一个项目的文件路径暴露给另一个项目）。</p>
+
+        <h4>建议修复方案</h4>
+        <ul>
+          <li><strong>方案 A（简单）:</strong> 按 cwd 过滤，读取文件头信息匹配 cwd</li>
+          <li><strong>方案 B（更好）:</strong> 按 cwd 分子目录存储，天然隔离不同项目</li>
+        </ul>
+
+        <blockquote>建议: [P0] 直接采用方案 B（按 cwd 分子目录），避免后续迁移成本。</blockquote>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>findLatestSessionFile 接受 cwd 参数并过滤</li>
+          <li>测试：不同 cwd 的会话互不干扰</li>
+          <li>测试：相同 cwd 下正确找到最新会话</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-5">
+        <h3>ISSUE-5: AgentMessage 类型系统不完整</h3>
+        <p><strong>问题描述:</strong> 当前 <code>AgentMessage</code> 定义为 <code>Message | CustomAgentMessages[keyof CustomAgentMessages]</code>，而 <code>Message = UserMessage | AssistantMessage | ToolResultMessage</code>，<strong>没有 SystemMessage</strong>。这导致多处代码需要使用 <code>as unknown as AgentMessage</code> 绕过类型检查。</p>
+
+        <p><strong>影响:</strong> 类型断言绕过了 TypeScript 的保护，如果底层类型变化，这些断言会产生运行时错误，新开发者难以理解 "为什么这里需要类型断言"。</p>
+
+        <h4>建议修复方案</h4>
+        <p>在 <code>core/ai/types.ts</code> 中显式定义 SystemMessage:</p>
+        <pre><code>export interface SystemMessage {
+  role: "system";
+  content: (TextContent)[];
+  timestamp: number;
+}
+
+export type Message = UserMessage | AssistantMessage | ToolResultMessage | SystemMessage;</code></pre>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>Message 或 AgentMessage 包含 system 角色</li>
+          <li>移除所有 as unknown as AgentMessage 中与 system/toolResult 相关的断言</li>
+          <li>TypeScript 编译通过</li>
+          <li>所有测试通过</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-6">
+        <h3>ISSUE-6: 缺少多级压缩策略</h3>
+        <p><strong>问题描述:</strong> Claude Code 采用 microCompact → sessionMemoryCompact → compactConversation 的多级压缩策略，而当前 ys-code 设计仅考虑单一全量压缩。</p>
+
+        <p><strong>影响:</strong> 每次触发都进行全量压缩，成本高；无法处理 "短时间间隔内大量工具调用" 的场景；无法利用 "用户离开较长时间" 的场景做轻量清理。</p>
+
+        <h4>建议修复方案</h4>
+        <p>引入 Claude Code 风格的多级压缩:</p>
+        <ul>
+          <li><strong>Level 1:</strong> Time-based microCompact — 距离上条 assistant 消息 > 60 分钟，清除旧 tool results，保留最近 5 个</li>
+          <li><strong>Level 2:</strong> Cached microCompact — 使用 cache_edits API 编辑缓存，不使缓存失效</li>
+          <li><strong>Level 3:</strong> Full compact — 生成结构化摘要，保留最近消息和附件</li>
+        </ul>
+
+        <blockquote>建议: [P1] 在 MVP 中仅实现 Level 3（全量压缩），后续迭代引入 Level 1/2。</blockquote>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>定义 microCompact 和 full compact 的触发条件</li>
+          <li>Time-based MC 清除旧 tool results 不破坏 API 不变量</li>
+          <li>测试：多级压缩的触发顺序正确</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-7">
+        <h3>ISSUE-7: 缺少缓存复用机制</h3>
+        <p><strong>问题描述:</strong> Claude Code 通过 Forked Agent 复用主对话的 prompt cache key，实现 98% 缓存命中率，显著降低压缩成本。Pi-mono 无此机制，每次压缩直接调用 LLM。</p>
+
+        <p><strong>影响:</strong> 每次压缩都产生完整的 LLM 调用成本，长会话频繁压缩时成本累积显著，压缩延迟高（需等待 LLM 生成摘要）。</p>
+
+        <h4>建议修复方案</h4>
+        <ul>
+          <li><strong>短期:</strong> 直接调用 LLM（Pi-mono 风格）</li>
+          <li><strong>长期:</strong> 引入 Forked Agent 缓存复用机制</li>
+        </ul>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>压缩摘要生成成功</li>
+          <li>缓存复用时命中率达到预期（> 90%）</li>
+          <li>降级到直接调用时功能正常</li>
+        </ul>
+      </div>
+
+      <div class="issue-detail" id="issue-8">
+        <h3>ISSUE-8: 缺少熔断机制</h3>
+        <p><strong>问题描述:</strong> Claude Code 在连续 3 次压缩失败后停止自动压缩，防止不可恢复场景下无限重试。当前 ys-code 设计无此机制。</p>
+
+        <p><strong>影响:</strong> 上下文持续超限，每次请求都触发压缩；压缩反复失败，浪费 API 调用；用户体验极差（每次请求都卡顿然后失败）。</p>
+
+        <h4>建议修复方案</h4>
+        <p>引入熔断机制:</p>
+        <pre><code>const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3;
+
+export async function autoCompactIfNeeded(
+  messages: Message[],
+  tracking?: AutoCompactTrackingState,
+): Promise&lt;{ wasCompacted: boolean }&gt; {
+  if (tracking?.consecutiveFailures >= MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES) {
+    return { wasCompacted: false };  // 熔断，停止尝试
+  }
+
+  try {
+    const result = await compactConversation(...);
+    return { wasCompacted: true, consecutiveFailures: 0 };
+  } catch (error) {
+    return { wasCompacted: false, consecutiveFailures: (tracking?.consecutiveFailures ?? 0) + 1 };
+  }
+}</code></pre>
+
+        <h4>验收标准</h4>
+        <ul class="checklist">
+          <li>连续 3 次失败后停止自动压缩</li>
+          <li>手动 /compact 不受熔断限制</li>
+          <li>熔断状态可观测（日志或状态查询）</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Related Files -->
+    <div class="issue-detail">
+      <h3>关联文件</h3>
+      <table class="files-table">
+        <thead>
+          <tr>
+            <th>文件</th>
+            <th>涉及问题</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>src/session/compact.ts</code></td>
+            <td>ISSUE-1, ISSUE-5</td>
+            <td>未创建</td>
+          </tr>
+          <tr>
+            <td><code>src/session/session-storage.ts</code></td>
+            <td>ISSUE-2, ISSUE-4</td>
+            <td>未创建</td>
+          </tr>
+          <tr>
+            <td><code>src/session/session-loader.ts</code></td>
+            <td>ISSUE-3, ISSUE-5</td>
+            <td>未创建</td>
+          </tr>
+          <tr>
+            <td><code>src/session/token-estimator.ts</code></td>
+            <td>ISSUE-5</td>
+            <td>未创建</td>
+          </tr>
+          <tr>
+            <td><code>src/core/ai/types.ts</code></td>
+            <td>ISSUE-5</td>
+            <td>未创建</td>
+          </tr>
+          <tr>
+            <td><code>src/services/compact/</code></td>
+            <td>ISSUE-6, ISSUE-7, ISSUE-8</td>
+            <td>未创建</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Reference Links -->
+    <div class="issue-detail">
+      <h3>参考链接</h3>
+      <ul>
+        <li>原始问题跟踪: <code>docs/cc/persistence-compact-followup.md</code></li>
+        <li>Claude Code 熔断实现: <code>refer/claude-code-haha/src/services/compact/autoCompact.ts</code></li>
+        <li>Claude Code 缓存复用: <code>refer/claude-code-haha/src/services/compact/compact.ts</code></li>
+        <li>Pi-mono 会话存储: <code>refer/pi-mono/packages/coding-agent/src/core/session-manager.ts</code></li>
+        <li>ys-code 依赖: <code>package.json</code> 中已预留 <code>proper-lockfile</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const flagCards = document.querySelectorAll('.flag-card');
+    const tableRows = document.querySelectorAll('#issuesTable tbody tr');
+    const issueDetails = document.querySelectorAll('.issue-detail');
+    const filterChips = document.querySelectorAll('.filter-chip');
+
+    let currentFilter = 'all';
+
+    function filterContent() {
+      const query = searchInput.value.toLowerCase();
+
+      // Filter flag cards
+      flagCards.forEach(card => {
+        const priority = card.dataset.priority;
+        const text = card.textContent.toLowerCase();
+        const matchesSearch = text.includes(query);
+        const matchesFilter = currentFilter === 'all' || priority === currentFilter;
+        card.style.display = matchesSearch && matchesFilter ? '' : 'none';
+      });
+
+      // Filter table rows
+      tableRows.forEach(row => {
+        const priority = row.dataset.priority;
+        const text = row.textContent.toLowerCase();
+        const matchesSearch = text.includes(query);
+        const matchesFilter = currentFilter === 'all' || priority === currentFilter;
+        row.style.display = matchesSearch && matchesFilter ? '' : 'none';
+      });
+
+      // Filter issue details
+      issueDetails.forEach(detail => {
+        const text = detail.textContent.toLowerCase();
+        const matchesSearch = text.includes(query);
+        // Issue details don't have priority data attribute, so only filter by search
+        detail.style.display = matchesSearch ? '' : 'none';
+      });
+    }
+
+    searchInput.addEventListener('input', filterContent);
+
+    // Filter chips
+    filterChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        filterChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentFilter = chip.dataset.filter;
+        filterContent();
+      });
+    });
+
+    // Smooth scroll to issue detail when clicking flag card
+    flagCards.forEach(card => {
+      card.addEventListener('click', () => {
+        const issueId = card.dataset.issue;
+        const detail = document.getElementById(issueId);
+        if (detail) {
+          detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          detail.style.borderColor = 'var(--primary)';
+          setTimeout(() => {
+            detail.style.borderColor = '';
+          }, 2000);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

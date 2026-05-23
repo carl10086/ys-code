@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cc EditTool 源码分析 — Terminal Evidence Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+  --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+body {
+  color: var(--fg-1);
+  background: var(--bg);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* CRT scanline overlay */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0) 0px,
+    rgba(0,0,0,0) 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  z-index: 9999;
+}
+
+/* Prompt / finding bar */
+.terminal-prompt {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.prompt-user { color: var(--fg-2); }
+.prompt-host { color: var(--fg-muted); }
+.prompt-path { color: var(--yellow); }
+.prompt-cursor {
+  display: inline-block;
+  width: 10px;
+  height: 18px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Shell layout */
+.dev-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* Finding bar */
+.finding-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.finding-item {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+}
+.finding-item .label {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-xs);
+}
+.finding-item .value {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* Terminal panes */
+.terminal-pane {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-xl);
+}
+.pane-title {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface-container);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pane-title::before { content: "+--- "; }
+.pane-title::after { content: " ---+"; }
+.pane-body {
+  padding: var(--space-lg);
+}
+
+/* Risk checklist */
+.risk-checklist {
+  display: grid;
+  gap: var(--space-sm);
+}
+.risk-item {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface-container);
+  border-left: 3px solid var(--border);
+}
+.risk-item.err { border-left-color: var(--red); }
+.risk-item.warn { border-left-color: var(--yellow); }
+.risk-item.ok { border-left-color: var(--green); }
+.risk-item.hyp { border-left-color: var(--blue); }
+.status-code {
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 6px;
+  background: var(--surface-container-high);
+  color: var(--fg-2);
+  text-align: center;
+}
+.risk-item.err .status-code { color: var(--red); }
+.risk-item.warn .status-code { color: var(--yellow); }
+.risk-item.ok .status-code { color: var(--green); }
+.risk-item.hyp .status-code { color: var(--blue); }
+.risk-text { margin: 0; }
+.risk-meta {
+  color: var(--fg-muted);
+  font-size: 11px;
+  margin-top: var(--space-xs);
+}
+
+/* Raw artifact / code blocks */
+.raw-artifact {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.raw-artifact pre {
+  margin: 0;
+  padding: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg-2);
+}
+.raw-artifact code {
+  font-family: var(--font-mono);
+  color: var(--fg-1);
+}
+.line-number {
+  color: var(--fg-muted);
+  display: inline-block;
+  width: 32px;
+  text-align: right;
+  margin-right: var(--space-md);
+  user-select: none;
+}
+
+/* ASCII dividers */
+.ascii-divider {
+  color: var(--fg-muted);
+  text-align: center;
+  margin: var(--space-xl) 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+/* Tables */
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.fact-table th,
+.fact-table td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  color: var(--fg-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.fact-table td { color: var(--fg-2); }
+.fact-table tr:hover td { background: var(--surface-container); }
+
+/* Hotspot map / architecture */
+.hotspot-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+.hotspot {
+  padding: var(--space-lg);
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+}
+.hotspot .file-path {
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+.hotspot .desc {
+  color: var(--fg-2);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.hotspot .meta {
+  color: var(--fg-muted);
+  font-size: 11px;
+  margin-top: var(--space-sm);
+}
+
+/* Copy handoff */
+.copy-handoff {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--border);
+}
+.handoff-btn {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+  color: var(--fg-1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.handoff-btn:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* Hypothesis chips */
+.hypothesis-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--surface-container-high);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: var(--space-sm);
+}
+
+/* Headings */
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  margin-top: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+h1 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: var(--space-lg);
+  color: var(--fg-1);
+}
+h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: var(--space-md);
+  color: var(--fg-2);
+}
+h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+}
+
+/* Links */
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* Lists */
+ul, ol {
+  margin: 0;
+  padding-left: var(--space-xl);
+  color: var(--fg-2);
+}
+li { margin-bottom: var(--space-xs); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--surface-container-lowest); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .prompt-cursor { animation: none; opacity: 1; }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .dev-shell { padding: var(--space-md); }
+  .finding-bar { grid-template-columns: 1fr; }
+  .hotspot-map { grid-template-columns: 1fr; }
+  .risk-item { grid-template-columns: 48px 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Terminal Prompt -->
+<div class="terminal-prompt">
+  <span class="prompt-user">review@html-anything</span>
+  <span class="prompt-host">:</span>
+  <span class="prompt-path">~/artifact/cc-edit-tool</span>
+  <span class="prompt-host">$</span>
+  <span>scan --risk --evidence --diff</span>
+  <span class="prompt-cursor"></span>
+</div>
+
+<div class="dev-shell">
+
+  <!-- Finding Bar -->
+  <div class="finding-bar">
+    <div class="finding-item">
+      <span class="label">Target</span>
+      <span class="value">FileEditTool.ts</span>
+    </div>
+    <div class="finding-item">
+      <span class="label">Lines (cc)</span>
+      <span class="value">~625</span>
+    </div>
+    <div class="finding-item">
+      <span class="label">Lines (ys-code)</span>
+      <span class="value">~385</span>
+    </div>
+    <div class="finding-item">
+      <span class="label">Alignment</span>
+      <span class="value" style="color: var(--green)">71% synced</span>
+    </div>
+    <div class="finding-item">
+      <span class="label">Risk</span>
+      <span class="value" style="color: var(--yellow)">Medium</span>
+    </div>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="terminal-pane">
+    <div class="pane-title">Executive Summary</div>
+    <div class="pane-body">
+      <p style="margin-top:0">
+        <span class="hypothesis-chip">[HYP]</span>
+        cc 的 <code>FileEditTool</code> 围绕三个核心目标设计：<strong>安全性</strong>（Read-before-Write）、<strong>可靠性</strong>（脏写检测）、<strong>用户体验</strong>（diff 预览、引号规范化）。
+        ys-code 已对齐核心安全机制，但在严格模式、设置文件校验、LSP 集成等方面仍有差距。
+      </p>
+      <p>
+        分析日期：2026-04-23 | 文档版本：v2 | 分析对象：claude-code-haha 参考实现
+      </p>
+    </div>
+  </div>
+
+  <!-- Core Security Mechanisms -->
+  <div class="terminal-pane">
+    <div class="pane-title">Core Security Mechanisms</div>
+    <div class="pane-body">
+      <table class="fact-table">
+        <thead>
+          <tr><th>机制</th><th>作用</th><th>错误码</th><th>ys-code 状态</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Read-before-Write</td>
+            <td>强制先读取文件才能编辑</td>
+            <td>6</td>
+            <td style="color: var(--green)">已对齐</td>
+          </tr>
+          <tr>
+            <td>脏写检测</td>
+            <td>读取后文件被外部修改时拦截</td>
+            <td>7</td>
+            <td style="color: var(--green)">已对齐（双层）</td>
+          </tr>
+          <tr>
+            <td>引号规范化</td>
+            <td>处理 curly quotes 与 straight quotes 匹配</td>
+            <td>8</td>
+            <td style="color: var(--green)">已对齐</td>
+          </tr>
+          <tr>
+            <td>多匹配检测</td>
+            <td>防止非唯一匹配导致的误替换</td>
+            <td>9</td>
+            <td style="color: var(--green)">已对齐</td>
+          </tr>
+          <tr>
+            <td>文件大小限制</td>
+            <td>1GB 防 OOM</td>
+            <td>10</td>
+            <td style="color: var(--green)">已对齐</td>
+          </tr>
+          <tr>
+            <td>严格模式</td>
+            <td>拒绝未知字段</td>
+            <td>-</td>
+            <td style="color: var(--red)">未实现</td>
+          </tr>
+          <tr>
+            <td>设置文件校验</td>
+            <td>JSON/YAML/INI 格式保护</td>
+            <td>-</td>
+            <td style="color: var(--red)">未实现</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Execution Sequence -->
+  <div class="terminal-pane">
+    <div class="pane-title">Execution Sequence</div>
+    <div class="pane-body">
+      <div class="raw-artifact">
+        <pre><code><span class="line-number">1</span>模型发起 Edit
+<span class="line-number">2</span>    |
+<span class="line-number">3</span>    v
+<span class="line-number">4</span>validateInput 第一层校验（错误码 6/7/8/9）
+<span class="line-number">5</span>    |
+<span class="line-number">6</span>    v
+<span class="line-number">7</span>UI 展示 proposed changes（diff 预览）
+<span class="line-number">8</span>    |
+<span class="line-number">9</span>    v
+<span class="line-number">10</span>用户按回车确认（或修改后确认）
+<span class="line-number">11</span>    |
+<span class="line-number">12</span>    v
+<span class="line-number">13</span>call 执行（第二层脏写检测 + 写入）
+<span class="line-number">14</span>    |
+<span class="line-number">15</span>    v
+<span class="line-number">16</span>更新 FileStateCache（编辑后视为"已全量读取"）</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Why Map State -->
+  <div class="terminal-pane">
+    <div class="pane-title">Why Map State Matters</div>
+    <div class="pane-body">
+      <p style="margin-top:0"><strong>核心问题：</strong>为什么不能只用一个 <code>Set&lt;string&gt;</code> 记录"读过哪些文件"？</p>
+      <p><strong>答案：</strong><code>readFileState</code> 不是"缓存"，是<strong>读取凭证 + 状态快照</strong>。</p>
+
+      <div class="raw-artifact" style="margin-top: var(--space-lg)">
+        <pre><code><span class="line-number">1</span>只存 Set&lt;string&gt;（仅记录"读过"）:
+<span class="line-number">2</span>  Read 文件 A (offset=50, limit=20)  -> Set.add("A")
+<span class="line-number">3</span>  Vim 改文件 A                       -> 不知道！
+<span class="line-number">4</span>  Edit 文件 A                         -> Set.has("A")=true -> 放行 -> 覆盖 Vim 修改
+<span class="line-number">5</span>
+<span class="line-number">6</span>cc 的 FileStateCache（记录"读过且长什么样"）:
+<span class="line-number">7</span>  Read 文件 A (offset=50, limit=20)  -> Cache[A]={mtime:1000, offset:50}
+<span class="line-number">8</span>  Vim 改文件 A                       -> mtime 变成 2000
+<span class="line-number">9</span>  Edit 文件 A                         -> mtime 2000 > 1000
+<span class="line-number">10</span>                                     -> 部分读取无法对比内容
+<span class="line-number">11</span>                                     -> 直接拦截（错误码 7）</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dirty Write Detection -->
+  <div class="terminal-pane">
+    <div class="pane-title">Dirty Write Detection (Two-Layer)</div>
+    <div class="pane-body">
+      <div class="raw-artifact">
+        <pre><code><span class="line-number">1</span>T1: ReadTool 读取 -> 记录 mtime=1000
+<span class="line-number">2</span>    |
+<span class="line-number">3</span>    v
+<span class="line-number">4</span>T2: validateInput -> 检查 mtime=1000（通过）
+<span class="line-number">5</span>    |
+<span class="line-number">6</span>    v
+<span class="line-number">7</span>T3: 用户确认（可能持续数秒）
+<span class="line-number">8</span>    |
+<span class="line-number">9</span>    |---> 外部 Vim 修改文件 -> mtime=2000（⚠️ 风险！）
+<span class="line-number">10</span>    |
+<span class="line-number">11</span>    v
+<span class="line-number">12</span>T4: call 开始 -> 再次检查 mtime=2000
+<span class="line-number">13</span>    |           |-- 发现 2000 > 1000
+<span class="line-number">14</span>    |           |-- 内容也变了
+<span class="line-number">15</span>    |           |-- 抛出 FILE_UNEXPECTEDLY_MODIFIED_ERROR
+<span class="line-number">16</span>    |
+<span class="line-number">17</span>    v
+<span class="line-number">18</span>    如果没被修改 -> 继续执行写入</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk Checklist -->
+  <div class="terminal-pane">
+    <div class="pane-title">Risk Checklist</div>
+    <div class="pane-body">
+      <div class="risk-checklist">
+        <div class="risk-item ok">
+          <span class="status-code">[OK]</span>
+          <div>
+            <p class="risk-text">Read-before-Write 机制已对齐</p>
+            <p class="risk-meta">FileStateCache.canEdit() 检查文件是否已读取、是否为部分视图</p>
+          </div>
+        </div>
+        <div class="risk-item ok">
+          <span class="status-code">[OK]</span>
+          <div>
+            <p class="risk-text">双层脏写检测已对齐</p>
+            <p class="risk-meta">validateInput 第一层 + execute 第二层，均比较 mtime 和内容</p>
+          </div>
+        </div>
+        <div class="risk-item ok">
+          <span class="status-code">[OK]</span>
+          <div>
+            <p class="risk-text">引号规范化与多匹配检测已对齐</p>
+            <p class="risk-meta">findActualString + preserveQuoteStyle + matches > 1 检查</p>
+          </div>
+        </div>
+        <div class="risk-item warn">
+          <span class="status-code">[WARN]</span>
+          <div>
+            <p class="risk-text">严格模式（strict: true）未实现</p>
+            <p class="risk-meta">ys-code 使用 Type.Object，允许额外字段通过。建议：Type.Object({...}, { additionalProperties: false })</p>
+          </div>
+        </div>
+        <div class="risk-item warn">
+          <span class="status-code">[WARN]</span>
+          <div>
+            <p class="risk-text">设置文件特殊校验未实现</p>
+            <p class="risk-meta">编辑 .vscode/settings.json、.gitignore 等配置文件时无格式保护</p>
+          </div>
+        </div>
+        <div class="risk-item err">
+          <span class="status-code">[ERR]</span>
+          <div>
+            <p class="risk-text">LSP 通知未实现</p>
+            <p class="risk-meta">编辑后未发送 didChange/didSave，类型检查器不知道文件已变更</p>
+          </div>
+        </div>
+        <div class="risk-item err">
+          <span class="status-code">[ERR]</span>
+          <div>
+            <p class="risk-text">文件历史备份未实现</p>
+            <p class="risk-meta">编辑错误后无法恢复，用户可能丢失重要代码</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hotspot Map -->
+  <div class="terminal-pane">
+    <div class="pane-title">Architecture Hotspots</div>
+    <div class="pane-body">
+      <div class="hotspot-map">
+        <div class="hotspot">
+          <div class="file-path">src/tools/FileEditTool/FileEditTool.ts</div>
+          <p class="desc">主工具定义：buildTool 注册、validateInput、call 执行。~625 行。</p>
+          <div class="meta">cc 核心 | ys-code 对应: src/agent/tools/edit.ts (~385 行)</div>
+        </div>
+        <div class="hotspot">
+          <div class="file-path">src/utils/fileStateCache.ts</div>
+          <p class="desc">FileStateCache：LRUCache 封装，存储 content、timestamp、offset、limit、isPartialView。</p>
+          <div class="meta">cc: ~35 行 | ys-code: src/agent/file-state.ts (~118 行，更完整)</div>
+        </div>
+        <div class="hotspot">
+          <div class="file-path">src/utils/fileIO.ts</div>
+          <p class="desc">文件 IO：readFileForEdit、writeTextContent、编码检测（utf8/utf16le）。</p>
+          <div class="meta">cc: ~120 行 | ys-code: src/agent/tools/file-encoding.ts (~87 行)</div>
+        </div>
+        <div class="hotspot">
+          <div class="file-path">src/tools/FileEditTool/utils.ts</div>
+          <p class="desc">工具函数：findActualString、preserveQuoteStyle、getPatchForEdit。</p>
+          <div class="meta">cc: ~200 行 | ys-code: src/agent/tools/diff-formatter.ts (~95 行，更精简)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Code Reference -->
+  <div class="terminal-pane">
+    <div class="pane-title">Error Code Reference</div>
+    <div class="pane-body">
+      <table class="fact-table">
+        <thead>
+          <tr><th>码</th><th>场景</th><th>ys-code</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td>团队 secrets 检查失败</td><td style="color: var(--red)">未实现</td></tr>
+          <tr><td>1</td><td>old_string === new_string</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>2</td><td>权限规则 deny</td><td style="color: var(--red)">未实现</td></tr>
+          <tr><td>3</td><td>文件存在但 old_string 为空</td><td style="color: var(--yellow)">部分对齐</td></tr>
+          <tr><td>4</td><td>文件不存在且 old_string 非空</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>5</td><td>Jupyter Notebook</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>6</td><td>文件未读取或部分视图</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>7</td><td>文件在读取后被外部修改</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>8</td><td>old_string 找不到</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>9</td><td>多匹配但 replace_all=false</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>10</td><td>文件超过 1GB</td><td style="color: var(--green)">已对齐</td></tr>
+          <tr><td>11</td><td>JSON 编辑导致非法 JSON</td><td style="color: var(--green)">ys-code 扩展</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recommendations -->
+  <div class="terminal-pane">
+    <div class="pane-title">Recommendations (P0 / P1 / P2)</div>
+    <div class="pane-body">
+      <h2 style="color: var(--red)">P0 — 高优先级</h2>
+      <ul>
+        <li><strong>严格模式</strong>：在 defineAgentTool 中支持 strict 选项，拒绝未知字段</li>
+        <li><strong>设置文件校验</strong>：为 JSON、YAML、INI 配置文件增加格式校验</li>
+      </ul>
+
+      <h2 style="color: var(--yellow)">P1 — 中优先级</h2>
+      <ul>
+        <li><strong>LSP 集成</strong>：编辑后发送 didChange + didSave 通知</li>
+        <li><strong>文件历史备份</strong>：编辑前备份原始内容，支持恢复</li>
+        <li><strong>Secrets 检查</strong>：正则匹配 API key、password 等敏感信息</li>
+      </ul>
+
+      <h2 style="color: var(--blue)">P2 — 低优先级</h2>
+      <ul>
+        <li><strong>UI 渲染层</strong>：Ink TUI 中增加 diff 预览</li>
+        <li><strong>权限规则系统</strong>：alwaysAllow / alwaysDeny / alwaysAsk 三级规则</li>
+        <li><strong>技能目录发现</strong>：与 skill 系统集成时引入</li>
+        <li><strong>Git diff 获取</strong>：远程模式下获取单文件 diff</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Copy Handoff -->
+  <div class="copy-handoff">
+    <button class="handoff-btn" onclick="copySummary()">[ COPY SUMMARY ]</button>
+    <button class="handoff-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})">[ JUMP TOP ]</button>
+  </div>
+
+</div>
+
+<script>
+function copySummary() {
+  const text = `cc EditTool 源码分析摘要
+========================
+分析对象: claude-code-haha FileEditTool
+ys-code 对齐度: 71% (~732 / ~1030 行)
+
+已对齐:
+- Read-before-Write (错误码 6)
+- 双层脏写检测 (错误码 7)
+- 引号规范化 (错误码 8)
+- 多匹配检测 (错误码 9)
+- 文件大小限制 (错误码 10)
+- 编码检测与行尾保持
+
+未实现 (P0):
+- 严格模式 (strict: true)
+- 设置文件特殊校验
+
+未实现 (P1):
+- LSP 通知 (didChange/didSave)
+- 文件历史备份
+- Secrets 检查
+
+建议路径:
+1. 引入 strict 模式 → 减少模型误传参数
+2. 增加设置文件校验 → 防止配置格式错误
+3. 接入 LSP → 编辑后触发类型检查更新`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.handoff-btn');
+    const orig = btn.textContent;
+    btn.textContent = '[ COPIED! ]';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+</script>
+
+</body>
+</html>
