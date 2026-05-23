@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消息架构分析 — CC vs ys-code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0,0,0,0.06);
+    --border-strong: rgba(0,0,0,0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30,27,25,0.04);
+    --shadow-md: 0 4px 12px rgba(30,27,25,0.08);
+    --shadow-lg: 0 8px 24px rgba(30,27,25,0.12);
+    --shadow-accent: 0 8px 24px rgba(160,59,0,0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255,255,255,0.08);
+      --border-strong: rgba(255,255,255,0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 80px;
+  }
+
+  body {
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--fg-1);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Document Shell ── */
+  .document-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-xl);
+  }
+
+  /* ── Cover / Masthead ── */
+  .cover {
+    position: relative;
+    padding: var(--space-5xl) var(--space-4xl);
+    background: var(--surface-container-low);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xl);
+    margin-bottom: var(--space-4xl);
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--gradient-primary);
+  }
+
+  .cover-scope {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-lg);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--fg-1);
+    margin-bottom: var(--space-xl);
+  }
+
+  .cover-deck {
+    font-size: 17px;
+    line-height: 1.6;
+    color: var(--fg-2);
+    max-width: 700px;
+    margin-bottom: var(--space-2xl);
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: var(--space-3xl);
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+
+  .cover-meta span {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .cover-meta .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+  }
+
+  /* ── Reader Rail ── */
+  .reader-rail {
+    position: sticky;
+    top: 20px;
+    float: left;
+    width: 220px;
+    padding-right: var(--space-3xl);
+    margin-bottom: var(--space-4xl);
+  }
+
+  .rail-title {
+    font-family: var(--font-headline);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-lg);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rail-nav {
+    list-style: none;
+  }
+
+  .rail-nav li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .rail-nav a {
+    display: block;
+    padding: var(--space-sm) var(--space-md);
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    border-left: 2px solid transparent;
+  }
+
+  .rail-nav a:hover,
+  .rail-nav a.active {
+    background: var(--surface-container);
+    color: var(--primary);
+    border-left-color: var(--primary);
+  }
+
+  .rail-nav .rail-sub {
+    padding-left: var(--space-xl);
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  /* ── Body Sheet ── */
+  .body-sheet {
+    margin-left: 240px;
+    max-width: 760px;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-5xl);
+    padding-bottom: var(--space-4xl);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .body-section:last-child {
+    border-bottom: none;
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--fg-1);
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-md);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-lg);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-lg);
+    color: var(--fg-2);
+  }
+
+  .body-section ul,
+  .body-section ol {
+    margin-bottom: var(--space-lg);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-sm);
+    color: var(--fg-2);
+  }
+
+  .body-section blockquote {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg) var(--space-xl);
+    background: var(--surface-container);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-style: italic;
+    color: var(--fg-2);
+  }
+
+  .body-section blockquote strong {
+    color: var(--primary);
+    font-style: normal;
+  }
+
+  /* ── Fact Table ── */
+  .fact-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-xl) 0;
+    font-size: 13.5px;
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .fact-table thead {
+    background: var(--surface-container-high);
+  }
+
+  .fact-table th {
+    padding: var(--space-md) var(--space-lg);
+    text-align: left;
+    font-family: var(--font-headline);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .fact-table td {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    color: var(--fg-2);
+    vertical-align: top;
+  }
+
+  .fact-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .fact-table tbody tr:hover {
+    background: var(--surface-container);
+  }
+
+  .fact-table .highlight-danger {
+    color: var(--red);
+    font-weight: 600;
+  }
+
+  .fact-table .highlight-success {
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  /* ── Code Block ── */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: var(--radius-md);
+    padding: var(--space-lg) var(--space-xl);
+    margin: var(--space-xl) 0;
+    overflow-x: auto;
+  }
+
+  .code-block pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: #e6edf3;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .code-block .code-header {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #7d8590;
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .code-block .code-lang {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  /* ── Evidence Margin ── */
+  .evidence-margin {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg) var(--space-xl);
+    background: var(--surface-container-low);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .evidence-margin .evidence-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .evidence-margin .evidence-label::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+
+  .evidence-margin p {
+    font-size: 13.5px;
+    color: var(--fg-2);
+    margin: 0;
+  }
+
+  /* ── Claim Card ── */
+  .claim-card {
+    margin: var(--space-xl) 0;
+    padding: var(--space-xl);
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .claim-card .claim-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+  }
+
+  .claim-card .claim-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    background: var(--primary-fixed);
+    color: var(--primary);
+  }
+
+  .claim-card .claim-title {
+    font-family: var(--font-headline);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--fg-1);
+  }
+
+  .claim-card p {
+    font-size: 14px;
+    color: var(--fg-2);
+    margin: 0;
+  }
+
+  /* ── Caveat Box ── */
+  .caveat-box {
+    margin: var(--space-xl) 0;
+    padding: var(--space-lg) var(--space-xl);
+    background: linear-gradient(135deg, var(--surface-container-low) 0%, var(--surface-container) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-md);
+  }
+
+  .caveat-box .caveat-title {
+    font-family: var(--font-headline);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .caveat-box p {
+    font-size: 13.5px;
+    color: var(--fg-2);
+    margin: 0;
+  }
+
+  /* ── Question Panel ── */
+  .question-panel {
+    margin-top: var(--space-4xl);
+    padding: var(--space-2xl);
+    background: var(--surface-container);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+  }
+
+  .question-panel h3 {
+    font-family: var(--font-headline);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+  }
+
+  .question-panel ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .question-panel li {
+    padding: var(--space-md) 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--fg-2);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+  }
+
+  .question-panel li:last-child {
+    border-bottom: none;
+  }
+
+  .question-panel li::before {
+    content: '?';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: var(--primary);
+    color: var(--on-primary);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── Source Spread ── */
+  .source-spread {
+    margin-top: var(--space-4xl);
+    padding-top: var(--space-2xl);
+    border-top: 2px solid var(--border-strong);
+  }
+
+  .source-spread h3 {
+    font-family: var(--font-headline);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+  }
+
+  .source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .source-item {
+    padding: var(--space-md) var(--space-lg);
+    background: var(--surface-container-low);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg-2);
+  }
+
+  .source-item .source-path {
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+  }
+
+  /* ── Layer Diagram ── */
+  .layer-diagram {
+    margin: var(--space-xl) 0;
+    padding: var(--space-xl);
+    background: var(--surface-container-low);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--fg-2);
+    overflow-x: auto;
+  }
+
+  .layer-diagram .layer-box {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-md);
+    background: var(--surface-container-lowest);
+  }
+
+  .layer-diagram .layer-title {
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: var(--space-xs);
+  }
+
+  .layer-diagram .layer-arrow {
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: 16px;
+    margin: var(--space-sm) 0;
+  }
+
+  /* ── Status Badges ── */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .status-p0 {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--red);
+  }
+
+  .status-p1 {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--yellow);
+  }
+
+  .status-done {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--green);
+  }
+
+  /* ── Reading Modes ── */
+  .reading-modes {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-2xl);
+    padding: var(--space-sm);
+    background: var(--surface-container);
+    border-radius: var(--radius-pill);
+    width: fit-content;
+  }
+
+  .reading-modes button {
+    padding: var(--space-sm) var(--space-lg);
+    border: none;
+    background: transparent;
+    color: var(--fg-muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reading-modes button:hover {
+    color: var(--fg-2);
+  }
+
+  .reading-modes button.active {
+    background: var(--surface-container-lowest);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .reader-rail {
+      position: relative;
+      float: none;
+      width: 100%;
+      padding-right: 0;
+      margin-bottom: var(--space-2xl);
+    }
+
+    .rail-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-xs);
+    }
+
+    .rail-nav li {
+      margin-bottom: 0;
+    }
+
+    .rail-nav a {
+      border-left: none;
+      border-bottom: 2px solid transparent;
+      white-space: nowrap;
+    }
+
+    .rail-nav a:hover,
+    .rail-nav a.active {
+      border-left-color: transparent;
+      border-bottom-color: var(--primary);
+    }
+
+    .body-sheet {
+      margin-left: 0;
+    }
+
+    .cover h1 {
+      font-size: 32px;
+    }
+
+    .document-shell {
+      padding: var(--space-xl);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .cover {
+      padding: var(--space-2xl) var(--space-xl);
+    }
+
+    .cover h1 {
+      font-size: 26px;
+    }
+
+    .cover-deck {
+      font-size: 15px;
+    }
+
+    .body-section h2 {
+      font-size: 22px;
+    }
+
+    .fact-table {
+      font-size: 12px;
+    }
+
+    .fact-table th,
+    .fact-table td {
+      padding: var(--space-sm);
+    }
+  }
+
+  /* ── Print ── */
+  @media print {
+    .reader-rail {
+      display: none;
+    }
+
+    .body-sheet {
+      margin-left: 0;
+      max-width: none;
+    }
+
+    .cover {
+      break-inside: avoid;
+    }
+
+    .body-section {
+      break-inside: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="document-shell">
+
+  <!-- Cover -->
+  <header class="cover">
+    <div class="cover-scope">Architecture Analysis / 架构分析</div>
+    <h1>消息架构分析</h1>
+    <p class="cover-deck">
+      理解 Claude Code (CC) 的消息生命周期、Attachment 持久化机制、normalize 定位，
+      对比 ys-code 当前设计的差异，提出对齐建议。
+    </p>
+    <div class="cover-meta">
+      <span><span class="dot"></span> 基准版本: CC main vs ys-code main (2026-04-26)</span>
+      <span>文档版本: v1.0</span>
+      <span>生成日期: 2026-05-23</span>
+    </div>
+  </header>
+
+  <!-- Reading Modes -->
+  <div class="reading-modes" id="readingModes">
+    <button class="active" data-mode="full">完整阅读</button>
+    <button data-mode="summary">5分钟摘要</button>
+    <button data-mode="evidence">证据浏览</button>
+  </div>
+
+  <!-- Reader Rail -->
+  <nav class="reader-rail">
+    <div class="rail-title">目录</div>
+    <ul class="rail-nav" id="railNav">
+      <li><a href="#sec1" class="active">1. 背景与定位</a></li>
+      <li><a href="#sec2">2. 核心原理</a></li>
+      <li class="rail-sub"><a href="#sec2-1">2.1 消息类型</a></li>
+      <li class="rail-sub"><a href="#sec2-2">2.2 三层模型</a></li>
+      <li class="rail-sub"><a href="#sec2-3">2.3 关键规则</a></li>
+      <li><a href="#sec3">3. 源码实现</a></li>
+      <li class="rail-sub"><a href="#sec3-1">3.1 Attachment 生命周期</a></li>
+      <li class="rail-sub"><a href="#sec3-2">3.2 normalizeMessagesForAPI</a></li>
+      <li class="rail-sub"><a href="#sec3-3">3.3 userContext 注入</a></li>
+      <li><a href="#sec4">4. 与 ys-code 对比</a></li>
+      <li class="rail-sub"><a href="#sec4-2">4.2 缺陷分析</a></li>
+      <li class="rail-sub"><a href="#sec4-3">4.3 根因</a></li>
+      <li><a href="#sec5">5. 建议与计划</a></li>
+      <li class="rail-sub"><a href="#sec5-3">5.3 实施计划</a></li>
+      <li class="rail-sub"><a href="#sec5-4">5.4 风险评估</a></li>
+      <li><a href="#sec6">6. 参考链接</a></li>
+    </ul>
+  </nav>
+
+  <!-- Body Sheet -->
+  <main class="body-sheet" id="bodySheet">
+
+    <!-- Section 1 -->
+    <section class="body-section" id="sec1" data-priority="summary">
+      <h2>1. 背景与定位</h2>
+      <p>
+        Claude Code (CC) 使用统一的消息类型 <code>Message</code> 贯穿整个 Agent 生命周期。
+        所有消息（user、assistant、toolResult、attachment、system）全部保存在 <code>state.messages</code> 中，
+        API 调用前通过纯转换函数 <code>normalizeMessagesForAPI()</code> 生成临时 Payload。
+      </p>
+      <p>
+        ys-code 当前的设计存在根本差异：<strong>attachment 虽被生成但从未进入 <code>agent.state.messages</code></strong>，
+        导致 session 持久化不完整、Debug Inspector 的 LLM View 不准确。
+      </p>
+
+      <table class="fact-table">
+        <thead>
+          <tr>
+            <th style="width:22%">维度</th>
+            <th style="width:39%">CC（正确设计）</th>
+            <th style="width:39%">ys-code（当前缺陷）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>messages 包含内容</strong></td>
+            <td class="highlight-success">user/assistant/toolResult/attachment/system 全部保存在 state.messages</td>
+            <td class="highlight-danger">只保存 user/assistant/toolResult，attachment 虽被生成但从未进入 state.messages</td>
+          </tr>
+          <tr>
+            <td><strong>attachment 生命周期</strong></td>
+            <td class="highlight-success">生成 → yield → push 到 toolResults → 合并进 state.messages 持久化</td>
+            <td class="highlight-danger">transformMessages() 中生成 → normalizeMessages() 转为 user message → API 调用后全部丢弃</td>
+          </tr>
+          <tr>
+            <td><strong>normalize 定位</strong></td>
+            <td class="highlight-success">normalizeMessagesForAPI() 是纯转换函数，输入输出都是消息数组，不修改原始消息</td>
+            <td class="highlight-danger">normalizeMessages() 在 transformMessages() 内部调用，结果不保存</td>
+          </tr>
+          <tr>
+            <td><strong>sessionStore 内容</strong></td>
+            <td class="highlight-success">包含完整的对话历史（含 attachment）</td>
+            <td class="highlight-danger">只包含过滤后的消息，丢失了 attachment</td>
+          </tr>
+          <tr>
+            <td><strong>LLM View 准确性</strong></td>
+            <td class="highlight-success">可以从 state.messages 重建出完整的 API payload</td>
+            <td class="highlight-danger">convertToLlm() 只做了 role 过滤，看不到完整的 LLM payload</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="caveat-box">
+        <div class="caveat-title">现状声明</div>
+        <p>上述缺陷在 2026-04-26 的 main 分支中仍然存在，未修复。本分析基于该时间点的代码快照。</p>
+      </div>
+    </section>
+
+    <!-- Section 2 -->
+    <section class="body-section" id="sec2" data-priority="summary">
+      <h2>2. 核心原理</h2>
+
+      <h3 id="sec2-1">2.1 消息类型定义</h3>
+      <p>
+        CC 使用统一的消息类型 <code>Message</code>（<code>src/types/message.ts</code>），包含以下子类型：
+      </p>
+      <table class="fact-table">
+        <thead>
+          <tr><th>类型</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>UserMessage</code></td><td>用户输入（含 tool result）</td></tr>
+          <tr><td><code>AssistantMessage</code></td><td>AI 回复</td></tr>
+          <tr><td><code>AttachmentMessage</code></td><td>附件消息（skill listing、file content、todo reminder 等）</td></tr>
+          <tr><td><code>SystemMessage</code></td><td>系统消息（compact boundary、tool use summary 等）</td></tr>
+          <tr><td><code>ProgressMessage</code></td><td>进度消息（显示-only，不发给 API）</td></tr>
+          <tr><td><code>TombstoneMessage</code></td><td>墓碑消息（用于删除 UI 中的消息）</td></tr>
+        </tbody>
+      </table>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge">关键洞察</span>
+          <span class="claim-title">AttachmentMessage 是 Message 的合法子类型</span>
+        </div>
+        <p>AttachmentMessage 参与 state.messages 的完整生命周期，不是临时对象。</p>
+      </div>
+
+      <h3 id="sec2-2">2.2 消息分层模型</h3>
+      <p>CC 的消息架构可分为三层：</p>
+
+      <div class="layer-diagram">
+        <div class="layer-box">
+          <div class="layer-title">Layer 3: API Payload（临时生成，每次请求独立构建）</div>
+          <div>normalizeMessages(agent.state.messages) → user/assistant</div>
+          <div>prependUserContext() → 添加 CLAUDE.md 等动态上下文</div>
+          <div>直接传给 LLM API，不保存</div>
+        </div>
+        <div class="layer-arrow">↑</div>
+        <div class="layer-box">
+          <div class="layer-title">Layer 2: Agent State（内存状态，运行时可变）</div>
+          <div>agent.state.messages: AgentMessage[]</div>
+          <div>包含: user, assistant, toolResult, attachment</div>
+          <div>通过 message_end 事件追加新消息</div>
+          <div>被 SessionManager 持久化到磁盘</div>
+        </div>
+        <div class="layer-arrow">↑</div>
+        <div class="layer-box">
+          <div class="layer-title">Layer 1: Session Store（磁盘持久化，跨进程恢复）</div>
+          <div>~/.ys-code/sessions/*.jsonl</div>
+          <div>Entry 类型: header, user, assistant, toolResult</div>
+          <div>新增: attachment Entry 类型</div>
+          <div>通过 SessionManager.restoreMessages() 加载到内存</div>
+        </div>
+      </div>
+
+      <h3 id="sec2-3">2.3 关键规则</h3>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge">Rule 1</span>
+          <span class="claim-title">只有 message_end 事件能修改 agent.state.messages</span>
+        </div>
+        <p>所有消息（含 attachment）必须通过 emit({ type: "message_end", message }) 进入状态。transformMessages() 不再直接修改任何状态。</p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge">Rule 2</span>
+          <span class="claim-title">normalizeMessages() 是纯函数</span>
+        </div>
+        <p>输入: AgentMessage[]（含 attachment）；输出: Message[]（仅 user/assistant/toolResult）。不修改输入数组，不保存输出结果。</p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge">Rule 3</span>
+          <span class="claim-title">userContext 保持临时注入</span>
+        </div>
+        <p>CLAUDE.md、日期、分支等动态内容在 API 调用前注入。不保存到 session，每次请求重新读取。与 CC 设计一致。</p>
+      </div>
+    </section>
+
+    <!-- Section 3 -->
+    <section class="body-section" id="sec3">
+      <h2>3. 源码实现</h2>
+
+      <h3 id="sec3-1">3.1 Attachment 完整生命周期</h3>
+
+      <h4>3.1.1 生成 Attachment</h4>
+      <p><code>src/utils/attachments.ts</code> 提供各类 attachment 生成器：</p>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/utils/attachments.ts</span></div>
+        <pre>// 文件附件
+export type FileAttachment = {
+  type: 'file'
+  filename: string
+  content: FileReadToolOutput
+  truncated?: boolean
+  displayPath: string
+}
+
+// Skill Listing 附件
+export type SkillListingAttachment = {
+  type: 'skill_listing'
+  content: string        // 格式化后的 skill 列表文本
+  skillNames: string[]   // 包含的 skill 名称
+}
+
+// Todo Reminder 附件
+export type TodoReminderAttachment = {
+  type: 'todo_reminder'
+  content: string
+}
+
+// 已编辑文件附件
+export type EditedTextFileAttachment = {
+  type: 'edited_text_file'
+  filename: string
+  content: string
+}</pre>
+      </div>
+
+      <h4>3.1.2 包装为 AttachmentMessage</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/utils/attachments.ts:3201-3210</span></div>
+        <pre>export function createAttachmentMessage(
+  attachment: Attachment,
+): AttachmentMessage {
+  return {
+    attachment,
+    type: 'attachment',
+    uuid: randomUUID(),
+    timestamp: new Date().toISOString(),
+  }
+}</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">注意</div>
+        <p>AttachmentMessage 是一个完整的 Message，有 uuid 和 timestamp，可以被持久化。</p>
+      </div>
+
+      <h4>3.1.3 获取并注入 Attachment</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/query.ts:1862-1909</span></div>
+        <pre>// 1. 从 command queue 获取 attachment（skill listing、task notification 等）
+for await (const attachment of getAttachmentMessages(
+  null,
+  updatedToolUseContext,
+  null,
+  queuedCommandsSnapshot,
+  [...messagesForQuery, ...assistantMessages, ...toolResults],
+  querySource,
+)) {
+  yield attachment              // ← 发射到 UI
+  toolResults.push(attachment)  // ← 加入 toolResults
+}
+
+// 2. 从 memory prefetch 获取 attachment
+if (pendingMemoryPrefetch && pendingMemoryPrefetch.settledAt !== null) {
+  const memoryAttachments = filterDuplicateMemoryAttachments(
+    await pendingMemoryPrefetch.promise,
+    toolUseContext.readFileState,
+  )
+  for (const memAttachment of memoryAttachments) {
+    const msg = createAttachmentMessage(memAttachment)
+    yield msg
+    toolResults.push(msg)
+  }
+}
+
+// 3. 从 skill discovery prefetch 获取 attachment
+if (skillPrefetch && pendingSkillPrefetch) {
+  const skillAttachments =
+    await skillPrefetch.collectSkillDiscoveryPrefetch(pendingSkillPrefetch)
+  for (const att of skillAttachments) {
+    const msg = createAttachmentMessage(att)
+    yield msg
+    toolResults.push(msg)
+  }
+}</pre>
+      </div>
+
+      <h4>3.1.4 合并到 state.messages</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/query.ts:2010-2022</span></div>
+        <pre>const next: State = {
+  messages: [
+    ...messagesForQuery,      // ← 当前轮次的 query messages
+    ...assistantMessages,     // ← 本轮 AI 回复
+    ...toolResults,           // ← ← ← 工具执行结果 + attachments！
+  ],
+  toolUseContext: toolUseContextWithQueryTracking,
+  autoCompactTracking: tracking,
+  turnCount: nextTurnCount,
+  // ...
+}
+state = next</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">关键</div>
+        <p>toolResults 包含了工具执行结果 <strong>和</strong> attachment messages，一起被合并到 state.messages 中。</p>
+      </div>
+
+      <h4>3.1.5 持久化</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>queryLoopSnapshotRuntime</span></div>
+        <pre>await writeQueryLoopSnapshotIfEnabled({
+  phase: 'next',
+  fullSystemPrompt,
+  stateSnapshot: state,  // ← 包含完整的 messages（含 attachment）
+})</pre>
+      </div>
+
+      <h3 id="sec3-2">3.2 normalizeMessagesForAPI —— 纯转换函数</h3>
+
+      <h4>3.2.1 函数签名</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/utils/messages.ts:1989-1992</span></div>
+        <pre>export function normalizeMessagesForAPI(
+  messages: Message[],
+  tools: Tools = [],
+): (UserMessage | AssistantMessage)[]</pre>
+      </div>
+      <p><strong>输入</strong>：完整的 Message[]（含 attachment、system 等）<br>
+         <strong>输出</strong>：仅包含 UserMessage | AssistantMessage 的数组<br>
+         <strong>副作用</strong>：无（不修改输入数组）</p>
+
+      <h4>3.2.2 核心转换步骤</h4>
+      <table class="fact-table">
+        <thead>
+          <tr><th>步骤</th><th>操作</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. Reorder Attachments</strong></td>
+            <td><code>reorderAttachmentsForAPI(messages)</code></td>
+            <td>将 attachment 消息向上浮动，直到遇到 tool result 或 assistant message 为止</td>
+          </tr>
+          <tr>
+            <td><strong>2. 过滤 Virtual 消息</strong></td>
+            <td><code>.filter(m => !((m.type === 'user' || m.type === 'assistant') && m.isVirtual))</code></td>
+            <td>isVirtual 消息仅用于显示，不发往 API</td>
+          </tr>
+          <tr>
+            <td><strong>3. Attachment → UserMessage</strong></td>
+            <td>createUserMessage({ content: formatAttachmentForAPI(...) })</td>
+            <td>attachment 被转换为 user role 的消息，内容包裹在 &lt;system-reminder&gt; 等标签中</td>
+          </tr>
+          <tr>
+            <td><strong>4. 合并连续 User Messages</strong></td>
+            <td>mergeUserMessages(lastMessage, userMsg)</td>
+            <td>Bedrock 不支持连续多个 user message</td>
+          </tr>
+          <tr>
+            <td><strong>5. 过滤不可用 Tool Reference</strong></td>
+            <td>条件过滤 tool_reference block</td>
+            <td>tool search 未启用或 tool 已移除时过滤</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4>3.2.3 调用时机</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>query.ts:779-780</span></div>
+        <pre>const response = await deps.callModel({
+  messages: prependUserContext(
+    normalizeMessagesForAPI(messagesForQuery, tools),
+    userContext
+  ),
+  systemPrompt: fullSystemPrompt,
+  // ...
+})</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">注意</div>
+        <p>normalizeMessagesForAPI 的返回值<strong>不会</strong>被保存回 state.messages，它只在 API 调用时存在。</p>
+      </div>
+
+      <h3 id="sec3-3">3.3 userContext 注入 —— 唯一"临时"的内容</h3>
+
+      <h4>3.3.1 注入位置</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/query.ts:780</span></div>
+        <pre>messages: prependUserContext(
+  normalizeMessagesForAPI(messagesForQuery, tools),
+  userContext
+),</pre>
+      </div>
+
+      <h4>3.3.2 prependUserContext 的实现</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>src/utils/api.ts</span></div>
+        <pre>export function prependUserContext(
+  messages: Message[],
+  userContext: { [k: string]: string }
+): Message[] {
+  // 将 userContext 转换为 user message，插入到 messages 最前面
+  const contextMessage = createUserMessage({
+    content: formatUserContext(userContext),
+    isMeta: true,
+  })
+  return [contextMessage, ...messages]
+}</pre>
+      </div>
+
+      <h4>3.3.3 为什么 userContext 是临时的</h4>
+      <p>userContext 包含：</p>
+      <ul>
+        <li>CLAUDE.md 内容（可能随文件编辑而变化）</li>
+        <li>当前日期（每天都在变）</li>
+        <li>Git 分支（可能随时切换）</li>
+      </ul>
+      <p>这些内容<strong>不适合持久化</strong>，因为：</p>
+      <ol>
+        <li>它们可能随时间变化</li>
+        <li>每次请求时重新读取是最准确的</li>
+        <li>它们不是对话历史的一部分，而是"上下文环境"</li>
+      </ol>
+    </section>
+
+    <!-- Section 4 -->
+    <section class="body-section" id="sec4">
+      <h2>4. 与 ys-code 对比</h2>
+
+      <h3>4.1 关键文件映射</h3>
+      <table class="fact-table">
+        <thead>
+          <tr><th>CC 文件</th><th>ys-code 对应文件</th><th>差异</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>src/query.ts</code></td>
+            <td><code>src/agent/agent-loop.ts</code> + <code>src/agent/stream-assistant.ts</code></td>
+            <td>CC 的 attachment 在 query loop 中生成并合并到 state；ys-code 在 stream-assistant 中临时注入</td>
+          </tr>
+          <tr>
+            <td><code>src/utils/attachments.ts</code></td>
+            <td><code>src/agent/attachments/skill-listing.ts</code> + <code>src/agent/attachments/normalize.ts</code></td>
+            <td>CC 生成 AttachmentMessage；ys-code 直接修改 messages 数组</td>
+          </tr>
+          <tr>
+            <td><code>src/utils/messages.ts</code></td>
+            <td><code>src/agent/attachments/normalize.ts</code></td>
+            <td>CC 的 normalizeMessagesForAPI 是纯转换；ys-code 的 normalizeMessages 修改输入数组</td>
+          </tr>
+          <tr>
+            <td><code>src/utils/api.ts</code></td>
+            <td><code>src/agent/context/user-context.ts</code></td>
+            <td class="highlight-success">两者都临时注入 userContext，这是唯一正确的设计</td>
+          </tr>
+          <tr>
+            <td><code>src/query/queryLoopSnapshotRuntime.ts</code></td>
+            <td><code>src/session/session-manager.ts</code></td>
+            <td>CC 的 snapshot 包含完整 messages（含 attachment）；ys-code 的 session 只保存过滤后的消息</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="sec4-2">4.2 ys-code 当前设计的缺陷分析</h3>
+
+      <h4>缺陷 1：Attachment 生成后即丢弃，没有生命周期</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>stream-assistant.ts:31-52</span></div>
+        <pre>async function transformMessages(context, config, signal): Promise&lt;Message[]&gt; {
+  let messages = context.messages;  // ← 原始 messages（不含 attachment）
+
+  // 第1-3步：生成 attachment 消息
+  messages = [...attachments, ...messages];           // userContext → attachment role
+  messages = await injectSkillListingAttachments(...); // skill listing → attachment role
+  messages = await injectAtMentionAttachments(...);    // @mention → attachment role
+
+  // 第4步：normalize 将 attachment 转为 user message
+  const normalized = normalizeMessages(messages);      // attachment → user（&lt;system-reminder&gt;）
+
+  // 第5步：convertToLlm 过滤 role
+  return config.convertToLlm(normalized);              // 只保留 user/assistant/toolResult
+}</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">问题</div>
+        <p>AttachmentMessage 类型已定义，role: "attachment" 的消息确实被生成了，但 normalizeMessages() 将它们转为 user message 后，没有任何东西被保存。transformMessages() 返回的 Message[] 直接传给 streamFunction，调用结束后全部丢弃。下次请求时，重新生成所有 attachment，而不是从历史中恢复。</p>
+      </div>
+
+      <h4>缺陷 2：normalizeMessages 的位置错误</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>attachments/normalize.ts:77-109</span></div>
+        <pre>export function normalizeMessages(messages: AgentMessage[]): Message[] {
+  const result: Message[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'attachment') {
+      result.push(msg);
+      continue;
+    }
+    const expanded = normalizeAttachment(msg.attachment);
+    // 合并到相邻 user message
+    const last = result[result.length - 1];
+    if (last && last.role === 'user') {
+      last.content = last.content + '\n' + first.content;
+    }
+  }
+  return result;
+}</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">问题</div>
+        <p>normalizeMessages 在 transformMessages() 内部调用，但 transformMessages() 的结果不保存，所以 normalize 后的内容（&lt;system-reminder&gt; 包装）永远丢失。</p>
+      </div>
+
+      <h4>缺陷 3：sessionStore 保存的是不完整的历史</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>session.ts:277-278</span></div>
+        <pre>case 'message_end': {
+  this.sessionManager.appendMessage(event.message);
+  this.sessionManager.compactIfNeeded();
+}</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">问题</div>
+        <p>只保存触发 message_end 事件的消息。message_end 来自 agent-loop.ts 的 emit({ type: 'message_end', message })，这些消息只包括 user prompts 和 assistant responses，不包含 skill listing、@mention、userContext 等 attachment。</p>
+      </div>
+
+      <h4>缺陷 4：convertToLlm 只做过滤，不做转换</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>agent.ts:28-32</span></div>
+        <pre>function defaultConvertToLlm(messages: AgentMessage[]): Message[] {
+  return messages.filter(
+    (message) => message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult',
+  );
+}</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">问题</div>
+        <p>只做了 role 过滤，没有将 attachment 转换为 user message，没有合并连续 user messages，没有处理 &lt;system-reminder&gt; 包装。</p>
+      </div>
+
+      <h4>缺陷 5：Debug Inspector 的 LLM View 是虚假的</h4>
+      <div class="code-block">
+        <div class="code-header"><span class="code-lang">TypeScript</span><span>debug-api.ts:41-43</span></div>
+        <pre>const messages = [...session.messages];
+const llmMessages = await session.convertToLlm(messages);</pre>
+      </div>
+      <div class="evidence-margin">
+        <div class="evidence-label">问题</div>
+        <p>session.messages 不包含 attachment，convertToLlm 只做了 role 过滤，所以 llmMessages 远小于真正传给 LLM 的内容。</p>
+      </div>
+
+      <h3 id="sec4-3">4.3 根因：三层断裂</h3>
+      <table class="fact-table">
+        <thead>
+          <tr><th>层级</th><th>发生了什么</th><th>结果</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>生成层</strong></td>
+            <td>transformMessages() 生成 attachment → normalize 为 user message</td>
+            <td>局部变量</td>
+          </tr>
+          <tr>
+            <td><strong>上下文层</strong></td>
+            <td>currentContext.messages 是 agent.state.messages 的副本</td>
+            <td>互不影响</td>
+          </tr>
+          <tr>
+            <td><strong>持久化层</strong></td>
+            <td>agent.state.messages 只通过 message_end 事件更新</td>
+            <td>attachment 不触发</td>
+          </tr>
+        </tbody>
+      </table>
+      <blockquote>
+        <strong>根本问题：</strong> transformMessages() 是一条"死胡同"——数据流入后没有任何回流机制。不像 CC 的 toolResults 会被合并回 state.messages，不像 pendingMessages 会触发 message_end 并 push 到 currentContext.messages。
+      </blockquote>
+    </section>
+
+    <!-- Section 5 -->
+    <section class="body-section" id="sec5">
+      <h2>5. 可借鉴点与建议</h2>
+
+      <h3>5.1 短期修复（最小改动）</h3>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p1">P1</span>
+          <span class="claim-title">将 normalizeMessages 逻辑移到 convertToLlm</span>
+        </div>
+        <p>让 convertToLlm 不仅过滤 role，还要将 attachment 转换为 user message。但这不能解决 attachment 不在 messages 中的问题。<strong>状态：未实施</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p1">P1</span>
+          <span class="claim-title">在 debug-api.ts 中重新运行 transformMessages</span>
+        </div>
+        <p>暴露 AgentSession.transformMessages() 方法，debug-api.ts 调用它来获取真正的 LLM payload。但这只是修复 Debug Inspector，不解决根本问题。<strong>状态：未实施</strong></p>
+      </div>
+
+      <h3>5.2 长期修复（对齐 CC 架构）</h3>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p0">P0</span>
+          <span class="claim-title">引入 AttachmentMessage 类型</span>
+        </div>
+        <p>src/agent/attachments/types.ts 已定义 AttachmentMessage 和各类 Attachment，通过 declaration merging 扩展了 CustomAgentMessages。<strong>状态：已存在，无需修改</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p0">P0</span>
+          <span class="claim-title">重构 transformMessages 拆分生成与转换</span>
+        </div>
+        <p><strong>生成阶段</strong>：injectSkillListingAttachments / injectAtMentionAttachments 生成 AttachmentMessage。<strong>保存阶段</strong>：将 AttachmentMessage push 到 agent.state.messages，触发 message_end 事件。<strong>转换阶段</strong>：normalizeMessages 改为纯函数，仅在 API 调用前将 attachment 转为 user message。<strong>状态：未实施</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p0">P0</span>
+          <span class="claim-title">更新 sessionManager.appendMessage()</span>
+        </div>
+        <p>确保 role: "attachment" 的消息也被保存到磁盘。需要添加 attachment 类型的 Entry 格式。<strong>状态：未实施</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p0">P0</span>
+          <span class="claim-title">更新 convertToLlm / normalizeMessages</span>
+        </div>
+        <p>normalizeMessages 改为纯转换函数，不修改输入数组。convertToLlm 包含 normalize 逻辑，能从 messages（含 attachment）重建完整 API payload。输入应包含 attachment role 的消息，输出是可直接发给 LLM 的 Message[]。<strong>状态：未实施</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p0">P0</span>
+          <span class="claim-title">更新 stream-assistant.ts</span>
+        </div>
+        <p>transformMessages 不再直接修改 messages 数组。先生成 attachment → 保存到 state → 然后调用 normalize + convert。<strong>状态：未实施</strong></p>
+      </div>
+
+      <div class="claim-card">
+        <div class="claim-header">
+          <span class="claim-badge status-p1">P1</span>
+          <span class="claim-title">更新 Debug Inspector</span>
+        </div>
+        <p>LLM View 调用 normalizeMessages(messages) 获取真正的 API payload，与 streamAssistantResponse 中传给 LLM 的内容一致。<strong>状态：未实施</strong></p>
+      </div>
+
+      <h3 id="sec5-3">5.3 具体实施计划</h3>
+
+      <h4>Phase 1: 扩展类型和持久化层（低风险）</h4>
+      <p><strong>文件</strong>：src/session/entry-types.ts, src/session/session-manager.ts, src/session/session-loader.ts</p>
+      <ol>
+        <li>添加 AttachmentEntry 类型</li>
+        <li>修改 SessionManager.messageToEntry() 支持 role: "attachment"</li>
+        <li>修改 SessionLoader.entryToMessage() 支持 type: "attachment"</li>
+        <li>添加单元测试</li>
+      </ol>
+      <p><strong>验证</strong>：现有测试通过，新测试覆盖 attachment Entry 的序列化/反序列化。</p>
+
+      <h4>Phase 2: 重构 transformMessages（高风险，核心改动）</h4>
+      <p><strong>文件</strong>：src/agent/stream-assistant.ts, src/agent/attachments/normalize.ts</p>
+      <ol>
+        <li>拆分 transformMessages 为 generateAttachments + saveAttachments + buildApiPayload</li>
+        <li>修改 streamAssistantResponse 调用三阶段</li>
+        <li>重构 normalizeMessages 为纯函数</li>
+        <li>更新单元测试</li>
+      </ol>
+      <p><strong>验证</strong>：现有 E2E 测试通过；Debug Inspector LLM View 显示的内容包含 &lt;system-reminder&gt;；Session 文件包含 type: "attachment" 的 Entry。</p>
+
+      <h4>Phase 3: 更新 AgentSession 事件处理（中风险）</h4>
+      <p><strong>文件</strong>：src/agent/session.ts</p>
+      <ol>
+        <li>修改 handleAgentEvent 处理 message_end 中的 attachment</li>
+        <li>确保 skill_listing attachment 触发 markSkillsSent</li>
+      </ol>
+      <p><strong>验证</strong>：Skill 去重机制正常工作，不会重复发送。</p>
+
+      <h4>Phase 4: 更新 Debug Inspector（低风险）</h4>
+      <p><strong>文件</strong>：src/web/debug/debug-api.ts, src/web/debug/debug.html.ts</p>
+      <ol>
+        <li>debug-api.ts 中调用 normalizeMessages 获取真正的 LLM payload</li>
+        <li>前端页面区分显示 "原始消息" 和 "LLM Payload"</li>
+      </ol>
+      <p><strong>验证</strong>：LLM View 显示的内容与 API 请求一致。</p>
+
+      <h3 id="sec5-4">5.4 风险评估</h3>
+
+      <h4>向后兼容性</h4>
+      <table class="fact-table">
+        <thead>
+          <tr><th>场景</th><th>风险</th><th>缓解措施</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>旧 session 文件没有 attachment Entry</td>
+            <td>低</td>
+            <td>SessionLoader 忽略未知 Entry 类型</td>
+          </tr>
+          <tr>
+            <td>旧代码读取新 session 文件</td>
+            <td>中</td>
+            <td>旧 SessionLoader 会 throw on unknown type</td>
+          </tr>
+          <tr>
+            <td>新代码读取旧 session 文件</td>
+            <td>低</td>
+            <td>新 SessionLoader 兼容旧 Entry 类型</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="caveat-box">
+        <div class="caveat-title">建议</div>
+        <p>添加版本号到 HeaderEntry，根据版本选择解析策略。</p>
+      </div>
+
+      <h4>性能影响</h4>
+      <table class="fact-table">
+        <thead>
+          <tr><th>改动</th><th>影响</th><th>评估</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>attachment 持久化到磁盘</td>
+            <td>每次请求多 1-3 次写操作</td>
+            <td>可忽略（jsonl append 是 O(1)）</td>
+          </tr>
+          <tr>
+            <td>normalizeMessages 改为纯函数</td>
+            <td>每次请求多创建数组</td>
+            <td>可忽略（消息数通常 &lt; 100）</td>
+          </tr>
+          <tr>
+            <td>skill listing 从 state 恢复</td>
+            <td>避免每次重新读取文件系统</td>
+            <td class="highlight-success">性能提升</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>5.5 与 CC 架构的差异（有意的简化）</h3>
+      <table class="fact-table">
+        <thead>
+          <tr><th>特性</th><th>CC</th><th>ys-code（建议方案）</th><th>原因</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Attachment 类型数</td><td>10+ 种</td><td>4 种</td><td>简化，只覆盖核心场景</td></tr>
+          <tr><td>Attachment reorder</td><td>有（reorderAttachmentsForAPI）</td><td>无</td><td>简化，假设顺序正确</td></tr>
+          <tr><td>Virtual message</td><td>有</td><td>无</td><td>暂不实现</td></tr>
+          <tr><td>Tombstone message</td><td>有</td><td>无</td><td>暂不实现</td></tr>
+          <tr><td>System message</td><td>有（compact boundary）</td><td>有</td><td>已支持</td></tr>
+          <tr><td>userContext 注入</td><td>prependUserContext</td><td>getUserContextAttachments</td><td>等价实现</td></tr>
+          <tr><td>Skill discovery prefetch</td><td>有</td><td>无</td><td>简化，同步获取</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.6 关键文件变更清单</h3>
+      <table class="fact-table">
+        <thead>
+          <tr><th>文件</th><th>变更类型</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>src/session/entry-types.ts</code></td><td>新增</td><td>AttachmentEntry 类型</td></tr>
+          <tr><td><code>src/session/session-manager.ts</code></td><td>修改</td><td>messageToEntry 支持 attachment</td></tr>
+          <tr><td><code>src/session/session-loader.ts</code></td><td>修改</td><td>entryToMessage 支持 attachment</td></tr>
+          <tr><td><code>src/agent/stream-assistant.ts</code></td><td>重构</td><td>拆分 transformMessages 为三阶段</td></tr>
+          <tr><td><code>src/agent/attachments/normalize.ts</code></td><td>重构</td><td>改为纯函数</td></tr>
+          <tr><td><code>src/agent/session.ts</code></td><td>修改</td><td>handleAgentEvent 处理 attachment message_end</td></tr>
+          <tr><td><code>src/web/debug/debug-api.ts</code></td><td>修改</td><td>调用 normalizeMessages 获取真实 LLM payload</td></tr>
+          <tr><td><code>src/web/debug/debug.html.ts</code></td><td>可选</td><td>区分显示原始消息和 LLM payload</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 6 -->
+    <section class="body-section" id="sec6">
+      <h2>6. 参考链接</h2>
+      <div class="source-spread">
+        <div class="source-grid">
+          <div class="source-item">
+            <div class="source-path">CC 消息类型定义</div>
+            <div>refer/claude-code-haha/src/types/message.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">CC Attachment 生成器</div>
+            <div>refer/claude-code-haha/src/utils/attachments.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">CC Query 主循环</div>
+            <div>refer/claude-code-haha/src/query.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">CC normalizeMessagesForAPI</div>
+            <div>refer/claude-code-haha/src/utils/messages.ts:1989-1992</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">CC userContext 注入</div>
+            <div>refer/claude-code-haha/src/utils/api.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">ys-code Attachment 类型</div>
+            <div>src/agent/attachments/types.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">ys-code normalizeMessages</div>
+            <div>src/agent/attachments/normalize.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">ys-code stream-assistant</div>
+            <div>src/agent/stream-assistant.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">ys-code session-manager</div>
+            <div>src/session/session-manager.ts</div>
+          </div>
+          <div class="source-item">
+            <div class="source-path">ys-code debug-api</div>
+            <div>src/web/debug/debug-api.ts</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Question Panel -->
+    <div class="question-panel">
+      <h3>审查清单</h3>
+      <ul>
+        <li>AttachmentMessage 类型是否已正确定义并参与消息生命周期？</li>
+        <li>normalizeMessages 是否为纯函数，不修改输入数组？</li>
+        <li>Session 持久化层是否包含 attachment 类型的 Entry？</li>
+        <li>Debug Inspector 的 LLM View 是否与真实 API payload 一致？</li>
+        <li>向后兼容性策略是否覆盖旧 session 文件读取？</li>
+        <li>是否需要添加 HeaderEntry 版本号以支持未来演进？</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <div style="clear:both"></div>
+
+</div>
+
+<script>
+  // Reading mode switching
+  const modeButtons = document.querySelectorAll('.reading-modes button');
+  const sections = document.querySelectorAll('.body-section');
+
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const mode = btn.dataset.mode;
+
+      sections.forEach(sec => {
+        if (mode === 'full') {
+          sec.style.display = '';
+        } else if (mode === 'summary') {
+          sec.style.display = sec.dataset.priority === 'summary' ? '' : 'none';
+        } else if (mode === 'evidence') {
+          // Show sections with tables or code blocks
+          const hasEvidence = sec.querySelector('.fact-table, .code-block, .evidence-margin');
+          sec.style.display = hasEvidence ? '' : 'none';
+        }
+      });
+    });
+  });
+
+  // Active nav tracking
+  const navLinks = document.querySelectorAll('.rail-nav a');
+  const observerOptions = { rootMargin: '-80px 0px -70% 0px', threshold: 0 };
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(link => link.classList.remove('active'));
+        const activeLink = document.querySelector(`.rail-nav a[href="#${entry.target.id}"]`);
+        if (activeLink) activeLink.classList.add('active');
+      }
+    });
+  }, observerOptions);
+
+  sections.forEach(sec => observer.observe(sec));
+
+  // Smooth scroll for nav links
+  navLinks.forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
+
+</body>
+</html>

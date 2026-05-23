@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="zh-CN" data-ha-style="teaching">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skill 机制分析 — 交互式教学实验室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #0f766e;
+  --primary-container: #115e59;
+  --primary-fixed: #ccfbf1;
+  --secondary-container: #f59e0b;
+  --bg: #f6fbfb;
+  --surface: #f6fbfb;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #edf7f5;
+  --surface-container: #e5f1ee;
+  --surface-container-high: #d8e8e4;
+  --fg-1: #10201f;
+  --fg-2: #304c49;
+  --fg-muted: #647b78;
+  --border: rgba(15, 118, 110, 0.14);
+  --border-strong: rgba(15, 118, 110, 0.28);
+  --outline-variant: #a3c9c3;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(16, 32, 31, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 32, 31, 0.08);
+  --shadow-lg: 0 8px 24px rgba(16, 32, 31, 0.12);
+  --shadow-accent: 0 8px 24px rgba(15, 118, 110, 0.15);
+  --gradient-primary: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+  --gradient-hero: linear-gradient(135deg, #0f766e 0%, #f59e0b 100%);
+  --gradient-text: linear-gradient(135deg, #0f766e 0%, #f59e0b 100%);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; }
+
+body {
+  color: var(--fg-1);
+  background: var(--bg);
+  background-image:
+    linear-gradient(rgba(15, 118, 110, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 118, 110, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+button, select { font: inherit; }
+button { cursor: pointer; }
+
+.studio {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(300px, 380px);
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.panel {
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.left-panel, .right-panel {
+  min-height: calc(100vh - 32px);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+}
+
+.left-panel { gap: var(--space-xl); }
+
+.eyebrow {
+  margin: 0 0 var(--space-sm);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h1, h2, h3, p { margin-top: 0; }
+
+h1 {
+  margin-bottom: var(--space-md);
+  font-family: var(--font-headline);
+  font-size: clamp(28px, 4vw, 48px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.gradient-text {
+  color: transparent;
+  background: var(--gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+.intro {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.mode-card {
+  padding: var(--space-lg);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.mode-card strong {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-headline);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.mode-card p {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.controls { display: grid; gap: var(--space-md); }
+
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.control-row label {
+  color: var(--fg-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--surface-container);
+  border-radius: var(--radius-pill);
+}
+
+.segmented button, .pill-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--fg-2);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.segmented button.active, .pill-button.active {
+  color: #fff;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-accent);
+}
+
+.pill-button {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-container-lowest);
+}
+
+.segmented button:active, .pill-button:active, .step-button:active {
+  transform: scale(0.97);
+}
+
+.step-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: auto;
+}
+
+.step-button {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-md);
+  color: var(--fg-2);
+  text-align: left;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s, box-shadow 0.18s;
+}
+
+.step-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.step-button.active {
+  color: var(--fg-1);
+  border-color: rgba(15, 118, 110, 0.35);
+  box-shadow: var(--shadow-accent);
+}
+
+.step-num {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-container);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-button.active .step-num {
+  background: var(--primary);
+  color: #fff;
+}
+
+.step-button span:nth-child(2) {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.stage-wrap {
+  position: relative;
+  min-height: calc(100vh - 32px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(400px, 1fr) auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 251, 251, 0.9)),
+    radial-gradient(circle at 50% 48%, rgba(15, 118, 110, 0.05), transparent 48%);
+}
+
+.stage-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  padding: var(--space-xl) var(--space-xl) 0;
+}
+
+.stage-header h2 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: clamp(22px, 3vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.stage-header p {
+  max-width: 520px;
+  margin: var(--space-sm) 0 0;
+  color: var(--fg-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.stage-badge {
+  align-self: flex-start;
+  min-width: 140px;
+  padding: var(--space-md) var(--space-lg);
+  color: var(--fg-2);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagram-stage {
+  position: relative;
+  min-height: 420px;
+  margin: var(--space-md);
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(204, 251, 241, 0.6) 0 12%, transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.08), transparent 48%),
+    linear-gradient(160deg, rgba(16, 32, 31, 0.95), rgba(20, 40, 38, 0.88) 50%, rgba(30, 60, 56, 0.82));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), var(--shadow-lg);
+}
+
+.diagram-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.45) 0 1px, transparent 1.3px);
+  background-size: 72px 72px, 118px 118px;
+  background-position: 4px 13px, 34px 52px;
+  pointer-events: none;
+}
+
+.flow-node {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--space-md) var(--space-lg);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  min-width: 120px;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flow-node.active {
+  background: rgba(15, 118, 110, 0.3);
+  border-color: rgba(204, 251, 241, 0.5);
+  box-shadow: 0 0 24px rgba(15, 118, 110, 0.3);
+}
+
+.flow-node .node-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(204, 251, 241, 0.8);
+  margin-bottom: var(--space-xs);
+}
+
+.flow-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  transform-origin: top center;
+}
+
+.flow-arrow::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid rgba(255, 255, 255, 0.3);
+}
+
+.focus-card {
+  position: absolute;
+  left: var(--space-xl);
+  bottom: var(--space-xl);
+  z-index: 5;
+  width: min(380px, calc(100% - 40px));
+  padding: var(--space-lg);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(18px);
+}
+
+.focus-card span {
+  display: block;
+  margin-bottom: var(--space-xs);
+  color: rgba(204, 251, 241, 0.88);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.focus-card strong {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-headline);
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.focus-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.stage-footer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  padding: 0 var(--space-xl) var(--space-xl);
+}
+
+.mini-stat {
+  padding: var(--space-lg);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.mini-stat span {
+  display: block;
+  margin-bottom: var(--space-xs);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.mini-stat strong {
+  display: block;
+  font-family: var(--font-headline);
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.right-panel { gap: var(--space-lg); }
+
+.inspector-top {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: var(--space-lg);
+  align-items: center;
+}
+
+.step-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-xl);
+  background: var(--gradient-primary);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-headline);
+  font-size: 28px;
+  font-weight: 700;
+  box-shadow: 0 0 0 8px rgba(15, 118, 110, 0.1);
+}
+
+.inspector-top h2 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.kind-pill {
+  display: inline-flex;
+  margin-top: var(--space-sm);
+  padding: 6px 10px;
+  color: var(--primary);
+  background: var(--primary-fixed);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.metric {
+  min-height: 88px;
+  padding: var(--space-lg);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.metric span {
+  display: block;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.metric strong {
+  display: block;
+  font-family: var(--font-headline);
+  font-size: 18px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.detail-section {
+  padding: var(--space-lg);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+.detail-section h3 {
+  margin-bottom: var(--space-sm);
+  font-family: var(--font-headline);
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.detail-section p, .detail-section li {
+  color: var(--fg-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.detail-section p:last-child { margin-bottom: 0; }
+
+.detail-section ul {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding-left: 18px;
+}
+
+.code-block {
+  padding: var(--space-md);
+  background: rgba(15, 118, 110, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-1);
+  overflow-x: auto;
+}
+
+.compare { margin-top: auto; }
+
+.compare-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.compare-head h3 {
+  margin: 0;
+  font-family: var(--font-headline);
+  font-size: 16px;
+}
+
+.source-note {
+  margin: var(--space-md) 0 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.status-chip {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.status-chip.ok {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #059669;
+}
+
+.status-chip.warn {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #d97706;
+}
+
+.status-chip.missing {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #dc2626;
+}
+
+@media (max-width: 1160px) {
+  .studio { grid-template-columns: 280px minmax(0, 1fr); }
+  .right-panel {
+    grid-column: 1 / -1;
+    min-height: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+  .inspector-top, .tagline, .metric-grid { grid-column: 1; }
+  .detail-section, .compare { grid-column: 2; }
+}
+
+@media (max-width: 820px) {
+  .studio {
+    display: block;
+    padding: var(--space-md);
+  }
+  .left-panel, .stage-wrap, .right-panel {
+    min-height: auto;
+    margin-bottom: var(--space-md);
+  }
+  .step-list {
+    grid-template-columns: 1fr 1fr;
+    margin-top: 0;
+  }
+  .stage-header, .stage-footer { display: block; }
+  .stage-badge { margin-top: var(--space-md); }
+  .diagram-stage { min-height: 380px; }
+  .stage-footer { padding: 0 var(--space-md) var(--space-md); }
+  .mini-stat { margin-top: var(--space-md); }
+  .right-panel { display: flex; }
+}
+
+@media (max-width: 560px) {
+  .studio {
+    padding: var(--space-sm);
+    overflow-x: hidden;
+  }
+  .left-panel, .right-panel {
+    padding: var(--space-lg);
+    overflow: hidden;
+  }
+  h1 { font-size: 26px; line-height: 1.02; }
+  h1 .gradient-text { display: block; }
+  .intro { font-size: 14px; }
+  .step-list { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: 1fr; }
+  .diagram-stage {
+    min-height: 340px;
+    margin: var(--space-sm);
+  }
+  .stage-header { padding: var(--space-lg) var(--space-lg) 0; }
+  .stage-header h2 { font-size: 22px; }
+  .stage-badge {
+    width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .metric strong { font-size: 16px; overflow-wrap: anywhere; }
+  .focus-card {
+    left: var(--space-md);
+    bottom: var(--space-md);
+    width: calc(100% - 24px);
+  }
+  .status-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<main class="studio lesson-shell object-lab">
+  <aside class="panel left-panel step-rail concept-drawer" aria-label="Skill 机制学习导航">
+    <section>
+      <p class="eyebrow">交互式教学实验室</p>
+      <h1>Skill <span class="gradient-text">机制分析</span></h1>
+      <p class="intro">深入理解 Claude Code 中 Skill 的生命周期、两阶段上下文注入和源码实现。通过可视化流程图和对比表格，掌握 ys-code 与 cc 的差异。</p>
+    </section>
+
+    <section class="mode-card">
+      <strong>不是文档，是模型</strong>
+      <p>本页将 Skill 机制视为可交互的学习对象。点击左侧步骤查看不同阶段的流程变化，理解延迟加载和灵活执行的设计哲学。</p>
+    </section>
+
+    <section class="controls try-control" aria-label="显示控制">
+      <div class="segmented" aria-label="视图模式">
+        <button class="active" type="button" data-view="lifecycle">生命周期</button>
+        <button type="button" data-view="comparison">对比视图</button>
+      </div>
+      <button class="pill-button active" type="button" id="motionToggle">暂停动画</button>
+    </section>
+
+    <nav class="step-list" id="stepList" aria-label="学习步骤"></nav>
+  </aside>
+
+  <section class="panel stage-wrap lesson-stage model-stage object-stage" aria-label="Skill 机制可视化">
+    <header class="stage-header">
+      <div>
+        <p class="eyebrow" id="stageEyebrow">Skill 生命周期</p>
+        <h2 id="stageTitle">从 SKILL.md 到 Command</h2>
+        <p id="stageCopy">Skill 不是运行时保留的"文件"形态，而是一种通过 SKILL.md 定义出来的 prompt command。理解这个转换过程是掌握 Skill 机制的关键。</p>
+      </div>
+      <div class="stage-badge" id="stageBadge">延迟加载 · 灵活执行</div>
+    </header>
+
+    <div class="diagram-stage" id="diagramStage" aria-label="交互式流程图">
+      <div id="flowNodes"></div>
+      <div id="flowArrows"></div>
+      <article class="focus-card" aria-live="polite">
+        <span id="focusKind">核心设计</span>
+        <strong id="focusName">统一命令体系</strong>
+        <p id="focusText">skill 与内置命令、plugin 命令共享同一套 registry 和调用机制。</p>
+      </article>
+    </div>
+
+    <footer class="stage-footer" aria-label="关键指标">
+      <div class="mini-stat">
+        <span>核心文件</span>
+        <strong id="quickFiles">6 个</strong>
+      </div>
+      <div class="mini-stat">
+        <span>Command 类型</span>
+        <strong id="quickTypes">3 种</strong>
+      </div>
+      <div class="mini-stat">
+        <span>执行模式</span>
+        <strong id="quickModes">2 种</strong>
+      </div>
+    </footer>
+  </section>
+
+  <aside class="panel right-panel inspector-panel check-yourself recap-strip" aria-label="Skill 详情检查器">
+    <section class="inspector-top">
+      <div class="step-icon" id="stepIcon">1</div>
+      <div>
+        <p class="eyebrow">当前阶段</p>
+        <h2 id="stepName">加载与解析</h2>
+        <span class="kind-pill" id="stepKind">生命周期阶段</span>
+      </div>
+    </section>
+
+    <p class="tagline" id="stepTagline">从文件系统读取 SKILL.md 并解析为结构化数据。</p>
+
+    <section class="metric-grid" aria-label="阶段指标">
+      <div class="metric">
+        <span>输入</span>
+        <strong id="metricInput">SKILL.md</strong>
+      </div>
+      <div class="metric">
+        <span>输出</span>
+        <strong id="metricOutput">Command 对象</strong>
+      </div>
+      <div class="metric">
+        <span>关键函数</span>
+        <strong id="metricFunction">loadSkillsDir</strong>
+      </div>
+      <div class="metric">
+        <span>所在文件</span>
+        <strong id="metricFile">loadSkillsDir.ts</strong>
+      </div>
+    </section>
+
+    <section class="detail-section">
+      <h3>源码实现要点</h3>
+      <p id="sourcePoints">从 <code>/skills/</code> 目录加载 skill，仅支持 <code>skill-name/SKILL.md</code> 格式。解析 frontmatter + markdown 正文，组装成 <code>type = 'prompt'</code> 的 Command。</p>
+    </section>
+
+    <section class="detail-section">
+      <h3>关键代码片段</h3>
+      <div class="code-block" id="codeSnippet">createSkillCommand({
+  name: skillName,
+  description,
+  whenToUse,
+  getPromptForCommand,
+})</div>
+    </section>
+
+    <section class="detail-section compare compare-control">
+      <div class="compare-head">
+        <h3>ys-code 与 cc 对比</h3>
+      </div>
+      <div class="status-grid" id="statusGrid">
+        <div class="status-chip ok">Command 类型</div>
+        <div class="status-chip ok">Skill 加载</div>
+        <div class="status-chip ok">执行模式</div>
+        <div class="status-chip missing">Skill Discovery</div>
+        <div class="status-chip missing">Workflow</div>
+        <div class="status-chip missing">Plugin</div>
+      </div>
+      <p class="source-note">绿色 = 已对齐，红色 = 未实现，黄色 = 建议改进。</p>
+    </section>
+  </aside>
+</main>
+
+<script>
+const DATA = {
+  steps: [
+    {
+      id: "load",
+      name: "加载与解析",
+      kind: "生命周期阶段",
+      tagline: "从文件系统读取 SKILL.md 并解析为结构化数据。",
+      eyebrow: "Skill 生命周期",
+      title: "从 SKILL.md 到 Command",
+      copy: "Skill 不是运行时保留的\"文件\"形态，而是一种通过 SKILL.md 定义出来的 prompt command。理解这个转换过程是掌握 Skill 机制的关键。",
+      badge: "延迟加载 · 灵活执行",
+      focusKind: "核心设计",
+      focusName: "统一命令体系",
+      focusText: "skill 与内置命令、plugin 命令共享同一套 registry 和调用机制。",
+      quickFiles: "6 个",
+      quickTypes: "3 种",
+      quickModes: "2 种",
+      input: "SKILL.md",
+      output: "Command 对象",
+      function: "loadSkillsDir",
+      file: "loadSkillsDir.ts",
+      sourcePoints: "从 /skills/ 目录加载 skill，仅支持 skill-name/SKILL.md 格式。解析 frontmatter + markdown 正文，组装成 type = 'prompt' 的 Command。",
+      codeSnippet: `createSkillCommand({
+  name: skillName,
+  description,
+  whenToUse,
+  getPromptForCommand,
+})`,
+      nodes: [
+        { id: "skillmd", label: "SKILL.md", x: 0, y: -35, active: true },
+        { id: "load", label: "loadSkillsDir", x: 0, y: -15, active: true },
+        { id: "parse", label: "解析 frontmatter", x: 0, y: 5, active: true },
+        { id: "command", label: "Command 对象", x: 0, y: 25, active: false },
+        { id: "registry", label: "命令注册表", x: 0, y: 45, active: false }
+      ],
+      arrows: [
+        { from: "skillmd", to: "load" },
+        { from: "load", to: "parse" }
+      ]
+    },
+    {
+      id: "listing",
+      name: "两阶段注入",
+      kind: "上下文管理",
+      tagline: "Listing 阶段给摘要，Execution 阶段给完整内容。",
+      eyebrow: "上下文注入策略",
+      title: "延迟加载的精髓",
+      copy: "不是一加载就把整份 SKILL.md 塞给模型，而是先给摘要，真正需要时才加载完整内容。这大幅减少了模型上下文负担。",
+      badge: "智能分发 · 按需加载",
+      focusKind: "阶段 1",
+      focusName: "Listing",
+      focusText: "skill 名 + description + whenToUse，让模型知道有哪些 skill 可用。",
+      quickFiles: "2 个阶段",
+      quickTypes: "摘要 vs 完整",
+      quickModes: "动态切换",
+      input: "Command Registry",
+      output: "Attachments",
+      function: "getSkillListingAttachments",
+      file: "attachments.ts",
+      sourcePoints: "阶段 1 (Listing): 仅提供 skill 名、description、whenToUse。阶段 2 (Execution): 提供完整 markdown 内容 + baseDir，让模型获得完整执行指引。",
+      codeSnippet: `// 阶段 1: Listing
+{ name, description, whenToUse }
+
+// 阶段 2: Execution
+{ fullMarkdown, baseDir }`,
+      nodes: [
+        { id: "skillmd", label: "SKILL.md", x: 0, y: -35, active: false },
+        { id: "listing", label: "Listing 摘要", x: -25, y: -5, active: true },
+        { id: "execution", label: "Execution 完整", x: 25, y: -5, active: true },
+        { id: "model", label: "模型上下文", x: 0, y: 25, active: true }
+      ],
+      arrows: [
+        { from: "listing", to: "model" },
+        { from: "execution", to: "model" }
+      ]
+    },
+    {
+      id: "types",
+      name: "Command 类型",
+      kind: "类型系统",
+      tagline: "三种 Command 类型：local、local-jsx、prompt。",
+      eyebrow: "类型设计",
+      title: "灵活的命令体系",
+      copy: "Command 类型系统支持本地执行、UI 渲染和 Prompt 展开三种模式，skill 属于 prompt 类型，先展开成 prompt 再交给模型处理。",
+      badge: "类型安全 · 扩展性强",
+      focusKind: "三种类型",
+      focusName: "Prompt Command",
+      focusText: "先展开成 prompt，再交给模型，如 /commit 命令。",
+      quickFiles: "3 种",
+      quickTypes: "统一基类",
+      quickModes: "可扩展",
+      input: "用户输入",
+      output: "Command 执行",
+      function: "Command 类型守卫",
+      file: "command.ts",
+      sourcePoints: "local: 本地直接执行，如 /clear。local-jsx: 本地 UI 命令，如 /help。prompt: 先展开成 prompt，再交给模型，如 /commit。",
+      codeSnippet: `export type Command = CommandBase &
+  (PromptCommand | LocalCommand | LocalJSXCommand)
+
+// Skill 对应 prompt 类型
+{ type: 'prompt', getPromptForCommand }`,
+      nodes: [
+        { id: "base", label: "CommandBase", x: 0, y: -25, active: true },
+        { id: "local", label: "local", x: -30, y: 5, active: true },
+        { id: "jsx", label: "local-jsx", x: 0, y: 5, active: true },
+        { id: "prompt", label: "prompt", x: 30, y: 5, active: true },
+        { id: "skill", label: "Skill", x: 30, y: 30, active: false }
+      ],
+      arrows: [
+        { from: "base", to: "local" },
+        { from: "base", to: "jsx" },
+        { from: "base", to: "prompt" },
+        { from: "prompt", to: "skill" }
+      ]
+    },
+    {
+      id: "execution",
+      name: "执行流程",
+      kind: "运行时",
+      tagline: "SkillTool 是 skill 的执行桥，支持 inline 和 fork 两种模式。",
+      eyebrow: "执行机制",
+      title: "inline 还是 fork？",
+      copy: "inline 模式并入当前会话执行，fork 模式走 sub-agent。选择哪种模式取决于 skill 的复杂度和隔离需求。",
+      badge: "灵活执行 · 隔离可控",
+      focusKind: "执行模式",
+      focusName: "inline 模式",
+      focusText: "并入当前会话执行，适合简单、上下文依赖强的 skill。",
+      quickFiles: "2 种模式",
+      quickTypes: "SkillTool",
+      quickModes: "动态选择",
+      input: "SkillTool 调用",
+      output: "执行结果",
+      function: "SkillTool.execute",
+      file: "SkillTool.ts",
+      sourcePoints: "接收 skill 名和可选 args，在 Command registry 中查找对应 Command，校验/鉴权后执行（inline 或 fork）。",
+      codeSnippet: `SkillTool: buildTool({
+  name: SKILL_TOOL_NAME,
+  input: z.object({
+    skill: z.string(),
+    args: z.string().optional(),
+  }),
+  execute: async ({ skill, args }) => {
+    // inline 或 fork
+  }
+})`,
+      nodes: [
+        { id: "tool", label: "SkillTool", x: 0, y: -35, active: true },
+        { id: "find", label: "查找 Command", x: 0, y: -15, active: true },
+        { id: "auth", label: "校验/鉴权", x: 0, y: 5, active: true },
+        { id: "inline", label: "inline", x: -20, y: 30, active: true },
+        { id: "fork", label: "fork", x: 20, y: 30, active: true }
+      ],
+      arrows: [
+        { from: "tool", to: "find" },
+        { from: "find", to: "auth" },
+        { from: "auth", to: "inline" },
+        { from: "auth", to: "fork" }
+      ]
+    },
+    {
+      id: "comparison",
+      name: "差异对比",
+      kind: "对比分析",
+      tagline: "ys-code 已复刻核心机制，但缺少 Discovery、Workflow 和 Plugin。",
+      eyebrow: "现状评估",
+      title: "已对齐 vs 未实现",
+      copy: "ys-code 已完整复刻 Command 类型系统、Skill 加载机制和执行流程。差距主要在生态扩展能力：搜索发现、工作流编排和第三方插件。",
+      badge: "核心对齐 · 生态待建",
+      focusKind: "优先级",
+      focusName: "P0: 命名空间隔离",
+      focusText: "建议显式引入命名空间或优先级机制，避免 skill 名称与内置命令冲突。",
+      quickFiles: "10 项已对齐",
+      quickTypes: "3 项未实现",
+      quickModes: "4 项建议",
+      input: "cc 功能清单",
+      output: "ys-code 实现状态",
+      function: "对比矩阵",
+      file: "mechanism.md",
+      sourcePoints: "已对齐：Command 统一类型、prompt skill、目录格式、加载逻辑、createSkillCommand、SkillTool、inline/fork 模式。未实现：Skill search/discovery、Workflow commands、Plugin skills。",
+      codeSnippet: `// 建议：命名空间隔离
+{ namespace: 'skill', name: 'commit' }
+// 而非直接覆盖内置命令`,
+      nodes: [
+        { id: "cc", label: "Claude Code", x: -30, y: -20, active: true },
+        { id: "yscode", label: "ys-code", x: 30, y: -20, active: true },
+        { id: "core", label: "核心机制", x: 0, y: 5, active: true },
+        { id: "discovery", label: "Discovery", x: -20, y: 30, active: false },
+        { id: "workflow", label: "Workflow", x: 0, y: 30, active: false },
+        { id: "plugin", label: "Plugin", x: 20, y: 30, active: false }
+      ],
+      arrows: [
+        { from: "cc", to: "core" },
+        { from: "yscode", to: "core" },
+        { from: "cc", to: "discovery" },
+        { from: "cc", to: "workflow" },
+        { from: "cc", to: "plugin" }
+      ]
+    },
+    {
+      id: "recommendations",
+      name: "改进建议",
+      kind: "行动项",
+      tagline: "四项建议：Discovery、Workflow、Plugin、命名空间隔离。",
+      eyebrow: "后续规划",
+      title: "从复刻到超越",
+      copy: "在保持核心机制对齐的基础上，逐步引入生态扩展能力。优先级：P0 命名空间隔离，P1 Skill Discovery，P2 Workflow 和 Plugin 占位。",
+      badge: "渐进增强 · 生态建设",
+      focusKind: "下一步",
+      focusName: "Skill Discovery",
+      focusText: "基于关键词/描述推荐相关 skill，减少模型上下文负担。",
+      quickFiles: "4 项建议",
+      quickTypes: "2 个 P0",
+      quickModes: "渐进实施",
+      input: "当前差距",
+      output: "实施路线图",
+      function: "优先级排序",
+      file: "roadmap.md",
+      sourcePoints: "P0: Command 命名空间隔离 — 避免 skill 与内置命令冲突。P1: Skill Discovery — 基于上下文推荐 skill。P2: Workflow Commands — 预留工作流类型和注册点。P2: Plugin Skills — 预留第三方扩展接口。",
+      codeSnippet: `// 建议的 Discovery API
+recommendSkills(taskContext: string): Skill[]
+
+// 建议的 Workflow 占位
+interface WorkflowCommand {
+  type: 'workflow';
+  steps: Command[];
+}`,
+      nodes: [
+        { id: "now", label: "当前状态", x: 0, y: -30, active: true },
+        { id: "p0", label: "P0 命名空间", x: -25, y: -5, active: true },
+        { id: "p1", label: "P1 Discovery", x: 0, y: -5, active: true },
+        { id: "p2a", label: "P2 Workflow", x: -15, y: 25, active: false },
+        { id: "p2b", label: "P2 Plugin", x: 15, y: 25, active: false },
+        { id: "future", label: "完整生态", x: 0, y: 45, active: false }
+      ],
+      arrows: [
+        { from: "now", to: "p0" },
+        { from: "now", to: "p1" },
+        { from: "p1", to: "p2a" },
+        { from: "p1", to: "p2b" },
+        { from: "p2a", to: "future" },
+        { from: "p2b", to: "future" }
+      ]
+    }
+  ]
+};
+
+const state = {
+  selected: "load",
+  view: "lifecycle",
+  moving: true,
+  phase: 0
+};
+
+const els = {
+  stepList: document.getElementById("stepList"),
+  stageEyebrow: document.getElementById("stageEyebrow"),
+  stageTitle: document.getElementById("stageTitle"),
+  stageCopy: document.getElementById("stageCopy"),
+  stageBadge: document.getElementById("stageBadge"),
+  focusKind: document.getElementById("focusKind"),
+  focusName: document.getElementById("focusName"),
+  focusText: document.getElementById("focusText"),
+  quickFiles: document.getElementById("quickFiles"),
+  quickTypes: document.getElementById("quickTypes"),
+  quickModes: document.getElementById("quickModes"),
+  stepIcon: document.getElementById("stepIcon"),
+  stepName: document.getElementById("stepName"),
+  stepKind: document.getElementById("stepKind"),
+  stepTagline: document.getElementById("stepTagline"),
+  metricInput: document.getElementById("metricInput"),
+  metricOutput: document.getElementById("metricOutput"),
+  metricFunction: document.getElementById("metricFunction"),
+  metricFile: document.getElementById("metricFile"),
+  sourcePoints: document.getElementById("sourcePoints"),
+  codeSnippet: document.getElementById("codeSnippet"),
+  flowNodes: document.getElementById("flowNodes"),
+  flowArrows: document.getElementById("flowArrows"),
+  motionToggle: document.getElementById("motionToggle")
+};
+
+function stepById(id) {
+  return DATA.steps.find((s) => s.id === id) || DATA.steps[0];
+}
+
+function renderShell() {
+  els.stepList.innerHTML = DATA.steps.map((step, index) => `
+    <button class="step-button ${step.id === state.selected ? "active" : ""}" type="button" data-id="${step.id}">
+      <span class="step-num">${index + 1}</span>
+      <span>${step.name}</span>
+    </button>
+  `).join("");
+
+  els.stepList.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => setStep(button.dataset.id));
+  });
+}
+
+function renderFlowNodes(step) {
+  const stage = document.getElementById("diagramStage");
+  const stageRect = stage.getBoundingClientRect();
+  const centerX = stageRect.width / 2;
+  const centerY = stageRect.height / 2;
+  const scale = Math.min(stageRect.width, stageRect.height) / 100;
+
+  els.flowNodes.innerHTML = step.nodes.map((node, index) => {
+    const x = centerX + node.x * scale * 0.8;
+    const y = centerY + node.y * scale * 0.8;
+    return `
+      <div class="flow-node ${node.active ? 'active' : ''}" style="left: ${x}px; top: ${y}px; transform: translate(-50%, -50%);">
+        <span class="node-label">${node.label}</span>
+      </div>
+    `;
+  }).join("");
+
+  els.flowArrows.innerHTML = step.arrows.map((arrow) => {
+    const fromNode = step.nodes.find(n => n.id === arrow.from);
+    const toNode = step.nodes.find(n => n.id === arrow.to);
+    if (!fromNode || !toNode) return '';
+
+    const x1 = centerX + fromNode.x * scale * 0.8;
+    const y1 = centerY + fromNode.y * scale * 0.8;
+    const x2 = centerX + toNode.x * scale * 0.8;
+    const y2 = centerY + toNode.y * scale * 0.8;
+
+    const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+
+    return `
+      <div class="flow-arrow" style="left: ${x1}px; top: ${y1}px; height: ${length}px; transform: rotate(${angle - 90}deg);"></div>
+    `;
+  }).join("");
+}
+
+function renderSelected() {
+  const step = stepById(state.selected);
+
+  els.stageEyebrow.textContent = step.eyebrow;
+  els.stageTitle.textContent = step.title;
+  els.stageCopy.textContent = step.copy;
+  els.stageBadge.textContent = step.badge;
+  els.focusKind.textContent = step.focusKind;
+  els.focusName.textContent = step.focusName;
+  els.focusText.textContent = step.focusText;
+  els.quickFiles.textContent = step.quickFiles;
+  els.quickTypes.textContent = step.quickTypes;
+  els.quickModes.textContent = step.quickModes;
+
+  els.stepIcon.textContent = DATA.steps.findIndex(s => s.id === state.selected) + 1;
+  els.stepName.textContent = step.name;
+  els.stepKind.textContent = step.kind;
+  els.stepTagline.textContent = step.tagline;
+  els.metricInput.textContent = step.input;
+  els.metricOutput.textContent = step.output;
+  els.metricFunction.textContent = step.function;
+  els.metricFile.textContent = step.file;
+  els.sourcePoints.innerHTML = step.sourcePoints;
+  els.codeSnippet.textContent = step.codeSnippet;
+
+  renderFlowNodes(step);
+}
+
+function updateActiveStates() {
+  document.querySelectorAll(".step-button").forEach((node) => {
+    node.classList.toggle("active", node.dataset.id === state.selected);
+  });
+  document.querySelectorAll("[data-view]").forEach((node) => {
+    node.classList.toggle("active", node.dataset.view === state.view);
+  });
+  els.motionToggle.textContent = state.moving ? "暂停动画" : "播放动画";
+  els.motionToggle.classList.toggle("active", state.moving);
+}
+
+function setStep(id) {
+  state.selected = id;
+  renderAll();
+}
+
+function renderAll() {
+  renderShell();
+  renderSelected();
+  updateActiveStates();
+}
+
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.view = button.dataset.view;
+    updateActiveStates();
+  });
+});
+
+els.motionToggle.addEventListener("click", () => {
+  state.moving = !state.moving;
+  updateActiveStates();
+});
+
+window.addEventListener("resize", () => {
+  renderFlowNodes(stepById(state.selected));
+});
+
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compact 系统概述 — 上下文压缩机制对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--fg-1);
+  background: var(--bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Document Shell */
+.document-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+
+/* Cover */
+.cover {
+  margin-bottom: var(--space-4xl);
+  padding-bottom: var(--space-3xl);
+  border-bottom: 1px solid var(--border-strong);
+}
+.cover-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-md);
+}
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0 0 var(--space-lg);
+  letter-spacing: -0.01em;
+}
+.cover .deck {
+  font-size: 1.15rem;
+  color: var(--fg-2);
+  max-width: 720px;
+  line-height: 1.55;
+  margin: 0 0 var(--space-xl);
+}
+.caveat-box {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-xl);
+  font-size: 0.95rem;
+  color: var(--fg-2);
+  max-width: 640px;
+}
+.caveat-box strong {
+  color: var(--primary);
+}
+
+/* Reader Rail */
+.reader-rail {
+  position: sticky;
+  top: var(--space-xl);
+  align-self: start;
+}
+.reader-rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.reader-rail a {
+  text-decoration: none;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.reader-rail a:hover, .reader-rail a.active {
+  color: var(--primary);
+  background: var(--surface-container-low);
+}
+
+/* Layout Grid */
+.layout-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-4xl);
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .reader-rail {
+    position: relative;
+    top: auto;
+    order: -1;
+  }
+  .reader-rail nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+}
+
+/* Body Sections */
+.body-section {
+  margin-bottom: var(--space-5xl);
+}
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 var(--space-lg);
+  letter-spacing: -0.01em;
+}
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: var(--space-2xl) 0 var(--space-md);
+  color: var(--fg-2);
+}
+.body-section p {
+  margin: 0 0 var(--space-lg);
+  color: var(--fg-2);
+}
+
+/* Claim Card */
+.claim-card {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.claim-card h4 {
+  font-family: var(--font-headline);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--space-sm);
+  color: var(--primary);
+}
+.claim-card p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Code Blocks */
+pre {
+  background: #0f1115;
+  color: #e6e6e6;
+  padding: var(--space-lg);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: var(--space-lg) 0;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Fact Table */
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xl) 0;
+  font-size: 0.92rem;
+}
+.fact-table th, .fact-table td {
+  text-align: left;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  background: var(--surface-container-low);
+}
+.fact-table tr:hover td {
+  background: var(--surface-container-low);
+}
+.fact-table td:first-child {
+  font-weight: 600;
+  color: var(--fg-1);
+}
+
+/* Evidence Margin */
+.evidence-margin {
+  border-left: 3px solid var(--primary);
+  padding-left: var(--space-lg);
+  margin: var(--space-xl) 0;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+/* Source Spread */
+.source-spread {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.source-spread h4 {
+  font-family: var(--font-headline);
+  font-size: 1rem;
+  margin: 0 0 var(--space-md);
+}
+.source-spread ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+  color: var(--fg-2);
+}
+.source-spread li {
+  margin-bottom: var(--space-sm);
+}
+
+/* Question Panel */
+.question-panel {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin-top: var(--space-3xl);
+}
+.question-panel h3 {
+  margin-top: 0;
+  color: var(--primary);
+}
+.question-panel ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+  color: var(--fg-2);
+}
+.question-panel li {
+  margin-bottom: var(--space-sm);
+}
+
+/* Phase Diagram */
+.phase-diagram {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--fg-2);
+}
+.phase-diagram .phase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+.phase-diagram .phase-arrow {
+  color: var(--primary);
+  font-weight: 700;
+}
+.phase-diagram .phase-name {
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.phase-diagram .phase-desc {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+}
+
+/* Priority Tags */
+.pri-p1 { color: var(--red); font-weight: 600; }
+.pri-p2 { color: var(--yellow); font-weight: 600; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-lg);
+  }
+  .fact-table {
+    font-size: 0.85rem;
+  }
+  .fact-table th, .fact-table td {
+    padding: var(--space-sm);
+  }
+}
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <!-- Cover -->
+  <header class="cover">
+    <div class="cover-eyebrow">Technical Document / ys-code</div>
+    <h1>Compact 系统概述</h1>
+    <p class="deck">对话式 AI 工具管理长对话上下文的核心机制。对比 Claude Code 与 Pi-mono 的压缩策略，提出 ys-code 的混合实现路径。</p>
+    <div class="caveat-box">
+      <strong>现状说明：</strong> ys-code 当前未实现 Compact 系统。消息纯内存存储（<code>Agent._state.messages</code>），无持久化、无会话恢复、无压缩。
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="layout-grid">
+    <!-- Reader Rail -->
+    <aside class="reader-rail">
+      <nav>
+        <a href="#background" class="active">背景与定位</a>
+        <a href="#principles">核心原理</a>
+        <a href="#implementation">源码实现</a>
+        <a href="#comparison">对比分析</a>
+        <a href="#recommendations">借鉴建议</a>
+        <a href="#roadmap">实现路径</a>
+      </nav>
+    </aside>
+
+    <!-- Body Sheet -->
+    <main>
+      <!-- Section 1: Background -->
+      <section class="body-section" id="background">
+        <h2>背景与定位</h2>
+        <p>Compact（上下文压缩）系统是对话式 AI 工具管理长对话上下文的核心机制。当对话 Token 数量接近模型上下文窗口限制时，系统通过压缩历史消息为摘要来释放上下文空间，确保对话能持续进行而不丢失关键信息。</p>
+
+        <div class="claim-card">
+          <h4>核心问题</h4>
+          <p>长对话中，消息历史会线性增长，最终耗尽模型的上下文窗口（通常 100K-200K tokens）。若无压缩机制，对话将在数十轮后无法继续。</p>
+        </div>
+      </section>
+
+      <!-- Section 2: Core Principles -->
+      <section class="body-section" id="principles">
+        <h2>核心原理</h2>
+
+        <h3>Claude Code 架构：多级压缩</h3>
+        <p>Claude Code 采用从轻到重的渐进策略：</p>
+        <div class="phase-diagram">
+          <div class="phase">
+            <span class="phase-name">microCompact</span>
+            <span class="phase-arrow">→</span>
+            <span class="phase-desc">轻量级清理，Time-based + Cached MC</span>
+          </div>
+          <div class="phase">
+            <span class="phase-name">sessionMemoryCompact</span>
+            <span class="phase-arrow">→</span>
+            <span class="phase-desc">实验性会话记忆压缩</span>
+          </div>
+          <div class="phase">
+            <span class="phase-name">compactConversation</span>
+            <span class="phase-arrow"></span>
+            <span class="phase-desc">全量压缩，Forked Agent 缓存复用</span>
+          </div>
+        </div>
+
+        <p><strong>触发条件：</strong> 当 <code>tokenCount >= contextWindow - 33,000</code> 时触发（预留 20K 输出 + 13K 缓冲）。</p>
+
+        <div class="evidence-margin">
+          关键设计：Forked Agent 缓存复用实现 98% 命中率；连续 3 次失败后熔断停止自动压缩。
+        </div>
+
+        <h3>Pi-mono 架构：单一全量压缩</h3>
+        <p>基于树形会话结构的压缩策略：</p>
+        <ul style="color: var(--fg-2); margin-bottom: var(--space-lg);">
+          <li>触发条件：<code>contextTokens > contextWindow - reserveTokens</code>（默认预留 16,384）</li>
+          <li>核心流程：prepareCompaction → findCutPoint → generateSummary → SessionManager 追加</li>
+          <li>关键设计：原生支持分支摘要、迭代更新前一个摘要、累积文件追踪</li>
+        </ul>
+      </section>
+
+      <!-- Section 3: Implementation -->
+      <section class="body-section" id="implementation">
+        <h2>源码实现</h2>
+
+        <h3>Claude Code 核心文件</h3>
+        <div class="source-spread">
+          <h4>文件结构（~2,400 行，10 文件）</h4>
+          <ul>
+            <li><code>compact.ts</code> — 核心压缩引擎（~1,700 行）</li>
+            <li><code>autoCompact.ts</code> — 自动压缩触发器（~350 行）</li>
+            <li><code>microCompact.ts</code> — 微压缩（~530 行）</li>
+            <li><code>sessionMemoryCompact.ts</code> — 会话记忆压缩（~630 行）</li>
+            <li><code>prompt.ts</code> — 提示词模板（~375 行）</li>
+            <li><code>grouping.ts</code> — 消息分组（~63 行）</li>
+            <li><code>postCompactCleanup.ts</code> — 压缩后清理（~77 行）</li>
+          </ul>
+        </div>
+
+        <pre><code>// autoCompact.ts: 阈值计算
+export function getAutoCompactThreshold(model: string): number {
+  const effectiveContextWindow = getEffectiveContextWindowSize(model)
+  return effectiveContextWindow - AUTOCOMPACT_BUFFER_TOKENS  // 13,000
+}
+
+// compact.ts: 核心压缩流程
+export async function compactConversation(
+  messages: Message[],
+  context: ToolUseContext,
+  cacheSafeParams: CacheSafeParams,
+  suppressFollowUpQuestions: boolean,
+  customInstructions?: string,
+  isAutoCompact: boolean = false,
+): Promise&lt;CompactionResult&gt; {
+  // Phase 1: Pre-compact hooks
+  // Phase 2: Stream summary (with PTL retry)
+  // Phase 3: Post-compact cleanup + attachments
+  // Phase 4: Telemetry
+  // Phase 5: Post-compact hooks
+}</code></pre>
+
+        <h3>Pi-mono 核心文件</h3>
+        <div class="source-spread">
+          <h4>文件结构（~1,350 行，4 文件）</h4>
+          <ul>
+            <li><code>compaction.ts</code> — 自动压缩逻辑（~823 行）</li>
+            <li><code>branch-summarization.ts</code> — 分支摘要（~355 行）</li>
+            <li><code>utils.ts</code> — 共享工具（~170 行）</li>
+            <li><code>index.ts</code> — 导出入口</li>
+          </ul>
+        </div>
+
+        <pre><code>// compaction.ts: 切割点查找
+export function findCutPoint(
+  entries: SessionEntry[],
+  startIndex: number,
+  endIndex: number,
+  keepRecentTokens: number
+): CutPointResult {
+  const cutPoints = findValidCutPoints(entries, startIndex, endIndex);
+  let accumulatedTokens = 0;
+  for (let i = endIndex - 1; i >= startIndex; i--) {
+    accumulatedTokens += estimateTokens(entry.message);
+    if (accumulatedTokens >= keepRecentTokens) {
+      return { firstKeptEntryIndex: cutPoints[c], ... };
+    }
+  }
+}</code></pre>
+      </section>
+
+      <!-- Section 4: Comparison -->
+      <section class="body-section" id="comparison">
+        <h2>与 ys-code 对比</h2>
+
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>方面</th>
+              <th>Claude Code</th>
+              <th>Pi-mono</th>
+              <th>ys-code</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>触发方式</td>
+              <td>自动（阈值计算）+ 手动 <code>/compact</code></td>
+              <td>自动 + 手动 <code>/compact</code></td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>架构风格</td>
+              <td>多级压缩（micro → sessionMemory → full）</td>
+              <td>单一全量压缩</td>
+              <td>无</td>
+            </tr>
+            <tr>
+              <td>消息模型</td>
+              <td>扁平消息列表</td>
+              <td>树形 Session Entries</td>
+              <td>扁平数组</td>
+            </tr>
+            <tr>
+              <td>摘要生成</td>
+              <td>Forked Agent 复用 cache 或 Streaming</td>
+              <td>直接调用 LLM</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>迭代摘要</td>
+              <td>不支持（每次独立）</td>
+              <td>支持（更新前一个摘要）</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>微压缩</td>
+              <td>Time-based + Cached MC</td>
+              <td>无</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>Session Memory</td>
+              <td>实验性支持</td>
+              <td>无</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>树形支持</td>
+              <td>无（仅 partialCompact）</td>
+              <td>原生 Branch Summary</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>文件追踪</td>
+              <td>压缩后重新注入附件</td>
+              <td>累积追踪到 details</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>熔断机制</td>
+              <td>连续 3 次失败后停止</td>
+              <td>无</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>附件恢复</td>
+              <td>文件、技能、计划、Agent</td>
+              <td>仅文件操作追踪</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>扩展机制</td>
+              <td>PreCompact/PostCompact Hooks</td>
+              <td>session_before_compact event</td>
+              <td>未实现</td>
+            </tr>
+            <tr>
+              <td>代码规模</td>
+              <td>~2,400 行（10 文件）</td>
+              <td>~1,350 行（4 文件）</td>
+              <td>0</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 5: Recommendations -->
+      <section class="body-section" id="recommendations">
+        <h2>可借鉴点与建议</h2>
+
+        <h3>建议对齐 Claude Code</h3>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>特性</th>
+              <th>优先级</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>多级压缩策略</td>
+              <td class="pri-p1">P1</td>
+              <td>microCompact → full compact 的渐进策略减少全量压缩频率</td>
+            </tr>
+            <tr>
+              <td>Forked Agent 缓存复用</td>
+              <td class="pri-p1">P1</td>
+              <td>复用 prompt cache 可显著降低压缩成本和延迟</td>
+            </tr>
+            <tr>
+              <td>熔断机制</td>
+              <td class="pri-p2">P2</td>
+              <td>防止不可恢复场景下无限重试</td>
+            </tr>
+            <tr>
+              <td>附件保留策略</td>
+              <td class="pri-p2">P2</td>
+              <td>压缩后重新注入关键文件和技能上下文</td>
+            </tr>
+            <tr>
+              <td>PTL 重试机制</td>
+              <td class="pri-p2">P2</td>
+              <td>压缩请求本身超长时的优雅降级</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>建议对齐 Pi-mono</h3>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>特性</th>
+              <th>优先级</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>树形会话结构</td>
+              <td class="pri-p1">P1</td>
+              <td>原生支持分支和分支摘要，为后续 <code>/tree</code> 命令打基础</td>
+            </tr>
+            <tr>
+              <td>迭代摘要</td>
+              <td class="pri-p2">P2</td>
+              <td>基于前一个摘要增量更新，保持连贯性</td>
+            </tr>
+            <tr>
+              <td>累积文件追踪</td>
+              <td class="pri-p2">P2</td>
+              <td>跨多次压缩累积文件操作，避免重复读取</td>
+            </tr>
+            <tr>
+              <td>简洁实现</td>
+              <td class="pri-p2">P2</td>
+              <td>4 个文件 ~1,350 行，适合 MVP 快速落地</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 6: Roadmap -->
+      <section class="body-section" id="roadmap">
+        <h2>推荐实现路径</h2>
+
+        <div class="claim-card">
+          <h4>核心建议</h4>
+          <p>采用 <strong>Pi-mono 风格树形结构 + Claude Code 多级压缩策略</strong> 的混合方案。</p>
+        </div>
+
+        <div class="phase-diagram">
+          <div class="phase">
+            <span class="phase-name">Phase 1</span>
+            <span class="phase-arrow">→</span>
+            <span class="phase-desc">Pi-mono 风格持久化（JSONL + 树 + 内存构建）</span>
+          </div>
+          <div class="phase">
+            <span class="phase-name">Phase 2</span>
+            <span class="phase-arrow">→</span>
+            <span class="phase-desc">基于持久化的 Compact（自动/手动触发 + 迭代摘要）</span>
+          </div>
+          <div class="phase">
+            <span class="phase-name">Phase 3</span>
+            <span class="phase-arrow">→</span>
+            <span class="phase-desc">引入 Claude Code 风格的多级压缩（microCompact + 缓存复用）</span>
+          </div>
+          <div class="phase">
+            <span class="phase-name">Phase 4</span>
+            <span class="phase-arrow"></span>
+            <span class="phase-desc">如果会话文件变大，引入分块截断读取优化</span>
+          </div>
+        </div>
+
+        <h3>Phase 1 核心工作量</h3>
+        <ul style="color: var(--fg-2); margin-bottom: var(--space-lg);">
+          <li>定义 <code>SessionEntry</code> 类型体系（header + message + compaction + ...）</li>
+          <li>实现 <code>SessionManager</code> 类（加载/追加/构建 context）</li>
+          <li>将 <code>AgentSession</code> 的消息存储从内存数组改为 <code>SessionManager</code></li>
+          <li>添加 <code>--resume</code> 或自动恢复最近会话的能力</li>
+        </ul>
+
+        <h3>Phase 2 核心工作量</h3>
+        <ul style="color: var(--fg-2); margin-bottom: var(--space-lg);">
+          <li>Token 估算函数</li>
+          <li>压缩触发判断（阈值计算）</li>
+          <li>摘要生成（调用 LLM）</li>
+          <li><code>CompactionEntry</code> 写入 + <code>buildSessionContext</code> 处理 compaction</li>
+        </ul>
+      </section>
+
+      <!-- Question Panel -->
+      <div class="question-panel">
+        <h3>参考链接</h3>
+        <ul>
+          <li><strong>Claude Code 源码：</strong> <code>refer/claude-code-haha/src/services/compact/</code></li>
+          <li><strong>Pi-mono 源码：</strong> <code>refer/pi-mono/packages/coding-agent/src/core/compaction/</code></li>
+          <li><strong>Pi-mono 会话文档：</strong> <code>refer/pi-mono/packages/coding-agent/docs/session.md</code></li>
+          <li><strong>Claude Code 持久化：</strong> <code>refer/claude-code-haha/src/utils/sessionStorage.ts</code></li>
+        </ul>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+// Smooth scroll for nav links
+const links = document.querySelectorAll('.reader-rail a');
+const sections = document.querySelectorAll('.body-section');
+
+links.forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// Active section highlighting on scroll
+const observerOptions = { rootMargin: '-20% 0px -80% 0px' };
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.getAttribute('id');
+      links.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, observerOptions);
+
+sections.forEach(section => observer.observe(section));
+</script>
+</body>
+</html>

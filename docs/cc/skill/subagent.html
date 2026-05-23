@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubAgent 机制分析 | ys-code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #0a0a0a;
+      --surface-container-lowest: #0a0a0a;
+      --surface-container-low: #0d160d;
+      --surface-container: #102610;
+      --surface-container-high: #153315;
+      --primary: #33ff00;
+      --secondary: #ffb000;
+      --muted: #1f521f;
+      --accent: #33ff00;
+      --error: #ff3333;
+      --border: #1f521f;
+      --border-strong: #33ff00;
+      --fg-1: #33ff00;
+      --fg-2: #b7ff9a;
+      --fg-muted: #1f521f;
+      --on-primary: #050505;
+      --green: #33ff00;
+      --yellow: #ffb000;
+      --red: #ff3333;
+      --blue: #72d5ff;
+      --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+      --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+      --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+      --shadow-accent: none;
+      --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 13px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* CRT scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 1px,
+        rgba(0, 0, 0, 0.03) 1px,
+        rgba(0, 0, 0, 0.03) 2px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .dev-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-lg);
+    }
+
+    /* Prompt line */
+    .terminal-prompt {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      margin-bottom: var(--space-xl);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .prompt-user { color: var(--fg-1); }
+    .prompt-host { color: var(--fg-2); }
+    .prompt-path { color: var(--secondary); }
+    .prompt-symbol { color: var(--fg-1); }
+    .prompt-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--primary);
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Finding bar */
+    .finding-bar {
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container-low);
+      padding: var(--space-md) var(--space-lg);
+      margin-bottom: var(--space-xl);
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .finding-bar .status-code {
+      font-weight: 700;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    .finding-bar .hypothesis-chip {
+      color: var(--secondary);
+      border: 1px solid var(--secondary);
+      padding: 2px 8px;
+    }
+
+    .finding-bar .meta {
+      color: var(--fg-muted);
+      margin-left: auto;
+    }
+
+    /* Terminal panes */
+    .terminal-pane {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      margin-bottom: var(--space-xl);
+    }
+
+    .pane-title {
+      background: var(--surface-container-low);
+      color: var(--fg-2);
+      padding: var(--space-sm) var(--space-md);
+      font-size: 12px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .pane-title::before {
+      content: '+--- ';
+      color: var(--fg-muted);
+    }
+
+    .pane-title::after {
+      content: ' ---+';
+      color: var(--fg-muted);
+      margin-left: auto;
+    }
+
+    .pane-body {
+      padding: var(--space-md) var(--space-lg);
+    }
+
+    /* Risk checklist */
+    .risk-checklist {
+      list-style: none;
+    }
+
+    .risk-checklist li {
+      padding: var(--space-sm) 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+
+    .risk-checklist li:last-child {
+      border-bottom: none;
+    }
+
+    .risk-checklist .severity {
+      font-weight: 700;
+      min-width: 60px;
+      flex-shrink: 0;
+    }
+
+    .severity-ok { color: var(--green); }
+    .severity-warn { color: var(--yellow); }
+    .severity-err { color: var(--error); }
+    .severity-hyp { color: var(--blue); }
+
+    /* Status codes */
+    .status-code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* Raw artifact */
+    .raw-artifact {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .raw-artifact pre {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      padding: var(--space-md);
+      color: var(--fg-2);
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .raw-artifact .line-num {
+      color: var(--fg-muted);
+      display: inline-block;
+      width: 30px;
+      text-align: right;
+      margin-right: var(--space-md);
+      user-select: none;
+    }
+
+    .raw-artifact .comment { color: var(--fg-muted); }
+    .raw-artifact .keyword { color: var(--primary); }
+    .raw-artifact .string { color: var(--secondary); }
+    .raw-artifact .type { color: var(--blue); }
+
+    /* Copy handoff */
+    .copy-handoff {
+      margin-top: var(--space-xl);
+      text-align: center;
+    }
+
+    .copy-handoff button {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      padding: var(--space-sm) var(--space-xl);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .copy-handoff button:hover,
+    .copy-handoff button:focus {
+      background: var(--primary);
+      color: var(--on-primary);
+      outline: none;
+    }
+
+    /* ASCII dividers */
+    .ascii-divider {
+      color: var(--fg-muted);
+      text-align: center;
+      margin: var(--space-xl) 0;
+      font-size: 12px;
+      letter-spacing: 2px;
+    }
+
+    /* Grid layout for panes */
+    .pane-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+    }
+
+    @media (max-width: 768px) {
+      .pane-grid {
+        grid-template-columns: 1fr;
+      }
+      .finding-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .finding-bar .meta {
+        margin-left: 0;
+      }
+    }
+
+    /* Table styling */
+    .fact-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .fact-table th,
+    .fact-table td {
+      text-align: left;
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .fact-table th {
+      color: var(--fg-2);
+      font-weight: 600;
+      background: var(--surface-container-low);
+    }
+
+    .fact-table td {
+      color: var(--fg-1);
+    }
+
+    .fact-table .align { color: var(--green); }
+    .fact-table .diff { color: var(--yellow); }
+    .fact-table .na { color: var(--fg-muted); }
+
+    /* Section nav */
+    .section-nav {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-xl);
+      padding: var(--space-md);
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+    }
+
+    .section-nav a {
+      color: var(--fg-2);
+      text-decoration: none;
+      padding: 2px 8px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .section-nav a:hover,
+    .section-nav a:focus {
+      color: var(--primary);
+      border-color: var(--primary);
+      outline: none;
+    }
+
+    /* Evidence margin */
+    .evidence-margin {
+      border-left: 2px solid var(--primary);
+      padding-left: var(--space-md);
+      margin: var(--space-md) 0;
+      color: var(--fg-2);
+      font-size: 12px;
+    }
+
+    /* Claim card */
+    .claim-card {
+      border: 1px solid var(--border);
+      padding: var(--space-md);
+      margin-bottom: var(--space-md);
+      background: var(--surface-container-low);
+    }
+
+    .claim-card .claim-title {
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: var(--space-xs);
+    }
+
+    /* Search box */
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-xl);
+      padding: var(--space-md);
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+    }
+
+    .search-box label {
+      color: var(--fg-muted);
+      white-space: nowrap;
+    }
+
+    .search-box input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--fg-1);
+      padding: var(--space-sm) var(--space-md);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+    }
+
+    .search-box input::placeholder {
+      color: var(--fg-muted);
+    }
+
+    /* Hidden by search */
+    .hidden-by-search {
+      display: none !important;
+    }
+
+    /* Highlight */
+    .highlight {
+      background: rgba(51, 255, 0, 0.15);
+      padding: 0 2px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--surface);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--muted);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="dev-shell">
+    <!-- Terminal Prompt -->
+    <div class="terminal-prompt">
+      <span class="prompt-user">review</span><span class="prompt-symbol">@</span><span class="prompt-host">ys-code</span><span class="prompt-symbol">:</span><span class="prompt-path">~/docs/cc/skill</span><span class="prompt-symbol">$</span> scan --risk --evidence subagent.md<span class="prompt-cursor"></span>
+    </div>
+
+    <!-- Finding Bar -->
+    <div class="finding-bar">
+      <span class="status-code">[OK]</span>
+      <span>核心机制已对齐: createSubagentContext + runForkedAgent</span>
+      <span class="hypothesis-chip">[HYP] 3项建议待评估</span>
+      <span class="meta">source: docs/cc/skill/subagent.md | 192 lines</span>
+    </div>
+
+    <!-- Section Navigation -->
+    <div class="section-nav">
+      <a href="#background">#background</a>
+      <a href="#principles">#principles</a>
+      <a href="#implementation">#implementation</a>
+      <a href="#comparison">#comparison</a>
+      <a href="#recommendations">#recommendations</a>
+    </div>
+
+    <!-- Search -->
+    <div class="search-box">
+      <label>grep@raw:~$</label>
+      <input type="text" id="searchInput" placeholder="搜索内容... (支持正则)" />
+    </div>
+
+    <!-- Core Status Pane -->
+    <div class="terminal-pane">
+      <div class="pane-title">STATUS OVERVIEW</div>
+      <div class="pane-body">
+        <div class="claim-card">
+          <div class="claim-title">SubAgent 机制分析</div>
+          <div>主会话中启动的独立工作单元，支持并行执行、上下文隔离、Prompt Cache 复用。</div>
+        </div>
+        <div class="evidence-margin">
+          形象类比: 主会话是航母，subAgent 是弹射起飞的战斗机——共享跑道（Prompt Cache）、独立作战（状态隔离）、可回收（单向 Abort）。
+        </div>
+        <div class="ascii-divider">// --- 核心指标 --- //</div>
+        <table class="fact-table">
+          <tr>
+            <th>维度</th>
+            <th>状态</th>
+            <th>说明</th>
+          </tr>
+          <tr>
+            <td>并行执行</td>
+            <td class="align">已对齐</td>
+            <td>同步/异步两种模式</td>
+          </tr>
+          <tr>
+            <td>上下文隔离</td>
+            <td class="align">已对齐</td>
+            <td>readFileState / abortController / contentReplacementState</td>
+          </tr>
+          <tr>
+            <td>Prompt Cache 复用</td>
+            <td class="align">已对齐</td>
+            <td>CacheSafeParams + forkContextMessages</td>
+          </tr>
+          <tr>
+            <td>Session Memory</td>
+            <td class="diff">未实现</td>
+            <td>无后台记忆提取机制</td>
+          </tr>
+          <tr>
+            <td>UI 隔离</td>
+            <td class="diff">未实现</td>
+            <td>无 React Context 隔离</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Two-column pane grid -->
+    <div class="pane-grid">
+      <!-- Risk Checklist -->
+      <div class="terminal-pane">
+        <div class="pane-title">RISK CHECKLIST</div>
+        <div class="pane-body">
+          <ul class="risk-checklist">
+            <li>
+              <span class="severity severity-ok">[OK]</span>
+              <span>createSubagentContext() 核心函数复刻完成</span>
+            </li>
+            <li>
+              <span class="severity severity-ok">[OK]</span>
+              <span>runForkedAgent() query 循环逻辑一致</span>
+            </li>
+            <li>
+              <span class="severity severity-ok">[OK]</span>
+              <span>Abort 信号单向传播 (父→子)</span>
+            </li>
+            <li>
+              <span class="severity severity-warn">[WARN]</span>
+              <span>AgentTool 权限控制较粗 (canUseTool 简化)</span>
+            </li>
+            <li>
+              <span class="severity severity-hyp">[HYP]</span>
+              <span>Session Memory 后台提取建议引入</span>
+            </li>
+            <li>
+              <span class="severity severity-hyp">[HYP]</span>
+              <span>SubAgentProvider UI 隔离建议引入</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Hotspot Map -->
+      <div class="terminal-pane">
+        <div class="pane-title">HOTSPOT MAP</div>
+        <div class="pane-body">
+          <div class="claim-card">
+            <div class="claim-title">核心文件</div>
+          </div>
+          <table class="fact-table">
+            <tr>
+              <th>文件路径</th>
+              <th>职责</th>
+            </tr>
+            <tr>
+              <td>src/utils/forkedAgent.ts</td>
+              <td>createSubagentContext + runForkedAgent</td>
+            </tr>
+            <tr>
+              <td>src/tools/AgentTool/runAgent.ts</td>
+              <td>AgentTool 调用入口</td>
+            </tr>
+            <tr>
+              <td>src/query/stopHooks.ts</td>
+              <td>CacheSafeParams 保存</td>
+            </tr>
+            <tr>
+              <td>src/utils/abortController.ts</td>
+              <td>createChildAbortController</td>
+            </tr>
+            <tr>
+              <td>src/utils/fileStateCache.ts</td>
+              <td>cloneFileStateCache</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Implementation Details -->
+    <div class="terminal-pane" id="implementation">
+      <div class="pane-title">IMPLEMENTATION DETAILS</div>
+      <div class="pane-body">
+        <div class="claim-card">
+          <div class="claim-title">Prompt Cache 复用机制</div>
+          <div>Cache Key = (system prompt) + (tools) + (model) + (messages prefix) + (thinking config)</div>
+        </div>
+        <div class="evidence-margin">
+          subAgent 要复用父级 cache，必须保证上述内容完全一致。解决方案:
+          1. 主会话每个 turn 结束时保存 CacheSafeParams（含完整消息历史）
+          2. subAgent 启动时将保存的消息作为 initialMessages 前缀
+          3. 这样 subAgent 的 API 请求与父级具有相同的 messages prefix → Cache Hit
+        </div>
+
+        <div class="ascii-divider">// --- 状态隔离策略 --- //</div>
+
+        <table class="fact-table">
+          <tr>
+            <th>状态</th>
+            <th>默认行为</th>
+            <th>说明</th>
+          </tr>
+          <tr>
+            <td>readFileState</td>
+            <td class="align">克隆</td>
+            <td>subAgent 看到的是文件状态的副本</td>
+          </tr>
+          <tr>
+            <td>abortController</td>
+            <td class="align">链接到父</td>
+            <td>父 Abort → 子也 Abort，子 Abort 不影响父</td>
+          </tr>
+          <tr>
+            <td>setAppState</td>
+            <td class="align">no-op</td>
+            <td>subAgent 的 UI 更新不会影响父</td>
+          </tr>
+          <tr>
+            <td>setResponseLength</td>
+            <td class="align">no-op</td>
+            <td>子不贡献响应指标（除非显式共享）</td>
+          </tr>
+          <tr>
+            <td>contentReplacementState</td>
+            <td class="align">克隆</td>
+            <td>确保相同的工具决策 → 相同 wire prefix</td>
+          </tr>
+          <tr>
+            <td>queryTracking</td>
+            <td class="align">新 chainId</td>
+            <td>追踪嵌套深度</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Code Snippet -->
+    <div class="terminal-pane">
+      <div class="pane-title">RAW ARTIFACT: abortController.ts</div>
+      <div class="raw-artifact">
+        <pre><span class="line-num">1</span><span class="keyword">export function</span> <span class="type">createChildAbortController</span>(<span class="type">parent</span>: <span class="type">AbortController</span>): <span class="type">AbortController</span> {
+<span class="line-num">2</span>  <span class="keyword">const</span> child = <span class="type">createAbortController</span>()
+<span class="line-num">3</span>
+<span class="line-num">4</span>  <span class="comment">// 父 Abort → 自动触发子的 Abort</span>
+<span class="line-num">5</span>  <span class="keyword">const</span> handler = () => child.<span class="type">abort</span>(parent.signal.reason)
+<span class="line-num">6</span>  parent.signal.<span class="type">addEventListener</span>(<span class="string">'abort'</span>, handler, { once: <span class="keyword">true</span> })
+<span class="line-num">7</span>
+<span class="line-num">8</span>  <span class="comment">// 使用 WeakRef 避免内存泄漏</span>
+<span class="line-num">9</span>  <span class="keyword">const</span> weakChild = <span class="keyword">new</span> <span class="type">WeakRef</span>(child)
+<span class="line-num">10</span>
+<span class="line-num">11</span>  <span class="keyword">return</span> child
+<span class="line-num">12</span>}</pre>
+      </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="terminal-pane" id="comparison">
+      <div class="pane-title">CC vs YS-CODE COMPARISON</div>
+      <div class="pane-body">
+        <table class="fact-table">
+          <tr>
+            <th>cc 模块/功能</th>
+            <th>ys-code 当前实现</th>
+            <th>状态</th>
+            <th>差异说明</th>
+          </tr>
+          <tr>
+            <td>createSubagentContext()</td>
+            <td>createSubagentContext()</td>
+            <td class="align">已对齐</td>
+            <td>核心函数复刻</td>
+          </tr>
+          <tr>
+            <td>runForkedAgent()</td>
+            <td>runForkedAgent()</td>
+            <td class="align">已对齐</td>
+            <td>query 循环逻辑一致</td>
+          </tr>
+          <tr>
+            <td>CacheSafeParams</td>
+            <td>CacheSafeParams</td>
+            <td class="align">已对齐</td>
+            <td>结构一致</td>
+          </tr>
+          <tr>
+            <td>forkContextMessages</td>
+            <td>forkContextMessages</td>
+            <td class="align">已对齐</td>
+            <td>消息继承机制一致</td>
+          </tr>
+          <tr>
+            <td>readFileState 克隆</td>
+            <td>cloneFileStateCache()</td>
+            <td class="align">已对齐</td>
+            <td>LRUCache 序列化机制一致</td>
+          </tr>
+          <tr>
+            <td>abortController 链接</td>
+            <td>createChildAbortController()</td>
+            <td class="align">已对齐</td>
+            <td>WeakRef + 单向传播</td>
+          </tr>
+          <tr>
+            <td>setAppState no-op</td>
+            <td>setAppState no-op</td>
+            <td class="align">已对齐</td>
+            <td>默认隔离</td>
+          </tr>
+          <tr>
+            <td>contentReplacementState 克隆</td>
+            <td>cloneContentReplacementState()</td>
+            <td class="align">已对齐</td>
+            <td>Set/Map 深拷贝</td>
+          </tr>
+          <tr>
+            <td>同步 Agent 模式</td>
+            <td>同步 Agent 模式</td>
+            <td class="align">已对齐</td>
+            <td>共享 abortController</td>
+          </tr>
+          <tr>
+            <td>异步 Agent 模式</td>
+            <td>异步 Agent 模式</td>
+            <td class="align">已对齐</td>
+            <td>独立 abortController</td>
+          </tr>
+          <tr>
+            <td>Session Memory subAgent</td>
+            <td>无</td>
+            <td class="diff">未实现</td>
+            <td>无后台记忆提取</td>
+          </tr>
+          <tr>
+            <td>SubAgentProvider UI 隔离</td>
+            <td>无</td>
+            <td class="diff">未实现</td>
+            <td>无 React context 隔离</td>
+          </tr>
+          <tr>
+            <td>AgentTool 权限限制</td>
+            <td>简化版</td>
+            <td class="diff">已简化</td>
+            <td>canUseTool 逻辑较简单</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="terminal-pane" id="recommendations">
+      <div class="pane-title">RECOMMENDATIONS</div>
+      <div class="pane-body">
+        <div class="claim-card">
+          <div class="claim-title">[P0] Abort 信号单向传播</div>
+          <div>已对齐的 createChildAbortController 实现确保了父 → 子的单向传播。这是防止子级异常影响父级的关键设计，必须保持。</div>
+        </div>
+        <div class="claim-card">
+          <div class="claim-title">[P1] Session Memory 后台提取</div>
+          <div>cc 使用异步 subAgent 在后台提取会话记忆，不影响主会话交互。ys-code 当前无此机制。建议引入 session_memory querySource，支持后台记忆持久化。</div>
+        </div>
+        <div class="claim-card">
+          <div class="claim-title">[P2] SubAgentProvider UI 隔离</div>
+          <div>cc 通过 React Context (SubAgentContext) 让 UI 组件感知是否在 subAgent 输出中，从而隐藏不必要的提示（如 "ctrl+o to expand"）。ys-code 使用 Ink，建议引入类似的 context 机制。</div>
+        </div>
+        <div class="claim-card">
+          <div class="claim-title">[P2] AgentTool 权限精细化</div>
+          <div>cc 的 canUseTool 支持按 agent 类型限制可用工具集（如 memory agent 只能读写 memory 目录）。ys-code 当前权限控制较粗。建议引入 agent 类型级别的工具白名单。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reference Links -->
+    <div class="terminal-pane">
+      <div class="pane-title">REFERENCE LINKS</div>
+      <div class="pane-body">
+        <table class="fact-table">
+          <tr>
+            <th>用途</th>
+            <th>路径</th>
+          </tr>
+          <tr>
+            <td>核心实现</td>
+            <td>refer/claude-code-haha/src/utils/forkedAgent.ts</td>
+          </tr>
+          <tr>
+            <td>Agent 调用</td>
+            <td>refer/claude-code-haha/src/tools/AgentTool/runAgent.ts</td>
+          </tr>
+          <tr>
+            <td>Query 循环</td>
+            <td>refer/claude-code-haha/src/query.ts</td>
+          </tr>
+          <tr>
+            <td>Stop Hooks</td>
+            <td>refer/claude-code-haha/src/query/stopHooks.ts</td>
+          </tr>
+          <tr>
+            <td>Abort 控制器</td>
+            <td>refer/claude-code-haha/src/utils/abortController.ts</td>
+          </tr>
+          <tr>
+            <td>文件状态缓存</td>
+            <td>refer/claude-code-haha/src/utils/fileStateCache.ts</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Copy Handoff -->
+    <div class="copy-handoff">
+      <button onclick="copySummary()">[ COPY SUMMARY ]</button>
+    </div>
+
+    <div class="ascii-divider">// --- EOF --- //</div>
+  </div>
+
+  <script>
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const allContent = document.querySelectorAll('.terminal-pane, .claim-card, .risk-checklist li, .fact-table tr');
+
+    searchInput.addEventListener('input', function() {
+      const query = this.value.trim().toLowerCase();
+
+      if (!query) {
+        allContent.forEach(el => {
+          el.classList.remove('hidden-by-search');
+          el.querySelectorAll('.highlight').forEach(h => {
+            const parent = h.parentNode;
+            parent.replaceChild(document.createTextNode(h.textContent), h);
+            parent.normalize();
+          });
+        });
+        return;
+      }
+
+      allContent.forEach(el => {
+        const text = el.textContent.toLowerCase();
+        if (text.includes(query)) {
+          el.classList.remove('hidden-by-search');
+          // Highlight matches
+          highlightText(el, query);
+        } else {
+          el.classList.add('hidden-by-search');
+        }
+      });
+    });
+
+    function highlightText(element, query) {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+      const textNodes = [];
+      let node;
+      while (node = walker.nextNode()) {
+        if (node.parentNode.tagName !== 'SCRIPT' && node.parentNode.tagName !== 'STYLE') {
+          textNodes.push(node);
+        }
+      }
+
+      textNodes.forEach(node => {
+        const text = node.textContent;
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes(query)) {
+          const parts = text.split(new RegExp(`(${escapeRegex(query)})`, 'gi'));
+          const fragment = document.createDocumentFragment();
+          parts.forEach(part => {
+            if (part.toLowerCase() === query) {
+              const span = document.createElement('span');
+              span.className = 'highlight';
+              span.textContent = part;
+              fragment.appendChild(span);
+            } else {
+              fragment.appendChild(document.createTextNode(part));
+            }
+          });
+          node.parentNode.replaceChild(fragment, node);
+        }
+      });
+    }
+
+    function escapeRegex(string) {
+      return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Copy summary
+    function copySummary() {
+      const summary = `SubAgent 机制分析 - ys-code
+
+核心结论:
+- createSubagentContext() + runForkedAgent() 已对齐
+- Prompt Cache 复用机制已对齐 (CacheSafeParams + forkContextMessages)
+- 状态隔离策略已对齐 (readFileState 克隆 / abortController 链接 / contentReplacementState 克隆)
+
+未实现项:
+- [P1] Session Memory 后台提取
+- [P2] SubAgentProvider UI 隔离
+- [P2] AgentTool 权限精细化
+
+关键设计:
+- Abort 信号单向传播 (父→子) 必须保持
+- WeakRef 避免内存泄漏
+- 克隆优于共享，防止缓存过期
+
+参考: docs/cc/skill/subagent.md`;
+
+      navigator.clipboard.writeText(summary).then(() => {
+        const btn = document.querySelector('.copy-handoff button');
+        const original = btn.textContent;
+        btn.textContent = '[ COPIED ]';
+        setTimeout(() => btn.textContent = original, 2000);
+      });
+    }
+
+    // Smooth scroll for nav links
+    document.querySelectorAll('.section-nav a').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

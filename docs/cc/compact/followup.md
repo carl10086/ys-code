@@ -1,20 +1,23 @@
-# Persistence-Compact 后续问题跟踪
+# Compact 系统后续问题跟踪
 
-> **状态:** 代码审查后剩余问题  
-> **创建日期:** 2026-04-22  
-> **关联计划:** `docs/superpowers/plans/2026-04-21-persistence-compact-plan.md`
+> **状态:** 基于 `docs/cc/persistence-compact-followup.md` 更新，补充 ys-code 对齐状态
+> **创建日期:** 2026-04-22
+> **更新日期:** 2026-05-23
 
 ---
 
 ## 问题清单
 
-| 编号 | 问题 | 优先级 | 影响范围 | 预计工作量 |
-|------|------|--------|----------|-----------|
-| ISSUE-1 | Compact 摘要质量仅为占位级 | P1 | 上下文压缩效果 | 中等 |
-| ISSUE-2 | SessionStorage 缺少文件锁 | P1 | 数据完整性 | 小 |
-| ISSUE-3 | findActiveBranch 叶子节点选择策略 | P2 | 多分支恢复 | 小 |
-| ISSUE-4 | findLatestSessionFile 不区分 cwd | P2 | 跨项目恢复 | 小 |
-| ISSUE-5 | AgentMessage 类型系统不完整 | P3 | 类型安全 | 中等 |
+| 编号 | 问题 | 优先级 | 影响范围 | ys-code 状态 | 预计工作量 |
+|------|------|--------|----------|--------------|-----------|
+| ISSUE-1 | Compact 摘要质量仅为占位级 | P1 | 上下文压缩效果 | 未实现 | 中等 |
+| ISSUE-2 | SessionStorage 缺少文件锁 | P1 | 数据完整性 | 未实现 | 小 |
+| ISSUE-3 | findActiveBranch 叶子节点选择策略 | P2 | 多分支恢复 | 未实现 | 小 |
+| ISSUE-4 | findLatestSessionFile 不区分 cwd | P2 | 跨项目恢复 | 未实现 | 小 |
+| ISSUE-5 | AgentMessage 类型系统不完整 | P3 | 类型安全 | 未实现 | 中等 |
+| ISSUE-6 | 缺少多级压缩策略 | P1 | 压缩效率 | 未实现 | 中等 |
+| ISSUE-7 | 缺少缓存复用机制 | P1 | 压缩成本 | 未实现 | 大 |
+| ISSUE-8 | 缺少熔断机制 | P2 | 系统稳定性 | 未实现 | 小 |
 
 ---
 
@@ -45,6 +48,8 @@ Compact 机制形同虚设。压缩后 LLM 获得的 "摘要" 不包含最近对
 - 工具调用结果丢失，LLM 无法基于之前的执行继续
 - 整体体验劣于不压缩
 
+> **ys-code 现状:** 未实现。当前无 compact 机制，无摘要生成逻辑。
+
 ### 建议修复方案
 
 **方案 A：近期消息优先（短期）**
@@ -62,6 +67,8 @@ Compact 机制形同虚设。压缩后 LLM 获得的 "摘要" 不包含最近对
 - 注入 `summarizeFn` 依赖到 `CompactTrigger`
 - 当配置时，调用 LLM 生成真正的语义摘要
 - 未配置时回退到方案 A/B
+
+> **建议:** [P0] 实现方案 A 作为 MVP，后续迭代到方案 C。
 
 ### 验收标准
 
@@ -94,6 +101,8 @@ Node.js 的 `appendFileSync` 在操作系统层面**不保证原子性**。如�
 - **低概率场景：** 用户同时启动两个 `ys-code` 实例，同时操作同一会话
 - **后果：** JSONL 文件损坏，行格式被破坏，导致 `readAllEntries()` 跳过损坏行时丢失数据
 
+> **ys-code 现状:** 未实现。当前无 SessionStorage，无持久化层。
+
 ### 建议修复方案
 
 在 `SessionStorage` 中集成 `proper-lockfile`：
@@ -113,6 +122,8 @@ appendEntry(filePath: string, entry: Entry): void {
 ```
 
 注意：需要考虑锁超时和异常处理。
+
+> **建议:** [P0] 在实现 SessionStorage 时直接集成文件锁，避免后续重构。
 
 ### 验收标准
 
@@ -146,6 +157,8 @@ const leaf = leaves[leaves.length - 1];
 - 用户无法恢复到期望的分支
 - 可能需要重放整个会话才能到达目标分支
 
+> **ys-code 现状:** 未实现。当前无 SessionLoader，无分支概念。
+
 ### 建议修复方案
 
 **短期：** 增加显式叶子选择参数
@@ -162,6 +175,8 @@ restoreMessages(entries: Entry[], leafUuid?: string): AgentMessage[] {
 - `SessionManager` 记录当前活跃分支的叶子 UUID
 - 提供 `switchBranch(leafUuid)` API
 - UI 层展示分支树供用户选择
+
+> **建议:** [P2] 在实现树形会话结构时预留 `leafUuid` 参数，避免后续 Breaking Change。
 
 ### 验收标准
 
@@ -197,13 +212,14 @@ findLatestSessionFile(): string | null {
 - 跨项目使用时的用户体验问题
 - 可能导致敏感信息泄露（一个项目的文件路径暴露给另一个项目）
 
+> **ys-code 现状:** 未实现。当前无 SessionStorage，无会话恢复功能。
+
 ### 建议修复方案
 
 **方案 A：按 cwd 过滤（简单）**
 
 ```typescript
 findLatestSessionFile(targetCwd: string): string | null {
-  // 读取所有文件 header，过滤 cwd 匹配项
   const sessions = fs.readdirSync(this.baseDir)
     .filter(f => f.endsWith(".jsonl"))
     .map(f => {
@@ -232,6 +248,8 @@ findLatestSessionFile(targetCwd: string): string | null {
 - 天然隔离不同项目
 - `findLatestSessionFile` 只需查看对应子目录
 - 避免读取所有文件来过滤
+
+> **建议:** [P0] 直接采用方案 B（按 cwd 分子目录），避免后续迁移成本。
 
 ### 验收标准
 
@@ -267,6 +285,8 @@ export type Message = UserMessage | AssistantMessage | ToolResultMessage;
 - 如果底层类型变化，这些断言会产生运行时错误
 - 新开发者难以理解 "为什么这里需要类型断言"
 
+> **ys-code 现状:** 未实现。当前 `AgentMessage` 类型尚未定义 SystemMessage，但无持久化层故无类型断言问题。
+
 ### 建议修复方案
 
 **在 `core/ai/types.ts` 中显式定义 SystemMessage：**
@@ -291,6 +311,8 @@ export interface CustomAgentMessages {
 }
 ```
 
+> **建议:** [P1] 在定义 Message 类型体系时直接包含 SystemMessage，避免后续重构。
+
 ### 验收标准
 
 - [ ] `Message` 或 `AgentMessage` 包含 `system` 角色
@@ -300,29 +322,172 @@ export interface CustomAgentMessages {
 
 ---
 
+## ISSUE-6: 缺少多级压缩策略
+
+### 问题描述
+
+Claude Code 采用 microCompact → sessionMemoryCompact → compactConversation 的多级压缩策略，而当前 ys-code 设计仅考虑单一全量压缩。
+
+### 影响
+
+- 每次触发都进行全量压缩，成本高
+- 无法处理 "短时间间隔内大量工具调用" 的场景
+- 无法利用 "用户离开较长时间" 的场景做轻量清理
+
+> **ys-code 现状:** 未实现。当前无 compact 机制，无多级压缩设计。
+
+### 建议修复方案
+
+引入 Claude Code 风格的多级压缩：
+
+```typescript
+// Level 1: Time-based microCompact
+// 距离上条 assistant 消息 > 60 分钟，清除旧 tool results，保留最近 5 个
+
+// Level 2: Cached microCompact
+// 使用 cache_edits API 编辑缓存，不使缓存失效
+
+// Level 3: Full compact
+// 生成结构化摘要，保留最近消息和附件
+```
+
+> **建议:** [P1] 在 MVP 中仅实现 Level 3（全量压缩），后续迭代引入 Level 1/2。
+
+### 验收标准
+
+- [ ] 定义 microCompact 和 full compact 的触发条件
+- [ ] Time-based MC 清除旧 tool results 不破坏 API 不变量
+- [ ] 测试：多级压缩的触发顺序正确
+
+---
+
+## ISSUE-7: 缺少缓存复用机制
+
+### 问题描述
+
+Claude Code 通过 Forked Agent 复用主对话的 prompt cache key，实现 98% 缓存命中率，显著降低压缩成本。Pi-mono 无此机制，每次压缩直接调用 LLM。
+
+### 影响
+
+- 每次压缩都产生完整的 LLM 调用成本
+- 长会话频繁压缩时成本累积显著
+- 压缩延迟高（需等待 LLM 生成摘要）
+
+> **ys-code 现状:** 未实现。当前无 Forked Agent 机制，无 prompt cache 概念。
+
+### 建议修复方案
+
+**短期：** 直接调用 LLM（Pi-mono 风格）
+
+**长期：** 引入 Forked Agent 缓存复用
+
+```typescript
+const result = await runForkedAgent({
+  promptMessages: [summaryRequest],
+  cacheSafeParams,  // 复用主对话的 cache key
+  canUseTool: createCompactCanUseTool(),  // 禁用工具
+  querySource: 'compact',
+  forkLabel: 'compact',
+  maxTurns: 1,
+  skipCacheWrite: true,
+});
+```
+
+> **建议:** [P1] MVP 阶段采用直接调用 LLM，后续引入 Forked Agent 机制。
+
+### 验收标准
+
+- [ ] 压缩摘要生成成功
+- [ ] 缓存复用时命中率达到预期（> 90%）
+- [ ] 降级到直接调用时功能正常
+
+---
+
+## ISSUE-8: 缺少熔断机制
+
+### 问题描述
+
+Claude Code 在连续 3 次压缩失败后停止自动压缩，防止不可恢复场景下无限重试。当前 ys-code 设计无此机制。
+
+### 影响
+
+- 上下文持续超限，每次请求都触发压缩
+- 压缩反复失败，浪费 API 调用
+- 用户体验极差（每次请求都卡顿然后失败）
+
+> **ys-code 现状:** 未实现。当前无 compact 机制，无熔断需求。
+
+### 建议修复方案
+
+引入熔断机制：
+
+```typescript
+const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3;
+
+export async function autoCompactIfNeeded(
+  messages: Message[],
+  tracking?: AutoCompactTrackingState,
+): Promise<{ wasCompacted: boolean }> {
+  if (tracking?.consecutiveFailures >= MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES) {
+    return { wasCompacted: false };  // 熔断，停止尝试
+  }
+  
+  try {
+    const result = await compactConversation(...);
+    return { wasCompacted: true, consecutiveFailures: 0 };
+  } catch (error) {
+    return { wasCompacted: false, consecutiveFailures: (tracking?.consecutiveFailures ?? 0) + 1 };
+  }
+}
+```
+
+> **建议:** [P2] 在实现 autoCompact 时同步引入熔断机制。
+
+### 验收标准
+
+- [ ] 连续 3 次失败后停止自动压缩
+- [ ] 手动 `/compact` 不受熔断限制
+- [ ] 熔断状态可观测（日志或状态查询）
+
+---
+
 ## 修复优先级建议
 
 ```
-第一阶段（立即修复）:
+第一阶段（MVP 必备）:
+  - ISSUE-1: 摘要质量（功能有效性）
   - ISSUE-2: 文件锁（数据完整性）
   - ISSUE-4: cwd 过滤（用户体验）
 
 第二阶段（下个迭代）:
-  - ISSUE-1: 摘要质量（功能有效性）
   - ISSUE-5: 类型系统（代码质量）
+  - ISSUE-6: 多级压缩（压缩效率）
+  - ISSUE-8: 熔断机制（系统稳定性）
 
-第三阶段（fork 功能开发时）:
-  - ISSUE-3: 分支选择策略
+第三阶段（高级功能）:
+  - ISSUE-3: 分支选择策略（fork 功能开发时）
+  - ISSUE-7: 缓存复用（成本优化）
 ```
 
 ---
 
 ## 关联文件
 
-| 文件 | 涉及问题 |
-|------|----------|
-| `src/session/compact.ts` | ISSUE-1 |
-| `src/session/session-storage.ts` | ISSUE-2, ISSUE-4 |
-| `src/session/session-loader.ts` | ISSUE-3, ISSUE-5 |
-| `src/session/token-estimator.ts` | ISSUE-5 |
-| `src/core/ai/types.ts` | ISSUE-5 |
+| 文件 | 涉及问题 | 状态 |
+|------|----------|------|
+| `src/session/compact.ts` | ISSUE-1, ISSUE-5 | 未创建 |
+| `src/session/session-storage.ts` | ISSUE-2, ISSUE-4 | 未创建 |
+| `src/session/session-loader.ts` | ISSUE-3, ISSUE-5 | 未创建 |
+| `src/session/token-estimator.ts` | ISSUE-5 | 未创建 |
+| `src/core/ai/types.ts` | ISSUE-5 | 未创建 |
+| `src/services/compact/` | ISSUE-6, ISSUE-7, ISSUE-8 | 未创建 |
+
+---
+
+## 参考链接
+
+- **原始问题跟踪**: `docs/cc/persistence-compact-followup.md`
+- **Claude Code 熔断实现**: `refer/claude-code-haha/src/services/compact/autoCompact.ts`
+- **Claude Code 缓存复用**: `refer/claude-code-haha/src/services/compact/compact.ts`
+- **Pi-mono 会话存储**: `refer/pi-mono/packages/coding-agent/src/core/session-manager.ts`
+- **ys-code 依赖**: `package.json` 中已预留 `proper-lockfile`
