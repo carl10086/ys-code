@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消息架构重构需求文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+    --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+    --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+    --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--fg-1);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .document-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4xl) var(--space-xl);
+  }
+
+  .cover {
+    margin-bottom: var(--space-4xl);
+    padding-bottom: var(--space-3xl);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .cover-label {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-xl);
+    max-width: 640px;
+  }
+
+  .meta-line {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .reader-rail {
+    display: flex;
+    gap: var(--space-3xl);
+  }
+
+  .toc-column {
+    flex: 0 0 200px;
+    position: sticky;
+    top: var(--space-3xl);
+    align-self: flex-start;
+  }
+
+  .toc-title {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-list li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .toc-list a {
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+  }
+
+  .toc-list a:hover {
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+
+  .body-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-4xl);
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-md);
+    color: var(--fg-1);
+  }
+
+  .body-section ul, .body-section ol {
+    margin-bottom: var(--space-md);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .body-section blockquote {
+    border-left: 3px solid var(--primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-xl) 0;
+    color: var(--fg-2);
+    font-style: italic;
+  }
+
+  .body-section code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-container);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+  }
+
+  .body-section pre {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .body-section pre code {
+    background: none;
+    padding: 0;
+    color: var(--fg-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-lg) 0;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--fg-1);
+    background: var(--surface-container);
+  }
+
+  tr:hover {
+    background: var(--surface-container-low);
+  }
+
+  .claim-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .claim-card-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evidence-margin {
+    background: var(--surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-size: 13px;
+  }
+
+  .evidence-margin-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+  }
+
+  .caveat-box {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+  }
+
+  .caveat-box-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  .source-spread {
+    margin-top: var(--space-5xl);
+    padding-top: var(--space-3xl);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .source-spread h2 {
+    font-size: 22px;
+  }
+
+  .layer-diagram {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .layer {
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-sm);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary);
+  }
+
+  .layer:last-child {
+    margin-bottom: 0;
+  }
+
+  .layer-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--primary);
+    margin-bottom: var(--space-xs);
+  }
+
+  .req-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    margin-right: var(--space-sm);
+  }
+
+  @media (max-width: 768px) {
+    .document-shell {
+      padding: var(--space-xl) var(--space-lg);
+    }
+
+    .cover h1 {
+      font-size: 28px;
+    }
+
+    .reader-rail {
+      flex-direction: column;
+      gap: var(--space-2xl);
+    }
+
+    .toc-column {
+      position: static;
+      flex: none;
+    }
+  }
+
+  @media print {
+    body { background: white; }
+    .document-shell { max-width: none; }
+    .toc-column { display: none; }
+    .cover { page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <header class="cover">
+    <div class="cover-label">重构需求文档</div>
+    <h1>消息架构重构需求文档</h1>
+    <p class="deck">描述 ys-code 消息生命周期、attachment 持久化、Debug Inspector 准确性的重构需求。</p>
+    <div class="meta-line">文档版本: v1.0 &nbsp;|&nbsp; 创建日期: 2026-04-26 &nbsp;|&nbsp; 对应设计文档: docs/cc/message-architecture-redesign.md</div>
+  </header>
+
+  <div class="reader-rail">
+    <nav class="toc-column">
+      <div class="toc-title">目录</div>
+      <ul class="toc-list">
+        <li><a href="#sec1">1. 背景与问题</a></li>
+        <li><a href="#sec2">2. 设计目标</a></li>
+        <li><a href="#sec3">3. 核心设计原则</a></li>
+        <li><a href="#sec4">4. 功能需求</a></li>
+        <li><a href="#sec5">5. 非功能需求</a></li>
+        <li><a href="#sec6">6. 验收标准</a></li>
+      </ul>
+    </nav>
+
+    <main class="body-column">
+
+      <section class="body-section" id="sec1">
+        <h2>1. 背景与问题</h2>
+        <p>当前 ys-code 的消息架构存在以下核心问题：</p>
+        <ol>
+          <li><strong>Attachment 生命周期断裂</strong>：<code>transformMessages()</code> 生成的 attachment 仅作为临时变量传给 LLM API，从未进入 <code>agent.state.messages</code>，也未被持久化到 session 文件</li>
+          <li><strong>Session 持久化不完整</strong>：<code>SessionManager</code> 不支持 <code>role: "attachment"</code> 的消息，遇到会抛出异常</li>
+          <li><strong>Debug Inspector LLM View 不准确</strong>：显示的 LLM payload 缺少 <code>normalizeMessages()</code> 的转换结果，未反映真正传给 LLM 的完整内容</li>
+          <li><strong>AgentSession 自动恢复历史消息</strong>：新会话启动时会自动加载历史 session，导致 Debug Inspector 显示旧数据而非当前进程状态</li>
+        </ol>
+      </section>
+
+      <section class="body-section" id="sec2">
+        <h2>2. 设计目标</h2>
+        <table>
+          <thead>
+            <tr><th>目标</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>对齐 CC 架构</strong></td><td>Attachment 参与完整消息生命周期，可被持久化</td></tr>
+            <tr><td><strong>纯转换函数</strong></td><td><code>normalizeMessages</code> 不修改输入，只做 API 格式转换</td></tr>
+            <tr><td><strong>准确观测</strong></td><td>Debug Inspector LLM View 显示真正传给 LLM 的完整 payload</td></tr>
+            <tr><td><strong>向后兼容</strong></td><td>现有 session 文件可正常读取，新功能渐进式启用</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec3">
+        <h2>3. 核心设计原则</h2>
+
+        <h3>3.1 消息分层模型</h3>
+        <div class="layer-diagram">
+          <div class="layer">
+            <div class="layer-label">Layer 3: API Payload（临时生成，每次请求独立构建）</div>
+            <ul>
+              <li><code>normalizeMessages(agent.state.messages)</code> → user/assistant</li>
+              <li><code>prependUserContext()</code> → 添加 CLAUDE.md 等动态上下文</li>
+              <li>直接传给 LLM API，不保存</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <div class="layer-label">Layer 2: Agent State（内存状态，运行时可变）</div>
+            <ul>
+              <li><code>agent.state.messages: AgentMessage[]</code></li>
+              <li>包含: user, assistant, toolResult, attachment</li>
+              <li>通过 <code>message_end</code> 事件追加新消息</li>
+              <li>被 SessionManager 持久化到磁盘</li>
+            </ul>
+          </div>
+          <div class="layer">
+            <div class="layer-label">Layer 1: Session Store（磁盘持久化，跨进程恢复）</div>
+            <ul>
+              <li><code>~/.ys-code/sessions/*.jsonl</code></li>
+              <li>Entry 类型: header, user, assistant, toolResult</li>
+              <li><strong>新增: attachment Entry 类型</strong></li>
+              <li>通过 <code>SessionManager.restoreMessages()</code> 加载到内存</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>3.2 关键规则</h3>
+
+        <div class="claim-card">
+          <div class="claim-card-title">Rule 1</div>
+          <p><strong>只有 <code>message_end</code> 事件能修改 <code>agent.state.messages</code></strong></p>
+          <ul>
+            <li>所有消息（含 attachment）必须通过 <code>emit({ type: "message_end", message })</code> 进入状态</li>
+            <li><code>transformMessages()</code> 不再直接修改任何状态</li>
+          </ul>
+        </div>
+
+        <div class="claim-card">
+          <div class="claim-card-title">Rule 2</div>
+          <p><strong><code>normalizeMessages()</code> 是纯函数</strong></p>
+          <ul>
+            <li>输入: <code>AgentMessage[]</code>（含 attachment）</li>
+            <li>输出: <code>Message[]</code>（仅 user/assistant/toolResult）</li>
+            <li>不修改输入数组，不保存输出结果</li>
+          </ul>
+        </div>
+
+        <div class="claim-card">
+          <div class="claim-card-title">Rule 3</div>
+          <p><strong>userContext 保持临时注入</strong></p>
+          <ul>
+            <li>CLAUDE.md、日期、分支等动态内容在 API 调用前注入</li>
+            <li>不保存到 session，每次请求重新读取</li>
+            <li>与 CC 设计一致</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="body-section" id="sec4">
+        <h2>4. 功能需求</h2>
+
+        <h3>4.1 Attachment 持久化</h3>
+        <ul>
+          <li><span class="req-badge">REQ-1</span> <code>SessionManager</code> 必须支持 <code>role: "attachment"</code> 的消息序列化为磁盘 Entry</li>
+          <li><span class="req-badge">REQ-2</span> <code>SessionLoader</code> 必须支持从磁盘恢复 <code>type: "attachment"</code> 的 Entry 为内存消息</li>
+          <li><span class="req-badge">REQ-3</span> <code>AgentSession</code> 处理 <code>message_end</code> 事件时，必须正确保存 attachment 消息到 session</li>
+        </ul>
+
+        <h3>4.2 transformMessages 重构</h3>
+        <ul>
+          <li><span class="req-badge">REQ-4</span> 将 <code>transformMessages</code> 拆分为三阶段：
+            <ol>
+              <li><code>generateAttachments()</code>：生成需要添加的 attachment 列表</li>
+              <li><code>saveAttachments()</code>：通过事件机制将 attachment 写入 agent state</li>
+              <li><code>buildApiPayload()</code>：纯函数构建 LLM API payload</li>
+            </ol>
+          </li>
+          <li><span class="req-badge">REQ-5</span> attachment 生成后必须通过 <code>message_start</code> + <code>message_end</code> 事件进入状态，不能直接修改数组</li>
+        </ul>
+
+        <h3>4.3 normalizeMessages 纯函数化</h3>
+        <ul>
+          <li><span class="req-badge">REQ-6</span> <code>normalizeMessages</code> 不得修改输入数组</li>
+          <li><span class="req-badge">REQ-7</span> <code>normalizeMessages</code> 必须创建新数组返回转换结果</li>
+        </ul>
+
+        <h3>4.4 Debug Inspector 准确性</h3>
+        <ul>
+          <li><span class="req-badge">REQ-8</span> Debug Inspector 的 LLM View 必须显示经过 <code>normalizeMessages</code> + <code>convertToLlm</code> 后的真实 payload</li>
+          <li><span class="req-badge">REQ-9</span> Debug Inspector 应区分显示"原始消息"和"LLM Payload"</li>
+        </ul>
+
+        <h3>4.5 向后兼容</h3>
+        <ul>
+          <li><span class="req-badge">REQ-10</span> 新代码读取旧 session 文件时，必须忽略不认识的 Entry 类型而非抛出异常</li>
+          <li><span class="req-badge">REQ-11</span> 旧代码读取新 session 文件时，应具备版本控制或容错机制</li>
+        </ul>
+      </section>
+
+      <section class="body-section" id="sec5">
+        <h2>5. 非功能需求</h2>
+        <table>
+          <thead>
+            <tr><th>需求</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>性能</strong></td><td>attachment 持久化不应显著影响响应时间（jsonl append 为 O(1)）</td></tr>
+            <tr><td><strong>可靠性</strong></td><td>任何 attachment 生成失败不应阻塞主对话流程</td></tr>
+            <tr><td><strong>可观测性</strong></td><td>关键路径应有日志记录，便于排查问题</td></tr>
+            <tr><td><strong>可测试性</strong></td><td>每个阶段应可独立单元测试</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section source-spread" id="sec6">
+        <h2>6. 验收标准</h2>
+        <ul>
+          <li>Session 文件包含 <code>type: "attachment"</code> 的 Entry</li>
+          <li>Debug Inspector LLM View 显示的内容与 API 请求一致（包含 <code>&lt;system-reminder&gt;</code> 包装）</li>
+          <li>Skill listing attachment 恢复后不再重复发送</li>
+          <li>现有测试全部通过</li>
+          <li>新增 attachment Entry 的序列化/反序列化测试</li>
+          <li>新增三阶段拆分的单元测试</li>
+          <li>新增 Debug Inspector LLM payload 准确性验证测试</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

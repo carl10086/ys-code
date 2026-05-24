@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EditTool 执行时序 - EditTool Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  background: var(--bg);
+}
+
+.document-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+
+.cover {
+  margin-bottom: var(--space-4xl);
+  padding-bottom: var(--space-3xl);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-lg) 0;
+  color: var(--fg-1);
+  line-height: 1.2;
+}
+
+.meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.meta-item {
+  font-family: var(--font-mono);
+  background: var(--surface-container-low);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+.deck {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--fg-2);
+  max-width: 720px;
+}
+
+.reader-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-3xl) var(--space-lg);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.reader-rail.open {
+  transform: translateX(0);
+}
+
+.rail-header {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.rail-nav {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rail-nav li {
+  margin-bottom: var(--space-xs);
+}
+
+.rail-nav li.level-3 {
+  padding-left: var(--space-lg);
+  font-size: 13px;
+}
+
+.rail-nav a {
+  display: block;
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.rail-nav a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+
+.rail-toggle {
+  position: fixed;
+  top: var(--space-lg);
+  left: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.body-sheet {
+  max-width: 720px;
+  margin-left: 0;
+}
+
+@media (min-width: 1100px) {
+  .reader-rail {
+    position: sticky;
+    top: var(--space-3xl);
+    left: auto;
+    width: 240px;
+    height: auto;
+    max-height: calc(100vh - var(--space-5xl));
+    transform: none;
+    float: left;
+    margin-right: var(--space-4xl);
+    margin-bottom: var(--space-3xl);
+    border-radius: var(--radius-lg);
+    border-right: none;
+  }
+  .rail-toggle {
+    display: none;
+  }
+  .body-sheet {
+    margin-left: 280px;
+  }
+}
+
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: var(--space-4xl);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--primary);
+  color: var(--fg-1);
+}
+
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: var(--space-3xl);
+  margin-bottom: var(--space-md);
+  color: var(--fg-1);
+}
+
+.body-section h4 {
+  font-family: var(--font-headline);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: var(--space-2xl);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+}
+
+.body-section p {
+  margin: 0 0 var(--space-lg) 0;
+  max-width: 680px;
+}
+
+.body-section ul, .body-section ol {
+  margin: 0 0 var(--space-lg) 0;
+  padding-left: var(--space-2xl);
+}
+
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+
+.body-section blockquote {
+  margin: var(--space-xl) 0;
+  padding: var(--space-lg) var(--space-xl);
+  border-left: 3px solid var(--primary);
+  background: var(--surface-container-low);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-style: italic;
+  color: var(--fg-2);
+}
+
+.body-section hr {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: var(--space-3xl) 0;
+}
+
+.code-block {
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin: var(--space-lg) 0 var(--space-xl) 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code-block code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+}
+
+.body-section code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container-high);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+
+.body-section table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-lg) 0 var(--space-xl) 0;
+  font-size: 14px;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.body-section th {
+  background: var(--surface-container-high);
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.body-section td {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.body-section tr:last-child td {
+  border-bottom: none;
+}
+
+.body-section tr:hover td {
+  background: var(--surface-container-low);
+}
+
+.fact-table {
+  margin: var(--space-xl) 0;
+}
+
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.claim-card-title {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+
+.evidence-margin {
+  margin: var(--space-xl) 0;
+  padding: var(--space-lg);
+  background: var(--surface-container);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--secondary-container);
+}
+
+.caveat-box {
+  background: var(--surface-container-low);
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+
+.caveat-box strong {
+  color: var(--yellow);
+}
+
+.search-bar {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 102;
+}
+
+.search-input {
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-1);
+  width: 200px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(160, 59, 0, 0.15);
+}
+
+.search-input::placeholder {
+  color: var(--fg-muted);
+}
+
+.highlight {
+  background: rgba(160, 59, 0, 0.2);
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+
+@media print {
+  .reader-rail, .rail-toggle, .search-bar {
+    display: none !important;
+  }
+  .body-sheet {
+    margin-left: 0 !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+  .search-input {
+    width: 140px;
+  }
+  .meta-bar {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+}
+</style>
+</head>
+<body>
+<div class="document-shell">
+  <header class="cover">
+    <h1>EditTool 执行时序</h1>
+    <div class="meta-bar">
+<span class="meta-item">分析对象：src/agent/tools/edit.ts @ da24438</span><span class="meta-item">日期：2026-04-24</span></div>
+
+    <div class="deck">EditTool Technical Guide</div>
+  </header>
+  
+  <button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">
+    目录
+  </button>
+  
+  <nav class="reader-rail">
+<div class="rail-header">目录</div>
+<ul class="rail-nav">
+<li class="level-2"><a href="#">概述</a></li>
+<li class="level-2"><a href="#validateinput-">validateInput 阶段</a></li>
+<li class="level-3"><a href="#1-">1. 先读后写检查</a></li>
+<li class="level-3"><a href="#2-">2. 脏写检测第一层</a></li>
+<li class="level-3"><a href="#3-">3. 无变化检查</a></li>
+<li class="level-3"><a href="#4-">4. 文件存在性检查</a></li>
+<li class="level-3"><a href="#5-">5. 字符串匹配检查（引号规范化）</a></li>
+<li class="level-3"><a href="#6-">6. 多匹配检测</a></li>
+<li class="level-2"><a href="#execute-">execute 阶段</a></li>
+<li class="level-3"><a href="#1-">1. 二次脏写检测</a></li>
+<li class="level-3"><a href="#2-">2. 引号规范化与替换</a></li>
+<li class="level-3"><a href="#3-">3. 写入与缓存更新</a></li>
+<li class="level-2"><a href="#">两次脏写检测的时间点对比</a></li>
+<li class="level-2"><a href="#">与相关模块的交互</a></li>
+</ul>
+</nav>
+
+  
+  <main class="body-sheet">
+    <div class="body-section">
+      <h1>EditTool 执行时序</h1>
+<blockquote>
+分析对象：src/agent/tools/edit.ts @ da24438
+</blockquote>
+<blockquote>
+日期：2026-04-24
+</blockquote>
+<hr>
+<h2 id="">概述</h2>
+<p>EditTool 是 ys-code 中用于<strong>精确字符串替换</strong>的文件编辑工具。一次完整的 Edit 调用经历两个阶段：<code>validateInput</code>（校验）和 <code>execute</code>（执行）。</p>
+<pre class="code-block"><code class="language-text">模型发起 Edit
+    |
+    v
+validateInput (第一层防线)
+    |-- 先读后写检查 (错误码 6)
+    |-- 脏写检测第一层 (错误码 7)
+    |-- old_string === new_string (错误码 1)
+    |-- 文件存在性检查 (错误码 3/4)
+    |-- 字符串匹配检查 (错误码 8)
+    |-- 多匹配检测 (错误码 9)
+    v
+execute (执行写入)
+    |-- 二次脏写检测
+    |-- 引号规范化
+    |-- 字符串替换
+    |-- 写入文件
+    |-- 更新 FileStateCache
+    v
+返回结果</code></pre>
+<hr>
+<h2 id="validateinput-">validateInput 阶段</h2>
+<p><code>validateInput</code> 在模型提出编辑请求后立即执行，是<strong>第一道防线</strong>。</p>
+<h3 id="1-">1. 先读后写检查</h3>
+<pre class="code-block"><code class="language-typescript">const readCheck = context.fileStateCache.canEdit(fullPath);
+if (!readCheck.ok) {
+  return { ok: false, message: readCheck.reason, errorCode: readCheck.errorCode };
+}</code></pre>
+<ul>
+<li>检查文件是否已通过 ReadTool 读取</li>
+<li>检查是否为部分读取（offset/limit/isPartialView）</li>
+<li>错误码：<code>6</code></li>
+</ul>
+<h3 id="2-">2. 脏写检测第一层</h3>
+<pre class="code-block"><code class="language-typescript">const stats = await stat(fullPath).catch(() =&gt; null);
+if (stats &amp;&amp; readCheck.record) {
+  const currentMtime = Math.floor(stats.mtimeMs);
+  if (currentMtime &gt; readCheck.record.timestamp) {
+    // 部分读取直接拒绝
+    // 全量读取对比内容，内容变了才拒绝
+  }
+}</code></pre>
+<ul>
+<li>对比 mtime（快速）</li>
+<li>mtime 变了再对比 content（准确）</li>
+<li>错误码：<code>7</code></li>
+</ul>
+<h3 id="3-">3. 无变化检查</h3>
+<pre class="code-block"><code class="language-typescript">if (params.old_string === params.new_string) {
+  return { ok: false, message: "No changes...", errorCode: 1 };
+}</code></pre>
+<h3 id="4-">4. 文件存在性检查</h3>
+<ul>
+<li>文件不存在且 old_string 非空 → 错误码 <code>4</code></li>
+<li>文件不存在且 old_string 为空 → 允许（创建新文件）</li>
+<li>文件存在但 old_string 为空 → 错误码 <code>3</code></li>
+</ul>
+<h3 id="5-">5. 字符串匹配检查（引号规范化）</h3>
+<pre class="code-block"><code class="language-typescript">const actualOldString = findActualString(content, params.old_string);
+if (!actualOldString) {
+  return { ok: false, message: "String not found...", errorCode: 8 };
+}</code></pre>
+<ul>
+<li>先精确匹配</li>
+<li>失败则尝试引号规范化匹配</li>
+</ul>
+<h3 id="6-">6. 多匹配检测</h3>
+<pre class="code-block"><code class="language-typescript">const matches = content.split(actualOldString).length - 1;
+if (matches &gt; 1 &amp;&amp; !params.replace_all) {
+  return { ok: false, message: "Multiple matches...", errorCode: 9 };
+}</code></pre>
+<hr>
+<h2 id="execute-">execute 阶段</h2>
+<p><code>execute</code> 在 <code>validateInput</code> 通过后执行，是真正修改文件的阶段。</p>
+<h3 id="1-">1. 二次脏写检测</h3>
+<pre class="code-block"><code class="language-typescript">const record = context.fileStateCache.get(fullPath);
+const stats = await stat(fullPath).catch(() =&gt; null);
+if (stats &amp;&amp; record) {
+  const currentMtime = Math.floor(stats.mtimeMs);
+  if (currentMtime &gt; record.timestamp) {
+    const isFullRead = record.offset === undefined &amp;&amp; record.limit === undefined;
+    const contentUnchanged = isFullRead &amp;&amp; content === record.content;
+    if (!contentUnchanged) {
+      throw new Error('File unexpectedly modified since last read');
+    }
+  }
+}</code></pre>
+<h3 id="2-">2. 引号规范化与替换</h3>
+<pre class="code-block"><code class="language-typescript">const actualOldString = findActualString(content, old_string) || old_string;
+const actualNewString = preserveQuoteStyle(old_string, actualOldString, new_string);
+newContent = replace_all
+  ? content.replaceAll(actualOldString, actualNewString)
+  : content.replace(actualOldString, actualNewString);</code></pre>
+<h3 id="3-">3. 写入与缓存更新</h3>
+<pre class="code-block"><code class="language-typescript">await writeFile(fullPath, newContent, "utf-8");
+const newStats = await stat(fullPath);
+context.fileStateCache.recordEdit(fullPath, newContent, Math.floor(newStats.mtimeMs));</code></pre>
+<hr>
+<h2 id="">两次脏写检测的时间点对比</h2>
+<pre class="code-block"><code class="language-text">T1: ReadTool 读取 → 记录 mtime=1000
+    |
+    v
+T2: validateInput → 检查 mtime=1000（通过）
+    |
+    v
+T3: （可能有用户确认间隙）
+    |
+    |-- 外部 Vim 修改 → mtime=2000
+    |
+    v
+T4: execute → 再次检查 mtime=2000
+    |           └── 发现 2000 &gt; 1000
+    |           └── 内容也变了
+    |           └── 抛出错误
+    |
+    └── 没被修改 → 继续写入</code></pre>
+<hr>
+<h2 id="">与相关模块的交互</h2>
+<table>
+<thead>
+<tr><th>模块</th><th>交互方式</th><th>说明</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>------</th><th>---------</th><th>------</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>ReadTool</th><th>FileStateCache</th><th>ReadTool 读取成功后调用 <code>recordRead()</code></th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>FileStateCache</th><th>validateInput/execute</th><th>EditTool 调用 <code>canEdit()</code> / <code>recordEdit()</code></th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>fs/promises</th><th>execute</th><th>读取和写入文件</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<pre class="code-block"><code class="language-text"></code></pre>
+
+    </div>
+  </main>
+</div>
+
+<div class="search-bar">
+  <input type="text" class="search-input" placeholder="搜索..." id="searchInput">
+</div>
+
+<script>
+(function() {
+  const searchInput = document.getElementById('searchInput');
+  const bodySheet = document.querySelector('.body-sheet');
+  let currentHighlight = [];
+  
+  searchInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim().toLowerCase();
+    
+    currentHighlight.forEach(function(el) {
+      const parent = el.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize();
+      }
+    });
+    currentHighlight = [];
+    
+    if (!query || query.length < 2) return;
+    
+    const walker = document.createTreeWalker(
+      bodySheet,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    const textNodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.nodeValue.toLowerCase().indexOf(query) !== -1) {
+        textNodes.push(node);
+      }
+    }
+    
+    textNodes.forEach(function(node) {
+      const escapedQuery = query.replace(/[.*+?^$\{}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('(' + escapedQuery + ')', 'gi');
+      const parts = node.nodeValue.split(regex);
+      
+      const fragment = document.createDocumentFragment();
+      parts.forEach(function(part) {
+        if (regex.test(part)) {
+          const mark = document.createElement('span');
+          mark.className = 'highlight';
+          mark.textContent = part;
+          fragment.appendChild(mark);
+          currentHighlight.push(mark);
+        } else {
+          fragment.appendChild(document.createTextNode(part));
+        }
+      });
+      
+      node.parentNode.replaceChild(fragment, node);
+    });
+  });
+  
+  document.querySelectorAll('.rail-nav a').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelector('.reader-rail').classList.remove('open');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

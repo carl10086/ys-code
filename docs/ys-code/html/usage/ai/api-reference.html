@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 模块 API 参考</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.dev-shell { max-width: 960px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-xl);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.terminal-prompt .user { color: var(--fg-2); }
+.terminal-prompt .host { color: var(--fg-muted); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 10px; height: 18px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.terminal-pane {
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  color: var(--fg-2);
+  font-size: 12px;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.pane-body { padding: var(--space-md); }
+h1, h2, h3, h4 {
+  font-family: var(--font-headline);
+  color: var(--fg-1);
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+h1 { font-size: 18px; font-weight: 700; }
+h2 { font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+h3 { font-size: 14px; font-weight: 600; color: var(--fg-2); }
+h4 { font-size: 13px; font-weight: 600; color: var(--fg-2); }
+p { margin: var(--space-md) 0; color: var(--fg-2); }
+pre {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 1px 4px;
+  color: var(--fg-1);
+}
+pre code { background: transparent; padding: 0; }
+ul, ol { margin: var(--space-md) 0; padding-left: var(--space-xl); color: var(--fg-2); }
+li { margin: var(--space-xs) 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  font-size: 12px;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+}
+th { background: var(--surface-container-low); color: var(--fg-1); font-weight: 600; }
+td { color: var(--fg-2); }
+.status-code {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: var(--space-sm);
+}
+.status-code.ok { background: var(--green); color: var(--on-primary); }
+.status-code.warn { background: var(--yellow); color: var(--on-primary); }
+.status-code.err { background: var(--red); color: #fff; }
+.status-code.hyp { background: var(--blue); color: var(--on-primary); }
+.nav-links { margin: var(--space-md) 0; }
+.nav-links a {
+  display: inline-block;
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-right: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.nav-links a:hover { border-color: var(--border-strong); color: var(--fg-1); background: var(--surface-container-low); }
+@media (max-width: 640px) {
+  .dev-shell { padding: var(--space-md); }
+  h1 { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="dev-shell">
+<div class="terminal-prompt">
+<span class="user">dev</span>@<span class="host">ys-code</span>:<span class="path">~/docs/ai</span>$ cat api-reference.md<span class="cursor"></span>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- AI MODULE API REFERENCE ---+</div>
+<div class="pane-body">
+
+<h1>AI 模块 API 参考</h1>
+
+<h2>导出列表</h2>
+<pre><code>// models.ts
+export { getModel, getModels, getProviders, calculateCost } from "./models.js"
+
+// stream.ts
+export { stream, complete, streamSimple, completeSimple } from "./stream.js"
+
+// env-api-keys.ts
+export { getEnvApiKey } from "./env-api-keys.js"
+
+// types.ts
+export type { Model, Context, Message, UserMessage, AssistantMessage, ToolResultMessage, ToolCall, ... } from "./types.js"
+
+// providers/register-builtins.ts
+export { streamAnthropic, streamSimpleAnthropic, registerBuiltInApiProviders } from "./providers/register-builtins.js"</code></pre>
+
+<h2>模型操作</h2>
+
+<h3>getModel</h3>
+<pre><code>function getModel&lt;TProvider extends KnownProvider, TModelId extends keyof (typeof MODELS)[TProvider]&gt;(
+  provider: TProvider,
+  modelId: TModelId,
+): Model&lt;ModelApi&lt;TProvider, TModelId&gt;&gt;</code></pre>
+<p>根据 provider 和 modelId 获取模型实例。</p>
+<pre><code>const model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");
+// model: Model&lt;"anthropic-messages"&gt;</code></pre>
+
+<h3>getProviders</h3>
+<pre><code>function getProviders(): KnownProvider[]</code></pre>
+<p>获取所有可用 provider 列表。</p>
+<pre><code>getProviders(); // ["minimax", "minimax-cn"]</code></pre>
+
+<h3>getModels</h3>
+<pre><code>function getModels&lt;TProvider extends KnownProvider&gt;(
+  provider: TProvider,
+): Model&lt;...&gt;[]</code></pre>
+<p>获取指定 provider 下所有模型。</p>
+<pre><code>getModels("minimax-cn");
+// [Model&lt;"anthropic-messages"&gt;, Model&lt;"anthropic-messages"&gt;]</code></pre>
+
+<h3>calculateCost</h3>
+<pre><code>function calculateCost&lt;TApi extends Api&gt;(model: Model&lt;TApi&gt;, usage: Usage): Usage["cost"]</code></pre>
+<p>根据模型定价和实际用量计算费用。</p>
+<pre><code>const cost = calculateCost(model, usage);
+// cost: { input: 0.0003, output: 0.0012, cacheRead: ..., cacheWrite: ..., total: ... }</code></pre>
+
+<h2>流式调用</h2>
+
+<h3>streamSimple</h3>
+<pre><code>function streamSimple&lt;TApi extends Api&gt;(
+  model: Model&lt;TApi&gt;,
+  context: Context,
+  options?: SimpleStreamOptions,
+): AssistantMessageEventStream</code></pre>
+<p>最常用的流式调用入口。自动处理 reasoning 逻辑。</p>
+<p><strong>SimpleStreamOptions：</strong></p>
+<pre><code>interface SimpleStreamOptions extends StreamOptions {
+  reasoning?: ThinkingLevel;           // "minimal" | "low" | "medium" | "high" | "xhigh"
+  thinkingBudgets?: ThinkingBudgets;    // 自定义 thinking token 预算
+}</code></pre>
+
+<h3>stream</h3>
+<pre><code>function stream&lt;TApi extends Api&gt;(
+  model: Model&lt;TApi&gt;,
+  context: Context,
+  options?: ProviderStreamOptions,
+): AssistantMessageEventStream</code></pre>
+<p>底层流式调用，不处理 reasoning。</p>
+
+<h3>completeSimple</h3>
+<pre><code>async function completeSimple&lt;TApi extends Api&gt;(
+  model: Model&lt;TApi&gt;,
+  context: Context,
+  options?: SimpleStreamOptions,
+): Promise&lt;AssistantMessage&gt;</code></pre>
+<p>等待完整响应，返回 <code>AssistantMessage</code>。</p>
+
+<h3>complete</h3>
+<pre><code>async function complete&lt;TApi extends Api&gt;(
+  model: Model&lt;TApi&gt;,
+  context: Context,
+  options?: ProviderStreamOptions,
+): Promise&lt;AssistantMessage&gt;</code></pre>
+<p>底层完整调用。</p>
+
+<h2>Context 构建</h2>
+<pre><code>interface Context {
+  systemPrompt?: string;           // 系统提示词
+  messages: Message[];             // 消息列表
+  tools?: Tool[];                  // 工具列表
+}</code></pre>
+
+<h3>Message 类型</h3>
+<pre><code>type Message = UserMessage | AssistantMessage | ToolResultMessage;</code></pre>
+
+<h3>UserMessage</h3>
+<pre><code>interface UserMessage {
+  role: "user";
+  content: string | (TextContent | ImageContent)[];
+  timestamp: number;
+}</code></pre>
+
+<h3>AssistantMessage</h3>
+<pre><code>interface AssistantMessage {
+  role: "assistant";
+  content: (TextContent | ThinkingContent | ToolCall)[];
+  api: Api;
+  provider: Provider;
+  model: string;
+  responseId?: string;
+  usage: Usage;
+  stopReason: StopReason;
+  errorMessage?: string;
+  timestamp: number;
+}</code></pre>
+
+<h3>ToolResultMessage</h3>
+<pre><code>interface ToolResultMessage {
+  role: "toolResult";
+  toolCallId: string;
+  toolName: string;
+  content: (TextContent | ImageContent)[];
+  details?: any;
+  isError: boolean;
+  timestamp: number;
+}</code></pre>
+
+<h2>事件流</h2>
+
+<h3>AssistantMessageEvent 类型</h3>
+<pre><code>type AssistantMessageEvent =
+  | { type: "start"; partial: AssistantMessage }
+  | { type: "text_start"; contentIndex: number; partial: AssistantMessage }
+  | { type: "text_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "text_end"; contentIndex: number; content: string; partial: AssistantMessage }
+  | { type: "thinking_start"; contentIndex: number; partial: AssistantMessage }
+  | { type: "thinking_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "thinking_end"; contentIndex: number; content: string; partial: AssistantMessage }
+  | { type: "toolcall_start"; contentIndex: number; partial: AssistantMessage }
+  | { type: "toolcall_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "toolcall_end"; contentIndex: number; toolCall: ToolCall; partial: AssistantMessage }
+  | { type: "done"; reason: "stop" | "length" | "toolUse"; message: AssistantMessage }
+  | { type: "error"; reason: "aborted" | "error"; error: AssistantMessage };</code></pre>
+
+<h3>AssistantMessageEventStream 方法</h3>
+<pre><code>class AssistantMessageEventStream implements AsyncIterable&lt;AssistantMessageEvent&gt; {
+  push(event: AssistantMessageEvent): void;    // 推入事件
+  end(final?: AssistantMessage): void;          // 标记结束
+  result(): Promise&lt;AssistantMessage&gt;;          // 获取最终结果
+  [Symbol.asyncIterator](): AsyncIterator&lt;AssistantMessageEvent&gt;;
+}</code></pre>
+
+<h2>StreamOptions</h2>
+<pre><code>interface StreamOptions {
+  temperature?: number;
+  maxTokens?: number;
+  signal?: AbortSignal;
+  apiKey?: string;
+  transport?: "sse" | "websocket" | "auto";
+  cacheRetention?: "none" | "short" | "long";
+  sessionId?: string;
+  onPayload?: (payload: unknown, model: Model&lt;Api&gt;) =&gt; unknown | undefined | Promise&lt;...&gt;;
+  headers?: Record&lt;string, string&gt;;
+  maxRetryDelayMs?: number;
+  metadata?: Record&lt;string, unknown&gt;;
+}</code></pre>
+
+<div class="nav-links">
+<a href="README.html">README</a>
+<a href="streaming.html">流式输出</a>
+<a href="thinking.html">Thinking</a>
+<a href="tool-call.html">Tool Call</a>
+<a href="cost-tracking.html">费用追踪</a>
+</div>
+
+</div>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- STATUS ---+</div>
+<div class="pane-body">
+<span class="status-code ok">OK</span> API reference loaded<br>
+<span class="status-code ok">OK</span> 5 export modules documented<br>
+<span class="status-code ok">OK</span> 4 stream functions, 4 model functions, 3 message types
+</div>
+</div>
+
+</div>
+</body>
+</html>

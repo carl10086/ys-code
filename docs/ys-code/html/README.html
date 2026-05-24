@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ys-code 文档中心</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #a03b00;
+      --primary-container: #c94c00;
+      --primary-fixed: #ffdbcd;
+      --primary-fixed-dim: #ffb597;
+      --on-primary: #ffffff;
+      --accent-glow: #E8400D;
+      --secondary: #d5baff;
+      --secondary-container: #7b40e0;
+      --tertiary: #4d44e3;
+      --accent-cyan: #00D4FF;
+      --bg: #fff8f6;
+      --surface: #fff8f6;
+      --surface-container-lowest: #ffffff;
+      --surface-container-low: #fbf2ef;
+      --surface-container: #f5ece9;
+      --surface-container-high: #efe6e3;
+      --fg-1: #1e1b19;
+      --fg-2: #594138;
+      --fg-muted: #8d7166;
+      --border: rgba(0, 0, 0, 0.06);
+      --border-strong: rgba(0, 0, 0, 0.12);
+      --outline-variant: #e1bfb2;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+      --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+      --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+      --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+      --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+      --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+      --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+      --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #060B18;
+        --surface: #0B1426;
+        --surface-container-lowest: #101D35;
+        --surface-container-low: #101D35;
+        --surface-container: #162544;
+        --surface-container-high: #1c2d52;
+        --fg-1: #F8FAFC;
+        --fg-2: #CBD5E1;
+        --fg-muted: #64748B;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --primary: #FF6B35;
+        --accent-glow: #00D4FF;
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Document Shell */
+    .document-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-3xl) var(--space-xl);
+    }
+
+    /* Cover / Masthead */
+    .cover {
+      background: var(--gradient-hero);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-5xl) var(--space-4xl);
+      margin-bottom: var(--space-4xl);
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cover::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 60%;
+      height: 200%;
+      background: radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cover h1 {
+      font-family: var(--font-headline);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-lg);
+      position: relative;
+      z-index: 1;
+    }
+
+    .cover .subtitle {
+      font-size: 1.15rem;
+      opacity: 0.9;
+      max-width: 600px;
+      line-height: 1.5;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cover .meta {
+      margin-top: var(--space-2xl);
+      display: flex;
+      gap: var(--space-xl);
+      flex-wrap: wrap;
+      font-size: 0.875rem;
+      opacity: 0.8;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cover .meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    /* Reader Rail */
+    .reader-rail {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-4xl);
+      flex-wrap: wrap;
+      padding: var(--space-lg) 0;
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    .reader-rail button {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      color: var(--fg-2);
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: var(--radius-pill);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .reader-rail button:hover,
+    .reader-rail button.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* Body Sections */
+    .body-section {
+      margin-bottom: var(--space-5xl);
+    }
+
+    .body-section h2 {
+      font-family: var(--font-headline);
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--fg-1);
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-md);
+      border-bottom: 2px solid var(--primary);
+      display: inline-block;
+    }
+
+    .body-section h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--fg-2);
+      margin: var(--space-2xl) 0 var(--space-lg);
+    }
+
+    /* Claim Cards */
+    .claim-card {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-bottom: var(--space-lg);
+      transition: all 0.2s ease;
+    }
+
+    .claim-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--outline-variant);
+    }
+
+    .claim-card h4 {
+      font-family: var(--font-headline);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--fg-1);
+      margin-bottom: var(--space-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .claim-card h4::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .claim-card p {
+      color: var(--fg-2);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .claim-card .tags {
+      margin-top: var(--space-md);
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-pill);
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .tag.spec {
+      background: rgba(160, 59, 0, 0.08);
+      color: var(--primary);
+      border-color: rgba(160, 59, 0, 0.15);
+    }
+
+    .tag.guide {
+      background: rgba(59, 130, 246, 0.08);
+      color: var(--blue);
+      border-color: rgba(59, 130, 246, 0.15);
+    }
+
+    .tag.usage {
+      background: rgba(16, 185, 129, 0.08);
+      color: var(--green);
+      border-color: rgba(16, 185, 129, 0.15);
+    }
+
+    /* Fact Table */
+    .fact-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--space-xl) 0;
+      font-size: 0.95rem;
+    }
+
+    .fact-table th,
+    .fact-table td {
+      text-align: left;
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .fact-table th {
+      font-family: var(--font-headline);
+      font-weight: 600;
+      color: var(--fg-1);
+      background: var(--surface-container);
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .fact-table td {
+      color: var(--fg-2);
+    }
+
+    .fact-table tr:hover td {
+      background: var(--surface-container-low);
+    }
+
+    .fact-table a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .fact-table a:hover {
+      text-decoration: underline;
+    }
+
+    /* Evidence Margin */
+    .evidence-margin {
+      background: var(--surface-container);
+      border-left: 3px solid var(--primary);
+      padding: var(--space-lg) var(--space-xl);
+      margin: var(--space-xl) 0;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    }
+
+    .evidence-margin p {
+      color: var(--fg-muted);
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+
+    /* Question Panel */
+    .question-panel {
+      background: var(--surface-container-high);
+      border-radius: var(--radius-xl);
+      padding: var(--space-2xl);
+      margin-top: var(--space-4xl);
+    }
+
+    .question-panel h3 {
+      font-family: var(--font-headline);
+      font-size: 1.25rem;
+      margin-bottom: var(--space-lg);
+      color: var(--fg-1);
+    }
+
+    .question-panel ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .question-panel li {
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--fg-2);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-md);
+    }
+
+    .question-panel li::before {
+      content: '→';
+      color: var(--primary);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .question-panel li:last-child {
+      border-bottom: none;
+    }
+
+    /* Source Spread */
+    .source-spread {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+    }
+
+    .source-card {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      transition: all 0.2s ease;
+    }
+
+    .source-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+
+    .source-card h4 {
+      font-family: var(--font-headline);
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: var(--space-sm);
+      color: var(--fg-1);
+    }
+
+    .source-card p {
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+      line-height: 1.5;
+    }
+
+    .source-card .path {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      margin-top: var(--space-md);
+      padding-top: var(--space-md);
+      border-top: 1px solid var(--border);
+    }
+
+    /* Reading Mode: Summary */
+    .reading-mode-summary .body-section .claim-card p,
+    .reading-mode-summary .fact-table tbody,
+    .reading-mode-summary .source-spread,
+    .reading-mode-summary .evidence-margin {
+      display: none;
+    }
+
+    .reading-mode-summary .fact-table thead {
+      display: table-header-group;
+    }
+
+    .reading-mode-summary .fact-table {
+      margin-bottom: var(--space-lg);
+    }
+
+    .reading-mode-summary .claim-card {
+      cursor: pointer;
+    }
+
+    .reading-mode-summary .claim-card::after {
+      content: '点击展开详情';
+      display: block;
+      margin-top: var(--space-sm);
+      font-size: 0.8rem;
+      color: var(--primary);
+    }
+
+    /* Reading Mode: Evidence */
+    .reading-mode-evidence .claim-card h4,
+    .reading-mode-evidence .claim-card .tags,
+    .reading-mode-evidence .fact-table thead {
+      display: none;
+    }
+
+    .reading-mode-evidence .body-section h2,
+    .reading-mode-evidence .body-section h3 {
+      display: none;
+    }
+
+    .reading-mode-evidence .claim-card {
+      background: transparent;
+      border: none;
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      margin-bottom: 0;
+    }
+
+    .reading-mode-evidence .claim-card:hover {
+      box-shadow: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .document-shell {
+        padding: var(--space-xl) var(--space-lg);
+      }
+
+      .cover {
+        padding: var(--space-3xl) var(--space-xl);
+      }
+
+      .cover h1 {
+        font-size: 2rem;
+      }
+
+      .reader-rail {
+        gap: var(--space-sm);
+      }
+
+      .reader-rail button {
+        padding: var(--space-sm) var(--space-md);
+        font-size: 0.8rem;
+      }
+
+      .source-spread {
+        grid-template-columns: 1fr;
+      }
+
+      .fact-table {
+        font-size: 0.875rem;
+      }
+
+      .fact-table th,
+      .fact-table td {
+        padding: var(--space-sm);
+      }
+    }
+
+    /* Print styles */
+    @media print {
+      .reader-rail {
+        display: none;
+      }
+
+      .cover {
+        background: white !important;
+        color: black !important;
+        border: 2px solid #333;
+      }
+
+      .claim-card,
+      .source-card {
+        break-inside: avoid;
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    /* Focus states */
+    a:focus,
+    button:focus {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--surface-container);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--outline-variant);
+      border-radius: var(--radius-pill);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="document-shell">
+    <!-- Cover / Masthead -->
+    <header class="cover">
+      <h1>ys-code 文档中心</h1>
+      <p class="subtitle">项目自身的设计文档、实现指南和 API 使用参考。涵盖架构总览、设计规格、模块实现指南和使用手册。</p>
+      <div class="meta">
+        <span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          48 篇文档
+        </span>
+        <span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+          7 个模块
+        </span>
+        <span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          持续更新
+        </span>
+      </div>
+    </header>
+
+    <!-- Reader Rail -->
+    <nav class="reader-rail" role="tablist" aria-label="阅读模式">
+      <button class="active" data-mode="full" role="tab" aria-selected="true">完整视图</button>
+      <button data-mode="summary" role="tab" aria-selected="false">5分钟概览</button>
+      <button data-mode="evidence" role="tab" aria-selected="false">证据浏览</button>
+    </nav>
+
+    <!-- Body Sheet -->
+    <main>
+      <!-- Architecture Section -->
+      <section class="body-section" id="architecture">
+        <h2>架构总览</h2>
+        <div class="claim-card">
+          <h4>分层架构 + 事件驱动 Agent 系统</h4>
+          <p>ys-code 采用清晰的分层架构：CLI 接口层、Agent 核心层、AI 抽象层、Session 持久化层、TUI 渲染层和 Web 服务层。通过 Agent 类和 runAgentLoop 实现状态化 Agent，事件订阅机制连接各层。</p>
+          <div class="tags">
+            <span class="tag">架构</span>
+            <span class="tag">事件驱动</span>
+          </div>
+        </div>
+        <div class="evidence-margin">
+          <p>核心参考：Claude Code 源码（refer/claude-code-haha/）和 Pi-mono 项目（refer/pi-mono/）</p>
+        </div>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>层级</th>
+              <th>位置</th>
+              <th>职责</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CLI 接口层</td>
+              <td><code>src/main.ts</code></td>
+              <td>程序入口、命令行解析、启动协调</td>
+            </tr>
+            <tr>
+              <td>Agent 核心层</td>
+              <td><code>src/agent/</code></td>
+              <td>状态化 Agent、消息路由、工具执行</td>
+            </tr>
+            <tr>
+              <td>AI 抽象层</td>
+              <td><code>src/core/ai/</code></td>
+              <td>Provider 注册表、多后端支持</td>
+            </tr>
+            <tr>
+              <td>Session 层</td>
+              <td><code>src/session/</code></td>
+              <td>持久化、上下文管理</td>
+            </tr>
+            <tr>
+              <td>TUI 渲染层</td>
+              <td><code>src/tui/</code></td>
+              <td>Ink + React 终端界面</td>
+            </tr>
+            <tr>
+              <td>Web 服务层</td>
+              <td><code>src/web/</code></td>
+              <td>预览服务器、HTTP API</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Specs Section -->
+      <section class="body-section" id="specs">
+        <h2>设计规格</h2>
+        <p style="color: var(--fg-2); margin-bottom: var(--space-xl);">核心模块的设计方案与决策记录，面向开发者和设计评审。</p>
+
+        <div class="source-spread">
+          <div class="source-card">
+            <h4>Core AI 架构</h4>
+            <p>AI 能力抽象层设计，Provider 注册表模式，支持 Anthropic/MiniMax 多后端</p>
+            <div class="path">specs/core-ai.md</div>
+          </div>
+          <div class="source-card">
+            <h4>消息架构重设计</h4>
+            <p>Agent 消息模型的重新设计，统一消息格式与事件流</p>
+            <div class="path">specs/message-architecture.md</div>
+          </div>
+          <div class="source-card">
+            <h4>元消息设计</h4>
+            <p>Meta-message 协议设计，用于跨层通信和状态同步</p>
+            <div class="path">specs/meta-message.md</div>
+          </div>
+          <div class="source-card">
+            <h4>持久化与 Compact</h4>
+            <p>上下文压缩策略、持久化格式、恢复机制</p>
+            <div class="path">specs/persistence-compact.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Read-Before-Write</h4>
+            <p>文件编辑的安全写入模式，避免脏写和冲突</p>
+            <div class="path">specs/read-before-write.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Skill 架构</h4>
+            <p>技能系统的设计，模块化能力扩展机制</p>
+            <div class="path">specs/skill.md</div>
+          </div>
+          <div class="source-card">
+            <h4>系统提示词</h4>
+            <p>System prompt 的设计原则、模板结构和优化策略</p>
+            <div class="path">specs/system-prompt.md</div>
+          </div>
+          <div class="source-card">
+            <h4>工具设计</h4>
+            <p>Tool 抽象层、调用协议和实现规范</p>
+            <div class="path">specs/tool.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Markdown TUI 渲染</h4>
+            <p>终端环境下的 Markdown 渲染策略和组件设计</p>
+            <div class="path">specs/markdown-tui.md</div>
+          </div>
+          <div class="source-card">
+            <h4>日志系统</h4>
+            <p>结构化日志、级别管理和诊断输出</p>
+            <div class="path">specs/logging.md</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Guide Section -->
+      <section class="body-section" id="guides">
+        <h2>实现指南</h2>
+        <p style="color: var(--fg-2); margin-bottom: var(--space-xl);">模块实现细节、最佳实践和调试指南，面向开发者和维护者。</p>
+
+        <h3>Compact 模块</h3>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>文档</th>
+              <th>内容</th>
+              <th>类型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="../guide/compact/overview.md">概述</a></td>
+              <td>Compact 模块的整体架构和设计目标</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/runtime-flow.md">运行时链路</a></td>
+              <td>消息从接收到压缩的完整处理流程</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/message-model.md">消息模型</a></td>
+              <td>内部消息表示和转换规则</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/summary.md">摘要与微压缩</a></td>
+              <td>摘要生成策略和微压缩算法</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/attachments.md">附件恢复</a></td>
+              <td>附件数据的持久化和恢复机制</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/persistence.md">持久化与恢复</a></td>
+              <td>状态持久化格式和恢复流程</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/safety.md">安全与失败模式</a></td>
+              <td>错误处理、边界情况和安全策略</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/compact/testing.md">测试地图</a></td>
+              <td>测试策略、用例和覆盖率要求</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Edit Tool 模块</h3>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>文档</th>
+              <th>内容</th>
+              <th>类型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="../guide/edit-tool/overview.md">执行流程</a></td>
+              <td>Edit Tool 的整体执行流程和状态机</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/read-before-write.md">Read-Before-Write</a></td>
+              <td>安全写入的详细实现</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/dirty-write.md">Dirty Write 检测</a></td>
+              <td>并发修改检测和冲突解决</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/quote-normalization.md">引用规范化</a></td>
+              <td>文本引用的匹配和规范化策略</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/file-state-cache.md">文件状态缓存</a></td>
+              <td>文件元数据缓存和一致性维护</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/error-handling.md">错误处理</a></td>
+              <td>错误分类、恢复策略和用户体验</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/testing.md">测试</a></td>
+              <td>单元测试、集成测试和模拟策略</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+            <tr>
+              <td><a href="../guide/edit-tool/cc-comparison.md">与 CC 对比</a></td>
+              <td>与 Claude Code 实现的差异分析</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>MCP 模块</h3>
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>文档</th>
+              <th>内容</th>
+              <th>类型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a href="../guide/mcp/technical-guide.md">技术指南</a></td>
+              <td>MCP 协议实现、工具注册和调用流程</td>
+              <td><span class="tag guide">指南</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Usage Section -->
+      <section class="body-section" id="usage">
+        <h2>使用手册</h2>
+        <p style="color: var(--fg-2); margin-bottom: var(--space-xl);">API 参考和使用指南，面向模块使用者和接入方。</p>
+
+        <h3>AI 模块</h3>
+        <div class="source-spread">
+          <div class="source-card">
+            <h4>快速开始</h4>
+            <p>AI 模块的安装、配置和基本调用方式</p>
+            <div class="path">usage/ai/README.md</div>
+          </div>
+          <div class="source-card">
+            <h4>API 参考</h4>
+            <p>完整的 API 列表、参数说明和返回值</p>
+            <div class="path">usage/ai/api-reference.md</div>
+          </div>
+          <div class="source-card">
+            <h4>流式输出</h4>
+            <p>Stream 模式的使用和事件处理</p>
+            <div class="path">usage/ai/streaming.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Thinking</h4>
+            <p>Thinking 模式、推理链和调试输出</p>
+            <div class="path">usage/ai/thinking.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Tool Call</h4>
+            <p>工具调用的使用方式和最佳实践</p>
+            <div class="path">usage/ai/tool-call.md</div>
+          </div>
+          <div class="source-card">
+            <h4>费用追踪</h4>
+            <p>Token 使用统计和成本监控</p>
+            <div class="path">usage/ai/cost-tracking.md</div>
+          </div>
+        </div>
+
+        <h3>Agent 模块</h3>
+        <div class="source-spread" style="margin-top: var(--space-xl);">
+          <div class="source-card">
+            <h4>快速开始</h4>
+            <p>Agent 的创建、配置和运行入门</p>
+            <div class="path">usage/agent/README.md</div>
+          </div>
+          <div class="source-card">
+            <h4>API 参考</h4>
+            <p>Agent 类和方法的完整参考</p>
+            <div class="path">usage/agent/api-reference.md</div>
+          </div>
+          <div class="source-card">
+            <h4>事件</h4>
+            <p>Agent 事件系统和订阅机制</p>
+            <div class="path">usage/agent/events.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Tools</h4>
+            <p>工具注册、发现和执行</p>
+            <div class="path">usage/agent/tools.md</div>
+          </div>
+          <div class="source-card">
+            <h4>状态管理</h4>
+            <p>Agent 状态机、生命周期和持久化</p>
+            <div class="path">usage/agent/state.md</div>
+          </div>
+          <div class="source-card">
+            <h4>Loop</h4>
+            <p>Agent 循环的控制和自定义</p>
+            <div class="path">usage/agent/loop.md</div>
+          </div>
+          <div class="source-card">
+            <h4>架构</h4>
+            <p>Agent 模块的内部架构说明</p>
+            <div class="path">usage/agent/architecture.md</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Topic Trails Section -->
+      <section class="body-section" id="topics">
+        <h2>主题路径</h2>
+        <p style="color: var(--fg-2); margin-bottom: var(--space-xl);">按主题组织的阅读路径，从规格到实现再到使用。</p>
+
+        <div class="claim-card">
+          <h4>消息架构</h4>
+          <p>从元消息协议到消息架构重设计，完整理解消息模型的演进。</p>
+          <div class="tags">
+            <span class="tag spec">规格</span>
+            <a href="../specs/meta-message.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/meta-message.md →</a>
+            <a href="../specs/message-architecture.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/message-architecture.md →</a>
+          </div>
+        </div>
+
+        <div class="claim-card">
+          <h4>上下文压缩</h4>
+          <p>从设计规格到实现细节，掌握 Compact 模块的完整实现。</p>
+          <div class="tags">
+            <span class="tag spec">规格</span>
+            <span class="tag guide">指南</span>
+            <a href="../specs/persistence-compact.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/persistence-compact.md →</a>
+            <a href="../guide/compact/overview.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">guide/compact/overview.md →</a>
+          </div>
+        </div>
+
+        <div class="claim-card">
+          <h4>文件编辑</h4>
+          <p>从 Read-Before-Write 设计到 Edit Tool 实现，了解安全文件编辑的完整方案。</p>
+          <div class="tags">
+            <span class="tag spec">规格</span>
+            <span class="tag guide">指南</span>
+            <a href="../specs/read-before-write.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/read-before-write.md →</a>
+            <a href="../guide/edit-tool/overview.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">guide/edit-tool/overview.md →</a>
+          </div>
+        </div>
+
+        <div class="claim-card">
+          <h4>TUI 渲染</h4>
+          <p>终端用户界面的 Markdown 渲染策略和组件设计。</p>
+          <div class="tags">
+            <span class="tag spec">规格</span>
+            <a href="../specs/markdown-tui.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/markdown-tui.md →</a>
+          </div>
+        </div>
+
+        <div class="claim-card">
+          <h4>日志系统</h4>
+          <p>结构化日志设计和实现规范。</p>
+          <div class="tags">
+            <span class="tag spec">规格</span>
+            <a href="../specs/logging.md" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">specs/logging.md →</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- External References Section -->
+      <section class="body-section" id="references">
+        <h2>外部参考</h2>
+
+        <table class="fact-table">
+          <thead>
+            <tr>
+              <th>参考来源</th>
+              <th>位置</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Claude Code 源码分析</td>
+              <td><code>docs/cc/</code></td>
+              <td>cc 核心机制的深度源码分析</td>
+            </tr>
+            <tr>
+              <td>Pi-mono 参考</td>
+              <td><code>refer/pi-mono/</code></td>
+              <td>另一个 agent 项目源码</td>
+            </tr>
+            <tr>
+              <td>Claude Code 源码</td>
+              <td><code>refer/claude-code-haha/</code></td>
+              <td>核心参考源码</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Question Panel -->
+      <aside class="question-panel">
+        <h3>文档风格指南</h3>
+        <ul>
+          <li>文件名使用英文 kebab-case，无日期前缀</li>
+          <li>技术术语保留英文原文（如 compact、tool call）</li>
+          <li>代码块使用 TypeScript 语法高亮</li>
+          <li>过时内容使用 <strong>状态: 已过时</strong> 标注</li>
+          <li>文档间通过相对路径链接，避免绝对路径</li>
+          <li>规格文档聚焦"做什么"和"为什么"，指南文档聚焦"怎么做"</li>
+        </ul>
+      </aside>
+    </main>
+
+    <footer style="margin-top: var(--space-5xl); padding-top: var(--space-2xl); border-top: 1px solid var(--border); text-align: center; color: var(--fg-muted); font-size: 0.875rem;">
+      <p>ys-code 文档中心 · 持续更新</p>
+      <p style="margin-top: var(--space-sm);">技术栈：Bun + TypeScript + Ink/React</p>
+    </footer>
+  </div>
+
+  <script>
+    // Reading mode switching
+    const rail = document.querySelector('.reader-rail');
+    const shell = document.querySelector('.document-shell');
+    const buttons = rail.querySelectorAll('button');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state
+        buttons.forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+
+        // Apply reading mode
+        const mode = btn.dataset.mode;
+        shell.classList.remove('reading-mode-summary', 'reading-mode-evidence');
+        if (mode === 'summary') {
+          shell.classList.add('reading-mode-summary');
+        } else if (mode === 'evidence') {
+          shell.classList.add('reading-mode-evidence');
+        }
+      });
+    });
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // Claim card expand in summary mode
+    document.querySelectorAll('.claim-card').forEach(card => {
+      card.addEventListener('click', () => {
+        if (shell.classList.contains('reading-mode-summary')) {
+          const p = card.querySelector('p');
+          const tags = card.querySelector('.tags');
+          if (p) p.style.display = p.style.display === 'block' ? 'none' : 'block';
+          if (tags) tags.style.display = tags.style.display === 'flex' ? 'none' : 'flex';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

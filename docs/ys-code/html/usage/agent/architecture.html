@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 架构</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.dev-shell { max-width: 1100px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.terminal-prompt .user { color: var(--green); }
+.terminal-prompt .host { color: var(--yellow); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 8px; height: 16px;
+  background: var(--green);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.finding-bar {
+  border: 1px solid var(--border);
+  background: var(--surface-container-low);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xl);
+  font-size: 13px;
+}
+.finding-bar .status-code {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: var(--space-sm);
+  font-weight: 700;
+}
+.finding-bar .status-code.ok { background: var(--green); color: var(--on-primary); }
+.terminal-pane {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: var(--space-xl);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pane-body { padding: var(--space-md) var(--space-lg); }
+.raw-artifact {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: var(--space-md) 0;
+}
+.raw-artifact pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.status-code { font-weight: 700; font-size: 12px; }
+.status-code.ok { color: var(--green); }
+.status-code.warn { color: var(--yellow); }
+.status-code.err { color: var(--red); }
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: var(--space-xl) 0 var(--space-md);
+}
+h1 { font-size: 18px; }
+h2 { font-size: 15px; color: var(--fg-2); }
+h3 { font-size: 13px; color: var(--fg-muted); }
+p { margin-bottom: var(--space-md); }
+ul, ol { margin-left: var(--space-xl); margin-bottom: var(--space-md); }
+li { margin-bottom: var(--space-xs); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 2px 4px;
+  color: var(--fg-2);
+}
+.scanline-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  z-index: 9999;
+}
+.nav-links { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-xl); }
+.nav-links a {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+}
+.nav-links a:hover { background: var(--surface-container); text-decoration: none; }
+@media (max-width: 600px) {
+  .dev-shell { padding: var(--space-md); }
+  .finding-bar { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="scanline-overlay"></div>
+<div class="dev-shell">
+  <div class="terminal-prompt">
+    <span class="user">agent</span>@<span class="host">ys-code</span>:<span class="path">~/docs/agent</span>$ cat architecture.md<span class="cursor"></span>
+  </div>
+
+  <div class="finding-bar">
+    <span class="status-code ok">[OK]</span> Agent 架构 — 模块职责、数据流与事件矩阵
+  </div>
+
+  <div class="nav-links">
+    <a href="./README.html">快速开始</a>
+    <a href="./api-reference.html">API 参考</a>
+    <a href="./events.html">事件</a>
+    <a href="./tools.html">Tools</a>
+    <a href="./state.html">状态管理</a>
+    <a href="./loop.html">Loop</a>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 模块职责 ---+</div>
+    <div class="pane-body">
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:var(--space-md);">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">模块文件</th>
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">核心职责</th>
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">关键导出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">agent-loop.ts</td>
+            <td style="padding:var(--space-sm);">编排层。负责 turn 序列调度、steering/follow-up 处理、事件生命周期控制</td>
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">runAgentLoop, runAgentLoopContinue</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">stream-assistant.ts</td>
+            <td style="padding:var(--space-sm);">流式响应层。负责与 LLM 建立流式连接、处理 delta 事件、finalize 消息</td>
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">streamAssistantResponse, AgentEventSink</td>
+          </tr>
+          <tr>
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">tool-execution.ts</td>
+            <td style="padding:var(--space-sm);">工具执行层。负责工具查找、参数校验、顺序/并行执行、before/after 钩子</td>
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">executeToolCalls</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 数据流时序 ---+</div>
+    <div class="pane-body">
+      <p>一次包含 tool 调用的完整 turn 的数据流如下：</p>
+      <ol>
+        <li><code>runLoop</code> 调用 <code>runTurnOnce</code></li>
+        <li><code>runTurnOnce</code> 注入 pending messages（steering 或 follow-up），发射 <code>message_start</code> / <code>message_end</code></li>
+        <li><code>runTurnOnce</code> 调用 <code>streamAssistantResponse</code></li>
+        <li><code>streamAssistantResponse</code> 建立与 LLM 的流式连接，内部可能发射：
+          <ul>
+            <li><code>message_start</code>（流开始）</li>
+            <li><code>message_update</code>（多次，text/thinking/toolcall delta）</li>
+            <li><code>message_end</code>（流结束）</li>
+          </ul>
+        </li>
+        <li>如果 assistant 消息包含 <code>toolCall</code>，<code>runTurnOnce</code> 调用 <code>executeToolCalls</code></li>
+        <li><code>executeToolCalls</code> 根据 <code>toolExecution</code> 配置决定顺序或并行执行：
+          <ul>
+            <li>发射 <code>tool_execution_start</code></li>
+            <li>可选发射 <code>tool_execution_update</code>（工具执行过程中的部分结果）</li>
+            <li>发射 <code>tool_execution_end</code></li>
+          </ul>
+        </li>
+        <li><code>runTurnOnce</code> 发射 <code>turn_end</code>，携带 assistant 消息和 tool 结果</li>
+        <li><code>runLoop</code> 判断是否有 steering 消息或更多 tool calls，决定是否继续下一轮</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 事件矩阵 ---+</div>
+    <div class="pane-body">
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">事件</th>
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">发射模块</th>
+            <th style="text-align:left; padding:var(--space-sm); color:var(--fg-2);">触发时机</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">agent_start</td>
+            <td style="padding:var(--space-sm);">agent-loop.ts（入口函数）</td>
+            <td style="padding:var(--space-sm);">会话开始时</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">turn_start</td>
+            <td style="padding:var(--space-sm);">agent-loop.ts（入口函数 / runLoop）</td>
+            <td style="padding:var(--space-sm);">每个 turn 开始时</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">message_start / message_end</td>
+            <td style="padding:var(--space-sm);">agent-loop.ts / stream-assistant.ts</td>
+            <td style="padding:var(--space-sm);">消息注入或流式响应开始/结束时</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">message_update</td>
+            <td style="padding:var(--space-sm);">stream-assistant.ts</td>
+            <td style="padding:var(--space-sm);">流式 delta 到达时</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">tool_execution_start / update / end</td>
+            <td style="padding:var(--space-sm);">tool-execution.ts</td>
+            <td style="padding:var(--space-sm);">工具调用各阶段</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">turn_end</td>
+            <td style="padding:var(--space-sm);">agent-loop.ts（runTurnOnce）</td>
+            <td style="padding:var(--space-sm);">turn 结束时</td>
+          </tr>
+          <tr>
+            <td style="padding:var(--space-sm); font-family:var(--font-mono);">agent_end</td>
+            <td style="padding:var(--space-sm);">agent-loop.ts（runLoop）</td>
+            <td style="padding:var(--space-sm);">会话结束时</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:var(--space-md);">事件类型的完整字段定义请参考 <a href="./events.html">events.md</a>。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 状态修改边界 ---+</div>
+    <div class="pane-body">
+      <p>以下位置会修改 <code>AgentContext.messages</code>：</p>
+      <ul>
+        <li><strong><code>agent-loop.ts</code>（入口函数）</strong>：初始化时拷贝原上下文并注入 prompts</li>
+        <li><strong><code>agent-loop.ts</code>（<code>runTurnOnce</code>）</strong>：注入 steering/follow-up 消息和 tool results</li>
+        <li><strong><code>stream-assistant.ts</code></strong>：追加或替换 assistant 消息（流式响应的 partial → final 过程）</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 控制流说明 ---+</div>
+    <div class="pane-body">
+      <h2>为什么没有 firstTurn 标志？</h2>
+      <p>在旧实现中，<code>runLoop</code> 内部使用 <code>firstTurn</code> 布尔变量来控制首次 <code>turn_start</code> 的发射。这导致入口初始化逻辑和循环控制耦合。</p>
+      <p>当前实现改为：</p>
+      <ul>
+        <li><code>runAgentLoop</code> 和 <code>runAgentLoopContinue</code> 在调用 <code>runLoop</code> <strong>之前</strong>预先发射一次 <code>turn_start</code></li>
+        <li><code>runLoop</code> 内部使用 <code>hasPreEmittedTurnStart</code>（初始 <code>true</code>）记录"首次已发射"</li>
+        <li>后续 turn 在调用 <code>runTurnOnce</code> 之前统一发射 <code>turn_start</code></li>
+      </ul>
+      <p>这样，<code>runLoop</code> 的职责单一化：只负责 turn 序列编排，不关心入口初始化的特殊性。</p>
+
+      <h2>runTurnOnce 的职责边界</h2>
+      <p><code>runTurnOnce</code> 只做一件事：<strong>完成一次完整的 turn</strong>。它不知道自己是第几次被调用，也不处理 follow-up 或 agent 生命周期。这些决策都交给调用方 <code>runLoop</code>。</p>
+      <div class="raw-artifact"><pre>runTurnOnce 的输入：currentContext, newMessages, pendingMessages, config, signal, emit, streamFn
+runTurnOnce 的输出：{ assistantMessage, toolResults }</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 源码导航 ---+</div>
+    <div class="pane-body">
+      <ul>
+        <li>事件类型定义：<code>src/agent/types.ts</code></li>
+        <li>主循环入口：<code>src/agent/agent-loop.ts</code></li>
+        <li>流式响应：<code>src/agent/stream-assistant.ts</code></li>
+        <li>工具执行：<code>src/agent/tool-execution.ts</code></li>
+        <li>面向用户的 API：<code>src/agent/agent.ts</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

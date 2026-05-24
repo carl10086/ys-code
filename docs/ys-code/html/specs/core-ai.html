@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Core/AI 架构详解 - ys-code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #0a0a0a;
+      --surface-container-lowest: #0a0a0a;
+      --surface-container-low: #0d160d;
+      --surface-container: #102610;
+      --surface-container-high: #153315;
+      --primary: #33ff00;
+      --secondary: #ffb000;
+      --muted: #1f521f;
+      --accent: #33ff00;
+      --error: #ff3333;
+      --border: #1f521f;
+      --border-strong: #33ff00;
+      --fg-1: #33ff00;
+      --fg-2: #b7ff9a;
+      --fg-muted: #1f521f;
+      --on-primary: #050505;
+      --green: #33ff00;
+      --yellow: #ffb000;
+      --red: #ff3333;
+      --blue: #72d5ff;
+      --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+      --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+      --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+      --shadow-accent: none;
+      --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* Prompt line */
+    .terminal-prompt {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-md) var(--space-xl);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .prompt-user { color: var(--fg-2); }
+    .prompt-host { color: var(--fg-muted); }
+    .prompt-path { color: var(--secondary); }
+    .prompt-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--primary);
+      animation: blink 1s step-end infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Main layout */
+    .dev-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    /* Finding bar */
+    .finding-bar {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      padding: var(--space-lg) var(--space-xl);
+      margin-bottom: var(--space-xl);
+    }
+
+    .finding-bar .status-code {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-weight: 700;
+      margin-right: var(--space-md);
+    }
+
+    /* Terminal panes */
+    .terminal-pane {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      margin-bottom: var(--space-xl);
+    }
+
+    .pane-title {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pane-title::before {
+      content: '+--- ';
+      color: var(--fg-muted);
+    }
+
+    .pane-title::after {
+      content: ' ---+';
+      color: var(--fg-muted);
+    }
+
+    .pane-content {
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-family: var(--font-headline);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--space-md);
+    }
+
+    h1 { font-size: 18px; color: var(--primary); margin-bottom: var(--space-lg); }
+    h2 { font-size: 15px; color: var(--fg-1); margin-top: var(--space-xl); border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+    h3 { font-size: 13px; color: var(--fg-2); margin-top: var(--space-lg); }
+    h4 { font-size: 12px; color: var(--fg-muted); margin-top: var(--space-md); }
+
+    p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    /* Lists */
+    ul, ol {
+      margin-left: var(--space-xl);
+      margin-bottom: var(--space-md);
+    }
+
+    li {
+      margin-bottom: var(--space-xs);
+      color: var(--fg-2);
+    }
+
+    li::marker {
+      color: var(--fg-muted);
+    }
+
+    /* Code blocks */
+    pre, code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    pre {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: var(--space-md);
+    }
+
+    code {
+      background: var(--surface-container-low);
+      padding: 1px 4px;
+      color: var(--fg-1);
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-md);
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-md);
+      text-align: left;
+    }
+
+    th {
+      background: var(--surface-container-low);
+      color: var(--fg-1);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    td {
+      color: var(--fg-2);
+    }
+
+    tr:nth-child(even) {
+      background: var(--surface-container-lowest);
+    }
+
+    /* Blockquotes */
+    blockquote {
+      border-left: 2px solid var(--primary);
+      padding-left: var(--space-lg);
+      margin: var(--space-md) 0;
+      color: var(--fg-2);
+      font-style: italic;
+    }
+
+    /* Mermaid diagrams */
+    .mermaid {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      margin: var(--space-md) 0;
+      text-align: center;
+    }
+
+    /* Horizontal rules */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: var(--space-xl) 0;
+    }
+
+    /* Strong emphasis */
+    strong {
+      color: var(--fg-1);
+      font-weight: 700;
+    }
+
+    /* Links */
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Risk checklist items */
+    .risk-checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+
+    .risk-checklist li {
+      padding: var(--space-sm) 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .risk-checklist li:last-child {
+      border-bottom: none;
+    }
+
+    .status-code-inline {
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: var(--space-sm);
+    }
+
+    .status-ok { background: var(--green); color: var(--on-primary); }
+    .status-warn { background: var(--yellow); color: var(--on-primary); }
+    .status-err { background: var(--red); color: var(--on-primary); }
+    .status-hyp { background: var(--blue); color: var(--on-primary); }
+
+    /* ASCII dividers */
+    .ascii-divider {
+      color: var(--fg-muted);
+      font-size: 12px;
+      margin: var(--space-lg) 0;
+      letter-spacing: 0.1em;
+    }
+
+    /* Copy handoff */
+    .copy-handoff {
+      display: inline-block;
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container);
+      color: var(--fg-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: var(--space-md);
+    }
+
+    .copy-handoff:hover {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .dev-shell {
+        padding: var(--space-md);
+      }
+
+      pre {
+        padding: var(--space-md);
+        font-size: 11px;
+      }
+
+      table {
+        font-size: 11px;
+      }
+
+      th, td {
+        padding: var(--space-xs) var(--space-sm);
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .prompt-cursor {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal-prompt">
+    <span class="prompt-user">review</span>
+    <span class="prompt-host">@</span>
+    <span class="prompt-path">ys-code:~/docs/core-ai$</span>
+    <span>cat architecture.md --verbose</span>
+    <span class="prompt-cursor"></span>
+  </div>
+
+  <div class="dev-shell">
+    <div class="finding-bar">
+      <span class="status-code">[OK]</span>
+      <span>Core/AI 架构详解 | 目标：从 OpenAI Streaming API 出发，深入掌握这套 AI 抽象层的设计与实现</span>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">概念对照：OpenAI vs Anthropic Messages API</div>
+      <div class="pane-content">
+        <table>
+          <thead>
+            <tr>
+              <th>概念</th>
+              <th>OpenAI</th>
+              <th>Anthropic Messages API</th>
+              <th>本项目</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>流式协议</td>
+              <td>Server-Sent Events (SSE)</td>
+              <td>SSE</td>
+              <td>统一为 AssistantMessageEvent</td>
+            </tr>
+            <tr>
+              <td>消息角色</td>
+              <td>user/assistant/system</td>
+              <td>user/assistant</td>
+              <td>扩展 toolResult/tool</td>
+            </tr>
+            <tr>
+              <td>Function Call</td>
+              <td>function_call + function_call_id</td>
+              <td>tool_use + id</td>
+              <td>统一为 toolCall</td>
+            </tr>
+            <tr>
+              <td>Thinking</td>
+              <td>不支持</td>
+              <td>thinking block (beta)</td>
+              <td>支持 reasoning</td>
+            </tr>
+            <tr>
+              <td>认证</td>
+              <td>Bearer Token</td>
+              <td>x-api-key header</td>
+              <td>抽象为 env-api-keys</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">一、事件流架构</div>
+      <div class="pane-content">
+        <h2>1.1 为什么不用 Promise？</h2>
+        <p>OpenAI 的流式接口通常返回 ReadableStream 或 AsyncIterable&lt;SSEMessage&gt;。这套代码用了一个更复杂的 EventStream：</p>
+        <pre><code>// src/core/ai/utils/event-stream.ts
+
+export class EventStream&lt;T, R = T&gt; {
+  private queue: T[] = [];           // 事件队列
+  private waiting: ((value: IteratorResult&lt;T&gt;) =&gt; void)[] = [];  // 等待者队列
+  private done = false;
+  private finalResultPromise: Promise&lt;R&gt;;  // 最终结果
+}</code></pre>
+        <p><strong>设计意图</strong>：</p>
+        <ul>
+          <li><strong>队列 + 等待者模式</strong>：支持"还没人想要时就收到事件"和"还没事件时就有人来等"的两种情况</li>
+          <li><strong>手动控制结束</strong>：不是简单遍历完就结束，而是 push(event) 和 end(result?) 分开调用</li>
+          <li><strong>最终结果提取</strong>：通过 extractResult 函数从结束事件中提取返回值</li>
+        </ul>
+
+        <div class="mermaid">
+graph LR
+    subgraph "生产者"
+        SDK["SDK 逐事件推送"]
+    end
+
+    subgraph "EventStream"
+        Push["push(event)"]
+        Queue["queue: T[]"]
+        Waiters["waiting: fn[]"]
+        IsComplete["isComplete()"]
+        Extract["extractResult()"]
+    end
+
+    subgraph "消费者"
+        Iterate["for await...of"]
+        Result[".result()"]
+    end
+
+    SDK --> Push
+    Push --> IsComplete
+    IsComplete -->|未完成| Queue
+    IsComplete -->|完成| Extract
+    Extract --> Result
+    Queue --> Iterate
+    Waiters --> Iterate
+        </div>
+
+        <h2>1.2 事件类型体系</h2>
+        <div class="mermaid">
+classDiagram
+    class AssistantMessageEvent {
+        &lt;&lt;union type&gt;&gt;
+    }
+
+    class StreamStart {
+        +type: "start"
+        +partial: AssistantMessage
+    }
+
+    class TextEvents {
+        +type: "text_start" | "text_delta" | "text_end"
+        +contentIndex: number
+        +delta?: string
+        +content?: string
+        +partial: AssistantMessage
+    }
+
+    class ThinkingEvents {
+        +type: "thinking_start" | "thinking_delta" | "thinking_end"
+        +contentIndex: number
+        +delta?: string
+        +content?: string
+        +partial: AssistantMessage
+    }
+
+    class ToolCallEvents {
+        +type: "toolcall_start" | "toolcall_delta" | "toolcall_end"
+        +contentIndex: number
+        +delta?: string
+        +toolCall?: ToolCall
+        +partial: AssistantMessage
+    }
+
+    class DoneEvent {
+        +type: "done"
+        +reason: "stop" | "length" | "toolUse"
+        +message: AssistantMessage
+    }
+
+    class ErrorEvent {
+        +type: "error"
+        +reason: "aborted" | "error"
+        +error: AssistantMessage
+    }
+
+    AssistantMessageEvent &lt;|-- StreamStart
+    AssistantMessageEvent &lt;|-- TextEvents
+    AssistantMessageEvent &lt;|-- ThinkingEvents
+    AssistantMessageEvent &lt;|-- ToolCallEvents
+    AssistantMessageEvent &lt;|-- DoneEvent
+    AssistantMessageEvent &lt;|-- ErrorEvent
+        </div>
+
+        <p><strong>与 OpenAI 的关键差异</strong>：</p>
+        <p>OpenAI 的事件更扁平：</p>
+        <pre><code>// OpenAI
+{"choices":[{"delta":{"content":"Hello"},"index":0}]}
+{"choices":[{"delta":{"function_call":{"name":"get_weather","arguments":"{"}},"index":0}]}</code></pre>
+        <p>本项目的结构是 <strong>content-indexed</strong>：</p>
+        <pre><code>// 本项目
+{"type":"text_delta","contentIndex":0,"delta":"Hello",...}
+{"type":"toolcall_delta","contentIndex":1,"delta":"{",...}</code></pre>
+        <p>这允许同一个 AssistantMessage 有多个 content block 同时流式传输。</p>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">二、Provider 注册机制</div>
+      <div class="pane-content">
+        <h2>2.1 为什么需要注册表？</h2>
+        <p>OpenAI 直接调用 SDK，不需要这层抽象。这里需要支持：</p>
+        <ul>
+          <li>多个 provider（MiniMax、OpenAI、Google...）</li>
+          <li>每个 provider 有多个 API 类型</li>
+          <li>懒加载避免首屏延迟</li>
+        </ul>
+
+        <div class="mermaid">
+graph TB
+    subgraph "注册阶段 (模块加载时)"
+        RB["register-builtins.ts"]
+        Reg["api-registry.ts"]
+        Anth["providers/anthropic.ts"]
+    end
+
+    subgraph "调用阶段 (运行时)"
+        Stream["stream.ts"]
+        GetModel["models.ts"]
+    end
+
+    RB -->|registerApiProvider| Reg
+    RB -.->|lazy import| Anth
+    Anth -.->|export streamSimple| RB
+    Stream -->|getApiProvider(api)| Reg
+    GetModel -->|getModel(provider, id)| Reg
+        </div>
+
+        <h2>2.2 注册表核心 API</h2>
+        <pre><code>// src/core/ai/api-registry.ts
+
+interface ApiProvider&lt;TApi, TOptions&gt; {
+  api: TApi;
+  stream: StreamFunction&lt;TApi, TOptions&gt;;
+  streamSimple: StreamFunction&lt;TApi, SimpleStreamOptions&gt;;
+}
+
+// 注册
+registerApiProvider({
+  api: "anthropic-messages",
+  stream: streamAnthropic,
+  streamSimple: streamSimpleAnthropic,
+});
+
+// 查询
+const provider = getApiProvider("anthropic-messages");</code></pre>
+
+        <h2>2.3 懒加载模式</h2>
+        <pre><code>// src/core/ai/providers/register-builtins.ts
+
+let anthropicProviderModulePromise: Promise&lt;...&gt; | undefined;
+
+function loadAnthropicProviderModule() {
+  anthropicProviderModulePromise ||= import("./anthropic.js").then(...);
+  return anthropicProviderModulePromise;
+}
+
+export const streamAnthropic = createLazyStream(loadAnthropicProviderModule, m =&gt; m.stream);</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">三、消息转换：跨 Provider 的桥梁</div>
+      <div class="pane-content">
+        <h2>3.1 问题背景</h2>
+        <p>跨 provider 对话时，消息格式需要规范化：</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Tool Call 结构</th>
+              <th>Thinking 结构</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MiniMax</td>
+              <td>{type:"toolCall",id:"...",name:"...",arguments:{}}</td>
+              <td>{type:"thinking",thinking:"...",thinkingSignature:"..."}</td>
+            </tr>
+            <tr>
+              <td>OpenAI</td>
+              <td>{type:"function",id:"...",name:"...",parsing}</td>
+              <td>不支持</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>transformMessages 做两件事：</p>
+        <ol>
+          <li><strong>内容转换</strong>：同模型保留，跨模型标准化</li>
+          <li><strong>孤立 toolCall 填充</strong>：没有对应 toolResult 的 toolCall 补充错误状态</li>
+        </ol>
+
+        <div class="mermaid">
+flowchart TB
+    subgraph "输入"
+        In["messages[]"]
+    end
+
+    subgraph "阶段1: transformMessageContent"
+        Map1["role === 'user' → 直传"]
+        Map2["role === 'toolResult' → 应用ID映射"]
+        Map3["role === 'assistant' → 转换content块"]
+        TCMap["toolCallIdMap 生成"]
+    end
+
+    subgraph "阶段2: fillOrphanToolResults"
+        Fill["缺失toolResult填充"]
+        Out["规范化messages[]"]
+    end
+
+    In --> Map1
+    In --> Map2
+    In --> Map3
+    Map3 --> TCMap
+    Map1 --> Fill
+    Map2 --> Fill
+    TCMap --> Fill
+    Fill --> Out
+        </div>
+
+        <h2>3.2 Assistant Content 块转换规则</h2>
+        <pre><code>// src/core/ai/providers/transform-messages.ts
+
+// thinking 块
+if (block.type === "thinking") {
+  if (block.redacted) return isSameModel ? block : [];  // 被屏蔽：仅同模型保留
+  if (isSameModel && block.thinkingSignature) return block;  // 有签名：保留
+  if (!block.thinking?.trim()) return [];  // 空：丢弃
+  if (isSameModel) return block;  // 同模型：保留
+  return { type: "text", text: block.thinking };  // 跨模型：转text
+}
+
+// toolCall 块
+if (block.type === "toolCall") {
+  if (!isSameModel && toolCall.thoughtSignature) {
+    // 移除跨模型的 thought 签名
+    delete normalizedToolCall.thoughtSignature;
+  }
+  if (!isSameModel && normalizeToolCallId) {
+    // 标准化 toolCall ID
+    const normalizedId = normalizeToolCallId(toolCall.id, model, msg);
+    toolCallIdMap.set(toolCall.id, normalizedId);
+  }
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">四、Anthropic Provider 实现</div>
+      <div class="pane-content">
+        <h2>4.1 双层流函数</h2>
+        <div class="mermaid">
+graph TB
+    subgraph "streamSimple (对外)"
+        Simple["streamSimpleAnthropic"]
+        Reasoning["reasoning 处理"]
+        Decision["是否启用 thinking"]
+    end
+
+    subgraph "stream (底层)"
+        Stream["streamAnthropic"]
+        SDK["client.messages.stream()"]
+        Parse["事件解析"]
+    end
+
+    Simple --> Decision
+    Decision -->|需要 thinking| Reasoning
+    Reasoning --> Stream
+    Decision -->|不需要| Stream
+    Stream --> SDK
+    SDK ..->|"SSE events"| Parse
+        </div>
+
+        <p>streamSimple 是面向用户的简化接口，自动处理 reasoning 相关逻辑：</p>
+        <pre><code>// src/core/ai/providers/anthropic.ts
+
+export const streamSimpleAnthropic = (model, context, options) =&gt; {
+  if (!options?.reasoning) {
+    // 不需要 thinking：直接调用底层 stream，禁用 thinking
+    return streamAnthropic(model, context, { ...base, thinkingEnabled: false });
+  }
+
+  if (supportsAdaptiveThinking(model.id)) {
+    // 支持自适应 thinking（如 Claude 4.6）
+    return streamAnthropic(model, context, { ...base, thinkingEnabled: true, effort });
+  }
+
+  // 传统模式：手动指定 budget_tokens
+  return streamAnthropic(model, context, {
+    ...base,
+    thinkingEnabled: true,
+    thinkingBudgetTokens: adjusted.thinkingBudget,
+  });
+};</code></pre>
+
+        <h2>4.2 SDK 事件到 AssistantMessageEvent 的映射</h2>
+        <div class="mermaid">
+sequenceDiagram
+    participant SDK as Anthropic SDK
+    participant Anth as anthropic.ts
+    participant Stream as EventStream
+
+    SDK->>Anth: message_start
+    Note over Anth: 初始化 output.usage
+
+    SDK->>Anth: content_block_start (text/thinking/tool_use)
+    Note over Anth: 创建 content block
+
+    SDK->>Anth: content_block_delta (text_delta/thinking_delta/input_json_delta)
+    Note over Anth: 累积到 block.text / block.thinking / block.arguments
+
+    SDK->>Anth: content_block_stop
+    Note over Anth: 解析完成，推送 _end 事件
+
+    SDK->>Anth: message_delta
+    Note over Anth: 更新 output.stopReason / usage
+
+    SDK->>Anth: message_stop
+    Note over Anth: 推送 done 事件
+        </div>
+
+        <h2>4.3 Anthropic vs OpenAI Tool Use</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>方面</th>
+              <th>OpenAI</th>
+              <th>Anthropic</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>结构</td>
+              <td>function_call + name + arguments: string</td>
+              <td>tool_use + name + input: object</td>
+            </tr>
+            <tr>
+              <td>ID 生成</td>
+              <td>模型自动生成</td>
+              <td>模型自动生成，需标准化</td>
+            </tr>
+            <tr>
+              <td>参数流式</td>
+              <td>整个 delta 是字符串</td>
+              <td>input_json_delta 累积 JSON</td>
+            </tr>
+            <tr>
+              <td>结束信号</td>
+              <td>function_call 结束块</td>
+              <td>content_block_stop</td>
+            </tr>
+            <tr>
+              <td>结果回传</td>
+              <td>tool_results role</td>
+              <td>tool_result role</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <pre><code>// OpenAI 风格
+{type: "function_call", id: "call_abc", name: "get_weather", arguments: "{\"city\": \"Tokyo\"}"}
+
+// Anthropic 风格
+{type: "tool_use", id: "toolu_abc", name: "get_weather", input: {city: "Tokyo"}}
+
+// 本项目统一为
+{type: "toolCall", id: "toolu_abc", name: "get_weather", arguments: {city: "Tokyo"}}</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">五、完整调用流程</div>
+      <div class="pane-content">
+        <div class="mermaid">
+sequenceDiagram
+    participant User as 用户代码
+    participant Stream as stream.ts
+    participant ApiReg as api-registry.ts
+    participant RegBuiltin as register-builtins.ts
+    participant Anth as anthropic.ts
+    participant SDK as @anthropic-ai/sdk
+    participant MiniMax as MiniMax API
+    participant EventStream as EventStream
+
+    User->>Stream: streamSimple(model, context, options)
+
+    Stream->>ApiReg: getApiProvider(model.api)
+    ApiReg-->>Stream: ApiProvider
+
+    Stream->>RegBuiltin: streamSimple(model, context, options)
+    RegBuiltin->>Anth: 懒加载
+
+    User->>EventStream: for await (event of stream)
+
+    Anth->>SDK: new Anthropic({baseURL, x-api-key})
+    SDK->>MiniMax: POST /v1/messages (SSE)
+
+    loop SSE Events
+        MiniMax-->>SDK: event: message_start / content_block_start / ...
+        SDK-->>Anth: StreamingSSEEvent
+        Anth->>EventStream: push(transformedEvent)
+        EventStream-->>User: event
+    end
+
+    MiniMax-->>SDK: message_stop
+    SDK-->>Anth: message_stop
+    Anth->>EventStream: push(done)
+    Anth->>EventStream: end()
+
+    EventStream-->>User: done
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">六、关键代码路径</div>
+      <div class="pane-content">
+        <h2>6.1 获取模型 → 调用流</h2>
+        <div class="mermaid">
+flowchart LR
+    A["getModel('minimax-cn', 'MiniMax-M2.7')"] --> B["model: Model&lt;'anthropic-messages'&gt;"]
+    B --> C["streamSimple(model, context, options)"]
+    C --> D["getApiProvider('anthropic-messages')"]
+    D --> E["streamSimpleAnthropic(model, context, options)"]
+    E --> F["streamAnthropic(model, context, opts)"]
+    F --> G["new Anthropic({baseURL, x-api-key})"]
+    G --> H["client.messages.stream(params)"]
+        </div>
+
+        <h2>6.2 消息 → SDK 参数</h2>
+        <div class="mermaid">
+flowchart TB
+    subgraph "用户传入"
+        M["context.messages: Message[]"]
+    end
+
+    subgraph "transformMessages"
+        TM["两阶段转换"]
+    end
+
+    subgraph "convertMessages (anthropic.ts)"
+        CM["role 映射"]
+    end
+
+    subgraph "SDK 参数"
+        P["MessageParam[]"]
+    end
+
+    M --> TM --> CM --> P
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">七、扩展指南</div>
+      <div class="pane-content">
+        <h2>7.1 添加新 Provider（如 OpenAI）</h2>
+        <p>需要修改/新增的文件：</p>
+        <ol>
+          <li><strong>models.generated.ts</strong> - 添加模型定义</li>
+          <li><strong>providers/openai.ts</strong> - 实现 streamAnthropic/streamSimpleAnthropic 接口</li>
+          <li><strong>providers/register-builtins.ts</strong> - 注册新 provider</li>
+          <li><strong>env-api-keys.ts</strong> - 添加 API Key 映射</li>
+          <li><strong>api-registry.ts</strong> - 如需新 API 类型</li>
+        </ol>
+
+        <h2>7.2 关键接口契约</h2>
+        <pre><code>// 必须实现的接口
+interface Provider {
+  api: "anthropic-messages" | "openai" | ...;
+  stream: StreamFunction&lt;TApi, TOptions&gt;;
+  streamSimple: StreamFunction&lt;TApi, SimpleStreamOptions&gt;;
+}
+
+// StreamFunction 签名
+type StreamFunction&lt;TApi, TOptions&gt; = (
+  model: Model&lt;TApi&gt;,
+  context: Context,
+  options?: TOptions,
+) =&gt; AssistantMessageEventStream;</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">八、调试技巧</div>
+      <div class="pane-content">
+        <h2>8.1 追踪事件流</h2>
+        <pre><code>const stream = streamSimple(model, context, options);
+
+for await (const event of stream) {
+  console.log(`[${event.type}]`, JSON.stringify(event).slice(0, 200));
+}</code></pre>
+
+        <h2>8.2 检查 Provider 注册</h2>
+        <pre><code>import { getApiProvider, getApiProviders } from './api-registry.js';
+
+console.log(getApiProviders().map(p =&gt; p.api));
+// ['anthropic-messages']</code></pre>
+
+        <h2>8.3 查看模型配置</h2>
+        <pre><code>import { getModel, getProviders, getModels } from './models.js';
+
+console.log(getProviders());  // ['minimax', 'minimax-cn']
+console.log(getModels('minimax-cn'));</code></pre>
+      </div>
+    </div>
+
+    <div class="ascii-divider">// --- END OF DOCUMENT --- //</div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#102610',
+        primaryTextColor: '#33ff00',
+        primaryBorderColor: '#1f521f',
+        lineColor: '#33ff00',
+        secondaryColor: '#0d160d',
+        tertiaryColor: '#153315',
+        fontFamily: 'JetBrains Mono, Fira Code, SF Mono, Menlo, Consolas, monospace',
+        fontSize: '13px'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true
+      },
+      sequence: {
+        useMaxWidth: true
+      }
+    });
+  </script>
+</body>
+</html>

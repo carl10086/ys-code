@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="architectural-spread">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ys-code 架构文档</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --c-taupe: #6B655F;
+      --c-cream: #EBE8E3;
+      --c-moss: #2A3826;
+      --c-black: #111111;
+      --c-white: #FFFFFF;
+      --c-ink-muted: #444444;
+      --c-rule: rgba(17, 17, 17, 0.22);
+      --c-accent: #a03b00;
+
+      --font-sans: 'Space Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --font-serif: 'Times New Roman', Times, serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+
+      --spacing-unit: 2rem;
+      --page-padding: clamp(1.4rem, 4vw, 3rem);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+      font-family: var(--font-body);
+      background: var(--c-cream);
+      color: var(--c-black);
+    }
+
+    .architectural-viewport {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    /* Left Visual Bay */
+    .col-visual {
+      background: var(--c-taupe);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .visual-object {
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #7a756f 0%, #5a554f 50%, #4a453f 100%);
+      box-shadow:
+        inset -20px -20px 40px rgba(0,0,0,0.3),
+        inset 20px 20px 40px rgba(255,255,255,0.08),
+        0 20px 60px rgba(0,0,0,0.4);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .visual-object::before {
+      content: '';
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #6a655f 0%, #5a554f 100%);
+      box-shadow: inset -10px -10px 20px rgba(0,0,0,0.2);
+    }
+
+    .visual-object::after {
+      content: '';
+      position: absolute;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, transparent 70%);
+    }
+
+    .object-label {
+      position: absolute;
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      z-index: 10;
+    }
+
+    .visual-inset {
+      position: absolute;
+      bottom: var(--page-padding);
+      left: var(--page-padding);
+      width: 120px;
+      height: 80px;
+      background: var(--c-moss);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .visual-inset svg {
+      width: 48px;
+      height: 48px;
+      opacity: 0.8;
+    }
+
+    .layer-indicator {
+      position: absolute;
+      bottom: var(--page-padding);
+      right: var(--page-padding);
+      font-family: var(--font-sans);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* Right Content Panel */
+    .col-content {
+      background: var(--c-cream);
+      padding: var(--page-padding);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      overflow-y: auto;
+    }
+
+    .header-label {
+      font-family: var(--font-sans);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--c-ink-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .headline {
+      font-family: var(--font-sans);
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      font-weight: 600;
+      line-height: 1.1;
+      color: var(--c-black);
+      margin-bottom: 1.5rem;
+      max-width: 420px;
+    }
+
+    .headline-serif {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-weight: 400;
+      color: var(--c-accent);
+    }
+
+    .body-text {
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: var(--c-ink-muted);
+      max-width: 380px;
+      margin-bottom: 1.5rem;
+    }
+
+    .body-text p {
+      margin-bottom: 1rem;
+    }
+
+    /* Navigation Anchors */
+    .nav-anchor {
+      position: absolute;
+      font-family: var(--font-sans);
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--c-ink-muted);
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s ease;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .nav-anchor:hover {
+      color: var(--c-black);
+    }
+
+    .nav-close {
+      top: var(--page-padding);
+      left: var(--page-padding);
+    }
+
+    .nav-more {
+      top: var(--page-padding);
+      right: var(--page-padding);
+    }
+
+    .nav-next {
+      bottom: var(--page-padding);
+      right: var(--page-padding);
+    }
+
+    .nav-prev {
+      bottom: var(--page-padding);
+      right: calc(var(--page-padding) + 120px);
+    }
+
+    /* Pagination */
+    .pagination {
+      position: absolute;
+      bottom: var(--page-padding);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--c-rule);
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.3s ease;
+      border: none;
+      padding: 0;
+    }
+
+    .dot.active {
+      background: var(--c-black);
+      transform: scale(1.2);
+    }
+
+    .dot:hover {
+      background: var(--c-ink-muted);
+    }
+
+    /* Chapter Content */
+    .chapter-content {
+      display: none;
+    }
+
+    .chapter-content.active {
+      display: block;
+      animation: fadeSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes fadeSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Source Drawer */
+    .source-drawer {
+      position: fixed;
+      top: 0;
+      right: -500px;
+      width: 500px;
+      max-width: 90vw;
+      height: 100vh;
+      background: var(--c-white);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+      padding: var(--page-padding);
+      overflow-y: auto;
+      transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+    }
+
+    .source-drawer.open {
+      right: 0;
+    }
+
+    .drawer-close {
+      position: absolute;
+      top: var(--page-padding);
+      right: var(--page-padding);
+      background: none;
+      border: none;
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: var(--c-ink-muted);
+    }
+
+    .drawer-title {
+      font-family: var(--font-sans);
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .drawer-section {
+      margin-bottom: 2rem;
+    }
+
+    .drawer-section h3 {
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-ink-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .drawer-section pre {
+      background: var(--c-cream);
+      padding: 1rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .drawer-section code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background: var(--c-cream);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+    }
+
+    .drawer-section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .drawer-section ul li {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--c-rule);
+      font-size: 0.85rem;
+    }
+
+    .drawer-section ul li:last-child {
+      border-bottom: none;
+    }
+
+    /* Mermaid Diagrams */
+    .mermaid-container {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      background: var(--c-cream);
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    .mermaid {
+      text-align: center;
+    }
+
+    /* Overlay for drawer */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.3);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 99;
+    }
+
+    .overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Spread Index */
+    .spread-index {
+      position: absolute;
+      top: var(--page-padding);
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-sans);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+    }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .architectural-viewport {
+        grid-template-columns: 1fr;
+        grid-template-rows: 40vh 60vh;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      .col-visual {
+        min-height: 40vh;
+      }
+
+      .visual-object {
+        width: 200px;
+        height: 200px;
+      }
+
+      .visual-object::before {
+        width: 160px;
+        height: 160px;
+      }
+
+      .visual-object::after {
+        width: 100px;
+        height: 100px;
+      }
+
+      .col-content {
+        padding: 1.5rem;
+        overflow-y: visible;
+      }
+
+      .nav-prev {
+        right: calc(var(--page-padding) + 100px);
+      }
+
+      .source-drawer {
+        width: 100vw;
+        right: -100vw;
+      }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .chapter-content.active {
+        animation: none;
+      }
+      .visual-object {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="architectural-viewport">
+    <!-- Left Visual Bay -->
+    <div class="col-visual">
+      <div class="spread-index">ys-code Architecture</div>
+      <div class="visual-object" id="visualObject">
+        <span class="object-label" id="objectLabel">Layer 1</span>
+      </div>
+      <div class="visual-inset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+      </div>
+      <div class="layer-indicator" id="layerIndicator">CLI / TUI / Web</div>
+    </div>
+
+    <!-- Right Content Panel -->
+    <div class="col-content">
+      <button class="nav-anchor nav-close" onclick="closePage()">Close ( X )</button>
+      <button class="nav-anchor nav-more" onclick="toggleDrawer()">( More Details )</button>
+      <button class="nav-anchor nav-prev" onclick="prevChapter()">Previous ( - )</button>
+      <button class="nav-anchor nav-next" onclick="nextChapter()">Next Chapter ( + )</button>
+
+      <div class="pagination">
+        <button class="dot active" onclick="goToChapter(0)" aria-label="Overview"></button>
+        <button class="dot" onclick="goToChapter(1)" aria-label="Agent Core"></button>
+        <button class="dot" onclick="goToChapter(2)" aria-label="AI Layer"></button>
+        <button class="dot" onclick="goToChapter(3)" aria-label="Session"></button>
+        <button class="dot" onclick="goToChapter(4)" aria-label="TUI"></button>
+        <button class="dot" onclick="goToChapter(5)" aria-label="Data Flow"></button>
+        <button class="dot" onclick="goToChapter(6)" aria-label="Tech Stack"></button>
+      </div>
+
+      <!-- Chapter 0: Overview -->
+      <div class="chapter-content active" data-chapter="0">
+        <div class="header-label">Pattern Overview</div>
+        <h1 class="headline">
+          分层架构 + <span class="headline-serif">事件驱动</span> Agent 系统
+        </h1>
+        <div class="body-text">
+          <p>ys-code 是一个分阶段逼近 Claude Code 的可控实现项目，采用分层架构与事件驱动 Agent 系统的核心模式。</p>
+          <p>清晰分离 CLI 接口层、Agent 核心层、AI 抽象层、Session 持久化层、TUI 渲染层和 Web 服务层，通过 Provider 抽象支持多后端（Anthropic/MiniMax）。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 1: Agent Core -->
+      <div class="chapter-content" data-chapter="1">
+        <div class="header-label">Layer 2 / Agent Core</div>
+        <h1 class="headline">
+          状态化 <span class="headline-serif">Agent</span> 实现
+        </h1>
+        <div class="body-text">
+          <p>Agent 核心层负责状态化 Agent 实现、消息路由、工具执行和 Agent 循环控制。</p>
+          <p>关键抽象包括 Agent 类（状态化封装）、runAgentLoop（核心循环逻辑）、AgentTool 接口（工具定义）和 PendingMessageQueue（消息队列）。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 2: AI Layer -->
+      <div class="chapter-content" data-chapter="2">
+        <div class="header-label">Layer 3 / AI Abstraction</div>
+        <h1 class="headline">
+          <span class="headline-serif">Provider</span> 注册表模式
+        </h1>
+        <div class="body-text">
+          <p>AI 抽象层通过 Provider 注册表支持多后端，包含流式处理、Token 估算和消息格式转换。</p>
+          <p>使用 ApiProviderRegistry 动态注册和获取 Provider，当前支持 Anthropic 和 MiniMax。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 3: Session -->
+      <div class="chapter-content" data-chapter="3">
+        <div class="header-label">Layer 4 / Session</div>
+        <h1 class="headline">
+          会话 <span class="headline-serif">持久化</span> 与压缩
+        </h1>
+        <div class="body-text">
+          <p>Session 层负责会话文件存储、恢复和消息压缩（compact）。</p>
+          <p>Entry 类型包括 header、user、assistant、toolResult 和 compact_boundary，通过文件追加写入和 compact 触发机制管理会话历史。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 4: TUI -->
+      <div class="chapter-content" data-chapter="4">
+        <div class="header-label">Layer 5 / TUI Rendering</div>
+        <h1 class="headline">
+          Ink + React <span class="headline-serif">终端 UI</span>
+        </h1>
+        <div class="body-text">
+          <p>TUI 渲染层使用 Ink 和 React 构建终端用户界面，包含消息列表、命令输入和状态栏。</p>
+          <p>关键组件有 App（根组件）、MessageList（消息渲染）、PromptInput（用户输入）和 StatusBar（底部状态栏）。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 5: Data Flow -->
+      <div class="chapter-content" data-chapter="5">
+        <div class="header-label">Data Flow</div>
+        <h1 class="headline">
+          完整消息 <span class="headline-serif">流程</span>
+        </h1>
+        <div class="body-text">
+          <p>用户输入经 CLI → TUI → Agent → AI Provider → 工具执行 → Session 持久化的完整链路。</p>
+          <p>事件流通过 Agent.processEvents() 分发，TUI useAgent hook 监听并触发 React 状态更新。</p>
+        </div>
+      </div>
+
+      <!-- Chapter 6: Tech Stack -->
+      <div class="chapter-content" data-chapter="6">
+        <div class="header-label">Tech Stack</div>
+        <h1 class="headline">
+          Bun + TypeScript <span class="headline-serif">技术栈</span>
+        </h1>
+        <div class="body-text">
+          <p>运行时采用 Bun，语言为 TypeScript（strict 模式），TUI 框架使用 Ink + React。</p>
+          <p>AI/ML 依赖 @ai-sdk/anthropic、@anthropic-ai/sdk 和 ai 库，验证使用 Zod 和 @sinclair/typebox。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay" onclick="toggleDrawer()"></div>
+
+  <!-- Source Drawer -->
+  <div class="source-drawer" id="sourceDrawer">
+    <button class="drawer-close" onclick="toggleDrawer()">Close ( X )</button>
+    <div class="drawer-title">架构详情</div>
+
+    <div class="drawer-section">
+      <h3>目录结构</h3>
+      <pre>src/
+├── main.ts              # CLI 入口
+├── agent/               # Agent 核心
+│   ├── agent.ts
+│   ├── agent-loop.ts
+│   ├── session.ts
+│   ├── types.ts
+│   ├── tool-execution.ts
+│   ├── stream-assistant.ts
+│   ├── attachments/
+│   ├── context/
+│   ├── system-prompt/
+│   └── tools/
+├── cli/                 # CLI 格式化
+├── commands/            # Slash 命令
+├── core/               # 核心抽象
+│   └── ai/             # AI 抽象层
+├── session/            # 会话管理
+├── skills/             # 技能系统
+├── tools/              # 工具导出
+├── tui/                # 终端 UI
+├── utils/              # 工具函数
+└── web/                # Web 服务</pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>关键抽象</h3>
+      <ul>
+        <li><strong>Agent</strong> - 状态化 Agent wrapper</li>
+        <li><strong>runAgentLoop</strong> - 低层循环函数</li>
+        <li><strong>AgentTool</strong> - 工具定义接口</li>
+        <li><strong>SessionManager</strong> - 统一入口</li>
+        <li><strong>ApiProviderRegistry</strong> - Provider 注册表</li>
+      </ul>
+    </div>
+
+    <div class="drawer-section">
+      <h3>数据流</h3>
+      <div class="mermaid-container">
+        <div class="mermaid">
+flowchart TD
+    A[用户输入] --> B[CLI main.ts]
+    B --> C[TUI App]
+    C --> D[Agent.prompt]
+    D --> E[runAgentLoop]
+    E --> F[AI Provider]
+    F --> G[executeToolCalls]
+    G --> H[SessionManager.appendMessage]
+    H --> I[SessionStorage.appendEntry]
+    I --> J[文件追加写入]
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <h3>事件流</h3>
+      <div class="mermaid-container">
+        <div class="mermaid">
+flowchart TD
+    A[AI Provider 流式响应] --> B[Agent.processEvents]
+    B --> C[Event 类型分发]
+    C --> D[message_start]
+    C --> E[message_update]
+    C --> F[message_end]
+    C --> G[tool_execution_start]
+    C --> H[tool_execution_end]
+    C --> I[turn_end]
+    D --> J[TUI useAgent hook]
+    E --> J
+    F --> J
+    G --> J
+    H --> J
+    I --> J
+    J --> K[React 状态更新]
+    K --> L[UI 重新渲染]
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <h3>技术依赖</h3>
+      <ul>
+        <li><strong>Runtime:</strong> Bun</li>
+        <li><strong>Language:</strong> TypeScript (strict)</li>
+        <li><strong>TUI:</strong> Ink + React</li>
+        <li><strong>AI:</strong> @ai-sdk/anthropic, @anthropic-ai/sdk</li>
+        <li><strong>CLI:</strong> @commander-js/extra-typings</li>
+        <li><strong>Validation:</strong> Zod, @sinclair/typebox</li>
+        <li><strong>Web:</strong> Bun built-in HTTP</li>
+        <li><strong>Logging:</strong> Pino</li>
+      </ul>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Entry Points</h3>
+      <pre># CLI 模式
+bun run src/main.ts
+
+# 同时启动 Web 预览
+bun run src/main.ts --web
+
+# Web 服务器
+createWebServer(config)</pre>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#EBE8E3',
+        primaryTextColor: '#111111',
+        primaryBorderColor: '#6B655F',
+        lineColor: '#6B655F',
+        secondaryColor: '#f5ece9',
+        tertiaryColor: '#fff8f6',
+        fontFamily: 'Plus Jakarta Sans, sans-serif'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    let currentChapter = 0;
+    const totalChapters = 7;
+
+    const chapterData = [
+      { label: 'Layer 1', indicator: 'CLI / TUI / Web', objectLabel: 'Overview' },
+      { label: 'Layer 2', indicator: 'Agent Core', objectLabel: 'Agent' },
+      { label: 'Layer 3', indicator: 'AI Abstraction', objectLabel: 'Provider' },
+      { label: 'Layer 4', indicator: 'Session', objectLabel: 'Session' },
+      { label: 'Layer 5', indicator: 'TUI Rendering', objectLabel: 'TUI' },
+      { label: 'Flow', indicator: 'Data Flow', objectLabel: 'Flow' },
+      { label: 'Stack', indicator: 'Tech Stack', objectLabel: 'Stack' }
+    ];
+
+    function updateVisuals(index) {
+      const data = chapterData[index];
+      document.getElementById('objectLabel').textContent = data.objectLabel;
+      document.getElementById('layerIndicator').textContent = data.indicator;
+
+      // Subtle rotation of visual object
+      const rotation = index * 15;
+      document.getElementById('visualObject').style.transform = `rotate(${rotation}deg)`;
+    }
+
+    function goToChapter(index) {
+      if (index < 0 || index >= totalChapters) return;
+
+      // Hide current
+      document.querySelectorAll('.chapter-content').forEach(el => {
+        el.classList.remove('active');
+      });
+      document.querySelectorAll('.dot').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Show new
+      document.querySelector(`[data-chapter="${index}"]`).classList.add('active');
+      document.querySelectorAll('.dot')[index].classList.add('active');
+
+      currentChapter = index;
+      updateVisuals(index);
+    }
+
+    function nextChapter() {
+      goToChapter((currentChapter + 1) % totalChapters);
+    }
+
+    function prevChapter() {
+      goToChapter((currentChapter - 1 + totalChapters) % totalChapters);
+    }
+
+    function toggleDrawer() {
+      document.getElementById('sourceDrawer').classList.toggle('open');
+      document.getElementById('overlay').classList.toggle('active');
+    }
+
+    function closePage() {
+      window.close();
+      // Fallback: navigate back
+      if (window.history.length > 1) {
+        window.history.back();
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        nextChapter();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        prevChapter();
+      } else if (e.key === 'Escape') {
+        const drawer = document.getElementById('sourceDrawer');
+        if (drawer.classList.contains('open')) {
+          toggleDrawer();
+        }
+      }
+    });
+
+    // Touch/swipe support for mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+
+    document.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    });
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      const diff = touchStartX - touchEndX;
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+          nextChapter();
+        } else {
+          prevChapter();
+        }
+      }
+    }
+  </script>
+</body>
+</html>

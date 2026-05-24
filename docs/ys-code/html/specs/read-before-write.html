@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Read-before-Write 机制设计文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+    --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+    --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+    --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--fg-1);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .document-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4xl) var(--space-xl);
+  }
+
+  .cover {
+    margin-bottom: var(--space-4xl);
+    padding-bottom: var(--space-3xl);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .cover-label {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-xl);
+    max-width: 640px;
+  }
+
+  .meta-line {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .reader-rail {
+    display: flex;
+    gap: var(--space-3xl);
+  }
+
+  .toc-column {
+    flex: 0 0 200px;
+    position: sticky;
+    top: var(--space-3xl);
+    align-self: flex-start;
+  }
+
+  .toc-title {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-list li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .toc-list a {
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+  }
+
+  .toc-list a:hover {
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+
+  .body-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-4xl);
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-md);
+    color: var(--fg-1);
+  }
+
+  .body-section ul, .body-section ol {
+    margin-bottom: var(--space-md);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .body-section blockquote {
+    border-left: 3px solid var(--primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-xl) 0;
+    color: var(--fg-2);
+    font-style: italic;
+  }
+
+  .body-section code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-container);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+  }
+
+  .body-section pre {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .body-section pre code {
+    background: none;
+    padding: 0;
+    color: var(--fg-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-lg) 0;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--fg-1);
+    background: var(--surface-container);
+  }
+
+  tr:hover {
+    background: var(--surface-container-low);
+  }
+
+  .claim-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .claim-card-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evidence-margin {
+    background: var(--surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-size: 13px;
+  }
+
+  .evidence-margin-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+  }
+
+  .caveat-box {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+  }
+
+  .caveat-box-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  .source-spread {
+    margin-top: var(--space-5xl);
+    padding-top: var(--space-3xl);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .source-spread h2 {
+    font-size: 22px;
+  }
+
+  .checklist {
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .checklist li {
+    padding-left: var(--space-xl);
+    position: relative;
+    margin-bottom: var(--space-sm);
+  }
+
+  .checklist li::before {
+    content: "☐";
+    position: absolute;
+    left: 0;
+    color: var(--fg-muted);
+    font-size: 16px;
+  }
+
+  .checklist li.checked::before {
+    content: "☑";
+    color: var(--green);
+  }
+
+  @media (max-width: 768px) {
+    .document-shell {
+      padding: var(--space-xl) var(--space-lg);
+    }
+
+    .cover h1 {
+      font-size: 28px;
+    }
+
+    .reader-rail {
+      flex-direction: column;
+      gap: var(--space-2xl);
+    }
+
+    .toc-column {
+      position: static;
+      flex: none;
+    }
+  }
+
+  @media print {
+    body { background: white; }
+    .document-shell { max-width: none; }
+    .toc-column { display: none; }
+    .cover { page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <header class="cover">
+    <div class="cover-label">安全机制设计</div>
+    <h1>Read-before-Write 机制设计文档</h1>
+    <p class="deck">为 ys-code 的 EditTool 引入"强制先读后写"安全机制，防止模型基于过时记忆编辑文件，避免外部程序修改后的变更丢失。</p>
+    <div class="meta-line">目标: EditTool 安全机制 &nbsp;|&nbsp; 方案: B（轻量级 FileReadTracker） &nbsp;|&nbsp; 日期: 2026-04-23</div>
+  </header>
+
+  <div class="reader-rail">
+    <nav class="toc-column">
+      <div class="toc-title">目录</div>
+      <ul class="toc-list">
+        <li><a href="#sec1">一、设计概述</a></li>
+        <li><a href="#sec2">二、数据结构</a></li>
+        <li><a href="#sec3">三、接口契约</a></li>
+        <li><a href="#sec4">四、与现有代码集成</a></li>
+        <li><a href="#sec5">五、错误处理</a></li>
+        <li><a href="#sec6">六、测试策略</a></li>
+        <li><a href="#sec7">七、未来扩展预留</a></li>
+        <li><a href="#sec8">八、风险与回滚</a></li>
+        <li><a href="#sec9">九、实现 checklist</a></li>
+      </ul>
+    </nav>
+
+    <main class="body-column">
+
+      <section class="body-section" id="sec1">
+        <h2>一、设计概述</h2>
+
+        <h3>1.1 问题定义</h3>
+        <p>当前 ys-code 的 <code>EditTool</code> 允许模型在<strong>未读取文件</strong>的情况下直接编辑，存在以下风险：</p>
+        <ul>
+          <li>模型基于过时记忆编辑文件，导致意外覆盖</li>
+          <li>外部程序（编辑器、linter、git）在读取后修改了文件，EditTool 直接覆盖导致变更丢失</li>
+          <li>无法区分"全量读取"和"部分读取"，部分读取的文件不适合直接编辑</li>
+        </ul>
+
+        <h3>1.2 核心思路</h3>
+        <p>借鉴 claude-code-haha 的 <code>readFileState</code> 机制，但<strong>不引入 <code>lru-cache</code> 依赖，不修改 <code>ToolUseContext</code></strong>。</p>
+
+        <div class="claim-card">
+          <div class="claim-card-title">方案要点</div>
+          <ol>
+            <li>新建 <code>src/agent/file-state.ts</code>，提供轻量级 <code>FileReadTracker</code></li>
+            <li><code>session.ts</code> 创建 tracker 实例，通过工厂函数参数注入到 ReadTool 和 EditTool</li>
+            <li>ReadTool 成功读取后调用 <code>tracker.recordRead()</code></li>
+            <li>EditTool 编辑前调用 <code>tracker.canEdit()</code> 检查</li>
+          </ol>
+        </div>
+
+        <h3>1.3 设计原则</h3>
+        <ul>
+          <li><strong>最小侵入</strong>：只新增 1 个文件，修改 3 个现有文件</li>
+          <li><strong>可扩展</strong>：数据结构预留 <code>timestamp</code> 字段，后续加"防脏写"只需改 tracker 内部</li>
+          <li><strong>可测试</strong>：tracker 是纯逻辑对象，无文件系统依赖，可完全 mock</li>
+        </ul>
+      </section>
+
+      <section class="body-section" id="sec2">
+        <h2>二、数据结构</h2>
+
+        <h3>2.1 FileReadRecord</h3>
+        <pre><code>// file-state.ts
+
+/**
+ * 文件读取记录
+ * 每次成功调用 ReadTool 后生成，供 EditTool 校验使用
+ */
+interface FileReadRecord {
+  /** 读取时的文件内容（用于后续内容对比，防止时间戳误报） */
+  content: string;
+
+  /** 读取时的文件修改时间（fs.stat().mtimeMs） */
+  timestamp: number;
+
+  /** 部分读取时的起始行号（1-based，全量读取为 undefined） */
+  offset?: number;
+
+  /** 部分读取时的行数限制（全量读取为 undefined） */
+  limit?: number;
+
+  /** 是否为部分视图（如 CLAUDE.md 自动注入的内容） */
+  isPartialView?: boolean;
+}</code></pre>
+
+        <h3>2.2 FileReadTracker</h3>
+        <pre><code>// file-state.ts
+
+export class FileReadTracker {
+  /** 内部存储：路径 -> 读取记录 */
+  private reads = new Map&lt;string, FileReadRecord&gt;();
+
+  /**
+   * 记录一次文件读取
+   */
+  recordRead(
+    path: string,
+    content: string,
+    timestamp: number,
+    offset?: number,
+    limit?: number,
+    isPartialView?: boolean,
+  ): void {
+    this.reads.set(path, {
+      content,
+      timestamp,
+      offset,
+      limit,
+      isPartialView: isPartialView ?? false,
+    });
+  }
+
+  /**
+   * 检查文件是否可以编辑
+   */
+  canEdit(path: string):
+    | { ok: true; record: FileReadRecord }
+    | { ok: false; reason: string; errorCode: number } {
+    const record = this.reads.get(path);
+
+    if (!record) {
+      return {
+        ok: false,
+        reason: `File has not been read yet. Read it first before writing to it.`,
+        errorCode: 6,
+      };
+    }
+
+    if (record.isPartialView) {
+      return {
+        ok: false,
+        reason: `File has only been partially read. Read the full file before writing to it.`,
+        errorCode: 6,
+      };
+    }
+
+    return { ok: true, record };
+  }
+
+  /**
+   * 更新编辑后的文件状态
+   */
+  recordEdit(path: string, newContent: string, newTimestamp: number): void {
+    this.reads.set(path, {
+      content: newContent,
+      timestamp: newTimestamp,
+      offset: undefined,
+      limit: undefined,
+      isPartialView: false,
+    });
+  }
+
+  /** 清除记录（用于测试或会话重置） */
+  clear(): void {
+    this.reads.clear();
+  }
+
+  /** 获取记录（调试用） */
+  get(path: string): FileReadRecord | undefined {
+    return this.reads.get(path);
+  }
+}</code></pre>
+      </section>
+
+      <section class="body-section" id="sec3">
+        <h2>三、接口契约</h2>
+
+        <h3>3.1 ReadTool 侧契约</h3>
+        <p>ReadTool 在<strong>成功读取文件后</strong>必须调用 <code>tracker.recordRead()</code>。</p>
+        <p>调用时机：<strong>execute 函数返回结果之前</strong>。</p>
+
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">注意</div>
+          <ul>
+            <li>只有<strong>成功读取</strong>才记录。如果读取失败（文件不存在、权限不足等），不记录。</li>
+            <li>图片、PDF 等非文本内容的读取，也记录（<code>content</code> 为空字符串或 base64 摘要）。</li>
+            <li>Notebook 读取记录的是解析后的 JSON 内容。</li>
+          </ul>
+        </div>
+
+        <h3>3.2 EditTool 侧契约</h3>
+        <p>EditTool 在 <code>validateInput</code> 中调用 <code>tracker.canEdit()</code>，在 <code>execute</code> 成功后调用 <code>tracker.recordEdit()</code>。</p>
+
+        <h4>validateInput 伪代码</h4>
+        <pre><code>validateInput: async (params: EditInput) => {
+  const fullPath = resolve(cwd, params.file_path);
+
+  // 1. 【新增】检查是否已读取
+  const readCheck = tracker.canEdit(fullPath);
+  if (!readCheck.ok) {
+    return {
+      ok: false,
+      message: readCheck.reason,
+      errorCode: readCheck.errorCode,
+    };
+  }
+
+  // 2. 原有校验逻辑...
+  if (params.old_string === params.new_string) {
+    return { ok: false, message: '...', errorCode: 1 };
+  }
+
+  // 3. 文件存在性检查...
+
+  return { ok: true };
+},</code></pre>
+
+        <h4>execute 伪代码</h4>
+        <pre><code>async execute(_toolCallId, params, _context) {
+  const fullPath = resolve(cwd, params.file_path);
+  // ... 执行编辑 ...
+
+  // 【新增】更新 tracker
+  const stats = await stat(fullPath);
+  tracker.recordEdit(fullPath, newContent, Math.floor(stats.mtimeMs));
+
+  return { filePath: fullPath, oldString, newString, originalFile, replaceAll };
+}</code></pre>
+
+        <h3>3.3 WriteTool 侧契约（可选）</h3>
+        <p>WriteTool（写新文件）也需要检查，防止覆盖已有文件：</p>
+        <pre><code>validateInput: async (params: WriteInput) => {
+  const fullPath = resolve(cwd, params.file_path);
+
+  // 【新增】如果要覆盖已有文件，要求先读取
+  if (await fileExists(fullPath)) {
+    const readCheck = tracker.canEdit(fullPath);
+    if (!readCheck.ok) {
+      return {
+        ok: false,
+        message: readCheck.reason,
+        errorCode: readCheck.errorCode,
+      };
+    }
+  }
+
+  // ... 原有校验 ...
+}</code></pre>
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">注</div>
+          <p>WriteTool 的覆盖检查作为可选扩展，不在本次实现范围内，但 tracker 的设计支持此扩展。</p>
+        </div>
+      </section>
+
+      <section class="body-section" id="sec4">
+        <h2>四、与现有代码的集成点</h2>
+
+        <h3>4.1 修改文件清单</h3>
+        <table>
+          <thead>
+            <tr><th>文件</th><th>修改内容</th><th>影响范围</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>src/agent/file-state.ts</code></td><td><strong>新增</strong>，FileReadTracker 实现</td><td>无影响</td></tr>
+            <tr><td><code>src/agent/tools/read/read.ts</code></td><td>execute 中增加 <code>tracker.recordRead()</code> 调用</td><td>ReadTool</td></tr>
+            <tr><td><code>src/agent/tools/edit.ts</code></td><td>validateInput 中增加 <code>tracker.canEdit()</code> 检查；execute 中增加 <code>tracker.recordEdit()</code></td><td>EditTool</td></tr>
+            <tr><td><code>src/agent/session.ts</code></td><td>创建 tracker 实例，传入 ReadTool 和 EditTool 工厂函数</td><td>Session 初始化</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.2 session.ts 集成伪代码</h3>
+        <pre><code>// session.ts
+
+import { FileReadTracker } from './file-state.js';  // 【新增】
+
+constructor(options: AgentSessionOptions) {
+  this.cwd = options.cwd;
+
+  // 【新增】创建 tracker
+  const fileReadTracker = new FileReadTracker();
+
+  const tools = options.tools ?? [
+    createReadTool(options.cwd, fileReadTracker),   // 【修改】注入 tracker
+    createWriteTool(options.cwd),
+    createEditTool(options.cwd, fileReadTracker),   // 【修改】注入 tracker
+    createBashTool(options.cwd),
+    createGlobTool(options.cwd),
+  ];
+
+  this.agent = new Agent({
+    // ...
+    tools,
+  });
+}</code></pre>
+      </section>
+
+      <section class="body-section" id="sec5">
+        <h2>五、错误处理</h2>
+
+        <h3>5.1 错误码定义</h3>
+        <p>沿用 cc 的错误码体系，避免冲突：</p>
+        <table>
+          <thead>
+            <tr><th>错误码</th><th>场景</th><th>消息示例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>6</td><td>文件未读取</td><td>"File has not been read yet. Read it first before writing to it."</td></tr>
+            <tr><td>6</td><td>部分视图</td><td>"File has only been partially read. Read the full file before writing to it."</td></tr>
+          </tbody>
+        </table>
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">注</div>
+          <p>当前 ys-code 的 EditTool 已有错误码 1（无变化）、3（文件已存在）、4（文件不存在）、8（字符串未找到）、9（多匹配）。新增错误码 6 不与现有冲突。</p>
+        </div>
+
+        <h3>5.2 错误恢复路径</h3>
+        <p>当 EditTool 返回错误码 6 时，模型会收到错误消息，正确的恢复路径是：</p>
+        <ol>
+          <li>模型调用 <code>Read</code> 工具读取该文件</li>
+          <li>ReadTool 成功读取后，<code>tracker.recordRead()</code> 写入记录</li>
+          <li>模型再次调用 <code>Edit</code> 工具，此次 <code>tracker.canEdit()</code> 通过</li>
+        </ol>
+
+        <h3>5.3 边界情况</h3>
+        <table>
+          <thead>
+            <tr><th>场景</th><th>行为</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>读取文件后，模型尝试编辑不存在的文件</td><td><code>canEdit</code> 通过（已读取），但后续文件存在性检查失败，返回错误码 4</td></tr>
+            <tr><td>编辑成功后立即再次编辑同一文件</td><td><code>canEdit</code> 通过（execute 中已更新 tracker）</td></tr>
+            <tr><td>读取文件 A，编辑文件 B</td><td><code>canEdit</code> 失败（B 未被读取）</td></tr>
+            <tr><td>部分读取（offset/limit 有值）后编辑</td><td><code>canEdit</code> 失败（部分读取不允许编辑）</td></tr>
+            <tr><td>会话恢复后编辑之前读取过的文件</td><td><code>canEdit</code> 失败（tracker 未持久化，会话重启后清空）</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec6">
+        <h2>六、测试策略</h2>
+
+        <h3>6.1 FileReadTracker 单元测试</h3>
+        <pre><code>// file-state.test.ts
+
+describe('FileReadTracker', () => {
+  it('should allow edit after full read', () => {
+    const tracker = new FileReadTracker();
+    tracker.recordRead('/foo.ts', 'content', 1000);
+    const result = tracker.canEdit('/foo.ts');
+    expect(result.ok).toBe(true);
+  });
+
+  it('should reject edit if file not read', () => {
+    const tracker = new FileReadTracker();
+    const result = tracker.canEdit('/foo.ts');
+    expect(result.ok).toBe(false);
+    expect(result.errorCode).toBe(6);
+  });
+
+  it('should reject edit if partial view', () => {
+    const tracker = new FileReadTracker();
+    tracker.recordRead('/foo.ts', 'content', 1000, 1, 10, true);
+    const result = tracker.canEdit('/foo.ts');
+    expect(result.ok).toBe(false);
+  });
+
+  it('should update record after edit', () => {
+    const tracker = new FileReadTracker();
+    tracker.recordRead('/foo.ts', 'old', 1000);
+    tracker.recordEdit('/foo.ts', 'new', 2000);
+    const record = tracker.get('/foo.ts');
+    expect(record?.content).toBe('new');
+    expect(record?.timestamp).toBe(2000);
+  });
+});</code></pre>
+
+        <h3>6.2 EditTool 集成测试</h3>
+        <pre><code>// edit.test.ts（扩展）
+
+it('should reject edit without prior read', async () => {
+  const tracker = new FileReadTracker();
+  const tool = createEditTool('/tmp', tracker);
+  const result = await tool.validateInput!({
+    file_path: '/tmp/foo.ts',
+    old_string: 'a',
+    new_string: 'b',
+  }, {} as ToolUseContext);
+  expect(result.ok).toBe(false);
+  expect(result.errorCode).toBe(6);
+});
+
+it('should allow edit after read', async () => {
+  const tracker = new FileReadTracker();
+  tracker.recordRead('/tmp/foo.ts', 'abc', Date.now());
+  const tool = createEditTool('/tmp', tracker);
+  const result = await tool.validateInput!({
+    file_path: '/tmp/foo.ts',
+    old_string: 'a',
+    new_string: 'b',
+  }, {} as ToolUseContext);
+  expect(result.ok).toBe(true);
+});</code></pre>
+      </section>
+
+      <section class="body-section" id="sec7">
+        <h2>七、未来扩展预留</h2>
+
+        <h3>7.1 防脏写（Phase 2）</h3>
+        <p>在 <code>FileReadTracker.canEdit()</code> 中增加时间戳对比：</p>
+        <pre><code>canEdit(path: string, currentMtime?: number): ... {
+  const record = this.reads.get(path);
+  // ... 现有检查 ...
+
+  // 【未来扩展】时间戳检查
+  if (currentMtime !== undefined && currentMtime > record.timestamp) {
+    // 进一步对比内容，防止误报
+    const currentContent = await readFile(path, 'utf-8');
+    if (currentContent !== record.content) {
+      return {
+        ok: false,
+        reason: 'File has been modified since read. Read it again before writing.',
+        errorCode: 7,
+      };
+    }
+  }
+}</code></pre>
+
+        <h3>7.2 持久化（Phase 3）</h3>
+        <p>如果需要会话恢复后保留读取记录，可在 <code>session.ts</code> 中将 tracker 序列化到 SessionManager：</p>
+        <pre><code>// 会话保存时
+sessionManager.saveReadState(tracker.dump());
+
+// 会话恢复时
+const dump = sessionManager.restoreReadState();
+tracker.load(dump);</code></pre>
+
+        <h3>7.3 子 Agent 共享（Phase 3）</h3>
+        <p>如果需要子 Agent 继承父 Agent 的读取记录，可在 fork 时克隆 tracker：</p>
+        <pre><code>const childTracker = new FileReadTracker();
+for (const [path, record] of parentTracker.entries()) {
+  childTracker.recordRead(path, record.content, record.timestamp, ...);
+}</code></pre>
+      </section>
+
+      <section class="body-section" id="sec8">
+        <h2>八、风险与回滚</h2>
+
+        <table>
+          <thead>
+            <tr><th>风险</th><th>缓解措施</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>模型不熟悉新约束，频繁触发"未读取"错误</td><td>在 EditTool 的 description 中明确说明必须先 Read</td></tr>
+            <tr><td>现有测试因缺少 tracker 参数而编译失败</td><td>修改工厂签名时，同步更新所有调用点</td></tr>
+            <tr><td>性能影响（stat 调用增加）</td><td>ReadTool 原本就调用 readFile，stat 是额外的一次系统调用，开销可忽略</td></tr>
+            <tr><td>多会话并发时 tracker 状态混乱</td><td>当前 ys-code 为单会话模式，无此问题；未来多会话时需改为 ToolUseContext 方案</td></tr>
+          </tbody>
+        </table>
+
+        <div class="caveat-box">
+          <div class="caveat-box-title">回滚策略</div>
+          <p>若发现问题，只需恢复 <code>edit.ts</code> 和 <code>read.ts</code> 的工厂签名（去掉 tracker 参数），删除 <code>file-state.ts</code>，即可完全回滚。</p>
+        </div>
+      </section>
+
+      <section class="body-section source-spread" id="sec9">
+        <h2>九、实现 checklist</h2>
+
+        <ul class="checklist">
+          <li>新建 <code>src/agent/file-state.ts</code>（FileReadTracker + FileReadRecord + 单元测试）</li>
+          <li>修改 <code>src/agent/tools/read/read.ts</code>（工厂签名 + execute 中 recordRead）</li>
+          <li>修改 <code>src/agent/tools/edit.ts</code>（工厂签名 + validateInput 中 canEdit + execute 中 recordEdit）</li>
+          <li>修改 <code>src/agent/session.ts</code>（创建 tracker 并注入工厂函数）</li>
+          <li>更新 <code>src/agent/tools/index.ts</code>（如有类型导出需要）</li>
+          <li>扩展 <code>edit.test.ts</code>（集成测试）</li>
+          <li>更新 EditTool 的 description（告知模型必须先 Read）</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

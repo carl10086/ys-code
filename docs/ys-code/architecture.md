@@ -570,8 +570,8 @@ ys-code/
 │   ├── utils/              # 工具函数
 │   └── web/                # Web 服务
 ├── docs/
-│   └── codebase/
-│       └── ARCHITECTURE.md # 本文档
+│   └── ys-code/
+│       └── architecture.md # 本文档
 ├── refer/                  # 外部参考符号链接
 │   ├── claude-code-haha/  # 核心参考
 │   ├── pi-mono/           # 架构参考

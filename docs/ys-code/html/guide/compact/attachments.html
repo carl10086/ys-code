@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compact 后附件恢复 - ys-code 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+  --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+  --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.document-shell {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+.cover {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: var(--space-3xl);
+  margin-bottom: var(--space-4xl);
+}
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: var(--space-lg);
+  color: var(--fg-1);
+}
+.meta-line {
+  font-size: 13px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-xl);
+}
+.tldr {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.tldr h3 {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: var(--space-md);
+}
+.tldr ul {
+  list-style: none;
+  padding: 0;
+}
+.tldr li {
+  padding: var(--space-sm) 0;
+  padding-left: var(--space-lg);
+  position: relative;
+  color: var(--fg-2);
+}
+.tldr li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.reader-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-2xl);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+.reader-rail.open {
+  transform: translateX(0);
+}
+.reader-rail h4 {
+  font-family: var(--font-headline);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+}
+.reader-rail ul {
+  list-style: none;
+  padding: 0;
+}
+.reader-rail li {
+  margin-bottom: var(--space-xs);
+}
+.reader-rail a {
+  display: block;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.reader-rail a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+.rail-toggle {
+  position: fixed;
+  left: var(--space-lg);
+  top: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  transition: all 0.2s;
+}
+.rail-toggle:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.body-section {
+  margin-bottom: var(--space-4xl);
+}
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-1);
+}
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: var(--space-2xl) 0 var(--space-md);
+  color: var(--fg-1);
+}
+.body-section p {
+  margin-bottom: var(--space-md);
+  color: var(--fg-2);
+}
+.body-section ul, .body-section ol {
+  margin: var(--space-md) 0 var(--space-md) var(--space-xl);
+  color: var(--fg-2);
+}
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+.pull-quote {
+  border-left: 4px solid var(--primary);
+  padding-left: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-style: italic;
+  color: var(--fg-1);
+  font-size: 1.05rem;
+}
+pre, .code-block {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border);
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+.fact-table th, .fact-table td {
+  padding: var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--surface-container);
+}
+.fact-table td {
+  color: var(--fg-2);
+}
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-md) 0;
+  box-shadow: var(--shadow-sm);
+}
+.claim-card h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+.filter-list {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+}
+.filter-list .item {
+  padding: var(--space-xs) var(--space-md);
+  margin: var(--space-xs) 0;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--red);
+}
+@media (min-width: 1200px) {
+  .document-shell {
+    margin-left: 280px;
+    max-width: 800px;
+  }
+  .reader-rail {
+    transform: translateX(0);
+  }
+  .rail-toggle {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+}
+@media print {
+  .reader-rail, .rail-toggle { display: none; }
+  .document-shell { margin-left: 0; max-width: none; }
+  body { background: white; color: black; }
+}
+</style>
+</head>
+<body>
+<button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">目录</button>
+<nav class="reader-rail">
+  <h4>文档导航</h4>
+  <ul>
+    <li><a href="#overview">概述</a></li>
+    <li><a href="#input">输入来源</a></li>
+    <li><a href="#strategy">恢复策略</a></li>
+    <li><a href="#budget">预算限制</a></li>
+    <li><a href="#cwd">cwd containment</a></li>
+    <li><a href="#sensitive">敏感路径过滤</a></li>
+    <li><a href="#secret">内容级 secret 检测</a></li>
+    <li><a href="#format">attachment 形态</a></li>
+    <li><a href="#persist">不持久化 attachment</a></li>
+    <li><a href="#limits">当前限制</a></li>
+  </ul>
+</nav>
+<main class="document-shell">
+  <header class="cover">
+    <h1>Compact 后附件恢复</h1>
+    <div class="meta-line">分析对象：src/session/compact/attachments.ts, src/agent/file-state.ts, src/agent/attachments/normalize.ts @ 73baf03 | 日期：2026-05-03</div>
+    <div class="tldr">
+      <h3>核心要点</h3>
+      <ul>
+        <li>compact 后从 FileStateCache 恢复最近读取过的文件 attachment，让模型继续拥有关键文件上下文</li>
+        <li>只恢复全量读取记录，跳过 partial read、offset/limit 记录</li>
+        <li>多层安全过滤：cwd 限制、敏感路径 denylist、内容 secret 检测、字节预算</li>
+        <li>attachment message 不持久化到 transcript，是运行时上下文材料</li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="body-section" id="overview">
+    <h2>概述</h2>
+    <p>compact summary 适合保留任务语义，但不适合承载大量代码原文。为了让 compact 后的模型继续拥有关键文件上下文，系统会从 <code>FileStateCache</code> 恢复最近读取过的文件 attachment。</p>
+    <p>当前 attachment restore 只恢复文件。skill、plan、background task 的恢复函数已经预留，但目前返回空数组。</p>
+  </section>
+
+  <section class="body-section" id="input">
+    <h2>输入来源</h2>
+    <p><code>createPostCompactFileAttachments()</code> 接收：</p>
+    <pre>fileStateCache
+cwd
+maxFiles
+maxBytesPerFile
+maxTotalBytes</pre>
+    <p>它通过 <code>fileStateCache.snapshot()</code> 获取当前已读文件记录。snapshot 中包含：</p>
+    <ul>
+      <li>文件路径</li>
+      <li>缓存内容</li>
+      <li>是否 partial read</li>
+      <li>offset / limit</li>
+      <li>最近访问顺序</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="strategy">
+    <h2>恢复策略</h2>
+    <p>当前实现直接使用缓存中的 <code>entry.record.content</code> 作为 attachment 内容，不重新读取磁盘。</p>
+    <p>这样做的原因是：</p>
+    <ul>
+      <li>compact 后恢复的是"模型此前已经看过的材料"</li>
+      <li>避免 compact 期间重新扩大 partial read 范围</li>
+      <li>避免在恢复阶段额外触发文件读取副作用</li>
+    </ul>
+    <p>同时，只有全量读取记录才会恢复。以下记录会被跳过：</p>
+    <ul>
+      <li><code>isPartialView === true</code></li>
+      <li><code>offset !== undefined</code></li>
+      <li><code>limit !== undefined</code></li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="budget">
+    <h2>预算限制</h2>
+    <p>默认预算：</p>
+    <pre>maxFiles: 10
+maxBytesPerFile: 200_000
+maxTotalBytes: 400_000</pre>
+    <p>预算按成功恢复的 attachment 计算。被跳过的候选文件不会消耗 <code>maxFiles</code> 名额。</p>
+    <p>如果单文件超过 <code>maxBytesPerFile</code>，跳过。</p>
+    <p>如果加入该文件会超过 <code>maxTotalBytes</code>，跳过。</p>
+  </section>
+
+  <section class="body-section" id="cwd">
+    <h2>cwd containment</h2>
+    <p>attachment restore 必须限制在当前 workspace 内。</p>
+    <p>实现会先解析真实路径：</p>
+    <pre>realCwd = realpath(cwd)
+realEntryPath = realpath(entry.path)</pre>
+    <p>然后通过相对路径判断 <code>realEntryPath</code> 是否位于 <code>realCwd</code> 内。</p>
+    <p>这可以阻止：</p>
+    <ul>
+      <li><code>../</code> 路径逃逸</li>
+      <li>绝对路径逃逸</li>
+      <li>symlink 指向 workspace 外部</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="sensitive">
+    <h2>敏感路径过滤</h2>
+    <p>即使文件位于 cwd 内，也会跳过常见敏感路径。</p>
+    <p>当前过滤规则覆盖：</p>
+    <div class="filter-list">
+      <div class="item">.ssh/</div>
+      <div class="item">.aws/</div>
+      <div class="item">.kube/</div>
+      <div class="item">.env*</div>
+      <div class="item">.npmrc</div>
+      <div class="item">.netrc</div>
+      <div class="item">.pypirc</div>
+      <div class="item">id_rsa</div>
+      <div class="item">id_ed25519</div>
+      <div class="item">known_hosts</div>
+      <div class="item">*.pem</div>
+      <div class="item">*.key</div>
+      <div class="item">*credentials*</div>
+    </div>
+    <p><code>.env*</code> 会覆盖 <code>.env</code>、<code>.env.local</code>、<code>.envrc</code> 等变体。</p>
+  </section>
+
+  <section class="body-section" id="secret">
+    <h2>内容级 secret 检测</h2>
+    <p>路径 denylist 不足以覆盖所有 secret。普通源码文件里也可能临时包含 token。</p>
+    <p>因此恢复 attachment 前还会调用：</p>
+    <pre>containsSecret(entry.record.content)</pre>
+    <p>如果命中 secret redaction 规则，整个文件 attachment 会被跳过。</p>
+  </section>
+
+  <section class="body-section" id="format">
+    <h2>attachment 形态</h2>
+    <p>恢复后的消息 role 是 <code>attachment</code>，内容类型是 file：</p>
+    <pre>role: "attachment"
+attachment.type: "file"
+attachment.filePath
+attachment.displayPath
+attachment.content.file.content</pre>
+    <p>后续发送给 LLM 前，<code>normalizeAttachment()</code> 会把它展开成 <code>&lt;system-reminder&gt;</code> 风格的 user message，模拟此前 FileReadTool 的结果。</p>
+  </section>
+
+  <section class="body-section" id="persist">
+    <h2>不持久化 attachment</h2>
+    <p><code>SessionManager</code> 不会把 attachment message 写入 transcript。</p>
+    <p>这是因为 attachment 是 compact 后恢复的运行时上下文材料，而不是会话历史本体。restore 最新会话时，会从 transcript 恢复 boundary、summary 和命令记录；文件附件需要依赖新的运行时状态重新提供。</p>
+  </section>
+
+  <section class="body-section" id="limits">
+    <h2>当前限制</h2>
+    <ul>
+      <li>当前只恢复文件 attachment</li>
+      <li>恢复内容来自 cache snapshot，不保证是磁盘最新内容</li>
+      <li>secret detection 是启发式正则，不能保证覆盖所有凭据格式</li>
+      <li>预算基于字节数，不是模型精确 token 数</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

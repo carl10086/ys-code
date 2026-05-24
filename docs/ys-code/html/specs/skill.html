@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skill 系统架构设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+    --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+    --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+    --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--fg-1);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .document-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4xl) var(--space-xl);
+  }
+
+  .cover {
+    margin-bottom: var(--space-4xl);
+    padding-bottom: var(--space-3xl);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .cover-label {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-xl);
+    max-width: 640px;
+  }
+
+  .meta-line {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .reader-rail {
+    display: flex;
+    gap: var(--space-3xl);
+  }
+
+  .toc-column {
+    flex: 0 0 200px;
+    position: sticky;
+    top: var(--space-3xl);
+    align-self: flex-start;
+  }
+
+  .toc-title {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-list li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .toc-list a {
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+  }
+
+  .toc-list a:hover {
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+
+  .body-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-4xl);
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-md);
+    color: var(--fg-1);
+  }
+
+  .body-section ul, .body-section ol {
+    margin-bottom: var(--space-md);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .body-section blockquote {
+    border-left: 3px solid var(--primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-xl) 0;
+    color: var(--fg-2);
+    font-style: italic;
+  }
+
+  .body-section code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-container);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+  }
+
+  .body-section pre {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .body-section pre code {
+    background: none;
+    padding: 0;
+    color: var(--fg-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-lg) 0;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--fg-1);
+    background: var(--surface-container);
+  }
+
+  tr:hover {
+    background: var(--surface-container-low);
+  }
+
+  .claim-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .claim-card-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evidence-margin {
+    background: var(--surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-size: 13px;
+  }
+
+  .evidence-margin-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+  }
+
+  .caveat-box {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+  }
+
+  .caveat-box-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  .source-spread {
+    margin-top: var(--space-5xl);
+    padding-top: var(--space-3xl);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .source-spread h2 {
+    font-size: 22px;
+  }
+
+  .file-index {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-sm) var(--space-lg);
+    font-size: 14px;
+  }
+
+  .file-index dt {
+    font-family: var(--font-mono);
+    color: var(--primary);
+    font-size: 13px;
+  }
+
+  .file-index dd {
+    color: var(--fg-2);
+  }
+
+  @media (max-width: 768px) {
+    .document-shell {
+      padding: var(--space-xl) var(--space-lg);
+    }
+
+    .cover h1 {
+      font-size: 28px;
+    }
+
+    .reader-rail {
+      flex-direction: column;
+      gap: var(--space-2xl);
+    }
+
+    .toc-column {
+      position: static;
+      flex: none;
+    }
+
+    .file-index {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media print {
+    body { background: white; }
+    .document-shell { max-width: none; }
+    .toc-column { display: none; }
+    .cover { page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <header class="cover">
+    <div class="cover-label">架构设计文档</div>
+    <h1>Skill 系统架构设计</h1>
+    <p class="deck">Skill 是 ys-code Agent 系统中的指令扩展机制。通过 slash command 触发，将预设的 prompt 模板展开注入对话上下文，供 LLM 在当前 turn 内使用。</p>
+    <div class="meta-line">创建时间: 2026-04-21 &nbsp;|&nbsp; 用途: 记录实现细节，供后续参考</div>
+  </header>
+
+  <div class="reader-rail">
+    <nav class="toc-column">
+      <div class="toc-title">目录</div>
+      <ul class="toc-list">
+        <li><a href="#sec1">1. 系统定位</a></li>
+        <li><a href="#sec2">2. 模块职责边界</a></li>
+        <li><a href="#sec3">3. 数据流</a></li>
+        <li><a href="#sec4">4. UI 过滤</a></li>
+        <li><a href="#sec5">5. 待验证 / 遗留问题</a></li>
+        <li><a href="#sec6">6. 相关文件索引</a></li>
+      </ul>
+    </nav>
+
+    <main class="body-column">
+
+      <section class="body-section" id="sec1">
+        <h2>1. 系统定位</h2>
+        <p>Skill 是 ys-code Agent 系统中的<strong>指令扩展机制</strong>。通过 slash command（<code>/skill-name</code>）触发，将预设的 prompt 模板展开注入对话上下文，供 LLM 在当前 turn 内使用。</p>
+
+        <h3>与内置命令的区别</h3>
+        <table>
+          <thead>
+            <tr><th>类型</th><th>触发方式</th><th>执行位置</th><th>内容可见性</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Local 命令</td><td><code>/exit</code> <code>/clear</code></td><td>客户端本地</td><td>LLM 不可见</td></tr>
+            <tr><td>Skill（Prompt 命令）</td><td><code>/brainstorming</code></td><td>Tool 调用，服务端</td><td>LLM 可见（通过 meta 消息）</td></tr>
+          </tbody>
+        </table>
+
+        <h3>在 Agent Loop 中的位置</h3>
+        <pre><code>用户输入 "/brainstorming xxx"
+    ↓
+executeCommand() 解析 slash command
+    ↓
+SkillTool.execute() 返回 newMessages
+    ↓
+tool-execution.ts 收集 newMessages
+    ↓
+context.pendingMessages 触发新一轮循环
+    ↓
+LLM 在同一 turn 内收到展开的 skill 内容</code></pre>
+      </section>
+
+      <section class="body-section" id="sec2">
+        <h2>2. 模块职责边界</h2>
+
+        <h3><code>src/agent/tools/skill.ts</code> — SkillTool</h3>
+        <p><strong>职责：</strong>将 skill 执行封装为 AgentTool，供 agent loop 调用。</p>
+
+        <div class="claim-card">
+          <div class="claim-card-title">核心接口</div>
+          <p><strong>输入参数:</strong> <code>{ skill: string; args?: string }</code></p>
+          <p><strong>输出:</strong></p>
+          <pre><code>{
+  content: [];  // UI 显示用，空数组表示不显示
+  details: { success: boolean; skillName: string };
+  newMessages?: AgentMessage[];  // 关键：触发循环的消息
+  contextModifier?: (messages: AgentMessage[]) => AgentMessage[];
+}</code></pre>
+        </div>
+
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">关键设计</div>
+          <ul>
+            <li><code>newMessages</code> 携带 skill 展开内容，注入 <code>context.pendingMessages</code> 触发新一轮循环</li>
+            <li><code>content</code> 返回空数组——UI 不直接显示 skill 结果，而是让 LLM 消化后自行回复</li>
+            <li><code>contextModifier</code> 目前是占位实现（返回原消息不变），后续可限制 <code>allowedTools</code></li>
+          </ul>
+        </div>
+
+        <h3><code>src/commands/index.ts</code> — 命令路由</h3>
+        <p><strong>职责：</strong>统一入口，解析 slash command，分发到对应命令类型处理。</p>
+        <p>核心函数: <code>executeCommand(input: string, context: CommandContext, skillsBasePath?: string): ExecuteCommandResult</code></p>
+
+        <h4>处理流程</h4>
+        <ol>
+          <li><code>parseSlashCommand()</code> 解析 <code>/command args</code></li>
+          <li><code>findCommand()</code> 查找对应 Command</li>
+          <li>按类型分发：
+            <ul>
+              <li><code>local</code> → 懒加载模块，调用 <code>call(args, context)</code></li>
+              <li><code>local-jsx</code> → 懒加载模块，调用 <code>call(onDone, context, args)</code></li>
+              <li><code>prompt</code> → 调用 <code>getPromptForCommand(args)</code> 获取内容，返回 <code>metaMessages</code></li>
+            </ul>
+          </li>
+        </ol>
+
+        <h3><code>src/skills/loadSkillsDir.ts</code> — Skill 加载</h3>
+        <p><strong>职责：</strong>从 <code>.claude/skills/</code> 目录批量加载 skill 文件，转换为 <code>PromptCommand</code>。</p>
+
+        <h4>加载流程</h4>
+        <pre><code>skills/
+  brainstorming/
+    SKILL.md    ← 包含 frontmatter + markdown 正文
+  subagent-driven-development/
+    SKILL.md
+
+1. 读取 SKILL.md 全文
+2. parseFrontmatter() 分离 frontmatter 和 markdown 正文
+3. parseSkillFrontmatterFields() 提取字段
+4. createSkillCommand() 构建 PromptCommand 对象</code></pre>
+
+        <h4>PromptCommand 核心字段</h4>
+        <pre><code>{
+  type: 'prompt';
+  name: string;                    // skill 唯一标识
+  description: string;            // 用于 help / skill listing
+  progressMessage: string;        // 执行中提示
+  contentLength: number;          // token 估算用
+  allowedTools?: string[];        // 限制可用工具
+  argumentHint?: string;          // 参数提示文本
+  argNames?: string[];            // 参数名列表
+  whenToUse?: string;            // 使用时机说明
+  model?: string;                // 指定模型
+  disableModelInvocation?: boolean;
+  userInvocable?: boolean;       // 是否允许用户直接调用
+  source: 'projectSettings' | 'userSettings' | 'bundled';
+  getPromptForCommand(args: string): Promise&lt;SkillContentBlock[]&gt;;
+}</code></pre>
+
+        <h3><code>src/skills/frontmatter.ts</code> — Frontmatter 解析</h3>
+        <p><strong>职责：</strong>解析 YAML frontmatter，提取 skill 元信息。</p>
+
+        <h4>支持的 frontmatter 字段</h4>
+        <table>
+          <thead>
+            <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>name</code></td><td>string</td><td>显示名称（覆盖目录名）</td></tr>
+            <tr><td><code>description</code></td><td>string</td><td>描述信息</td></tr>
+            <tr><td><code>allowed-tools</code></td><td>string | string[]</td><td>允许使用的工具列表</td></tr>
+            <tr><td><code>argument-hint</code></td><td>string</td><td>参数提示</td></tr>
+            <tr><td><code>arguments</code></td><td>string | string[]</td><td>参数名列表</td></tr>
+            <tr><td><code>when_to_use</code></td><td>string</td><td>使用时机说明</td></tr>
+            <tr><td><code>model</code></td><td>string</td><td>指定使用的模型</td></tr>
+            <tr><td><code>user-invocable</code></td><td>boolean</td><td>是否可由用户直接调用</td></tr>
+            <tr><td><code>disable-model-invocation</code></td><td>boolean</td><td>是否禁用模型调用</td></tr>
+            <tr><td><code>context</code></td><td>inline | fork</td><td>上下文模式（预留）</td></tr>
+            <tr><td><code>agent</code></td><td>string</td><td>使用的 Agent 名称（预留）</td></tr>
+          </tbody>
+        </table>
+
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">Markdown 正文处理</div>
+          <p><code>$ARGUMENTS</code> 占位符会被替换为实际传入的参数</p>
+        </div>
+      </section>
+
+      <section class="body-section" id="sec3">
+        <h2>3. 数据流</h2>
+
+        <h3>Skill 执行完整路径</h3>
+        <pre><code>用户输入: "/brainstorming 结合我们的代码"
+    ↓
+TUI handleSubmit()
+    ↓
+executeCommand() → 返回 { handled: true, metaMessages: [textContent] }
+    ↓
+TUI 构建消息数组:
+  [
+    { role: "user", content: ["/brainstorming"], isMeta: false },
+    { role: "user", content: [textContent], isMeta: true }
+  ]
+    ↓
+session.prompt(messages)  ← 数组形式，同一 turn 发送
+    ↓
+Agent.runPromptMessages()
+    ↓
+runAgentLoop()
+    ↓
+streamAssistantResponse() → LLM 收到 /brainstorming
+    ↓
+LLM 调用 SkillTool
+    ↓
+SkillTool.execute() → 返回 { newMessages: [metaUserMessage] }
+    ↓
+tool-execution.ts:
+  currentContext.pendingMessages.push(...newMessages)
+    ↓
+runLoop 检测到 pendingMessages，继续循环
+    ↓
+LLM 在同一 turn 内收到 skill 展开内容
+    ↓
+生成最终回复</code></pre>
+
+        <h3>关键机制: context.pendingMessages</h3>
+        <pre><code>工具返回 newMessages
+    ↓
+加入 context.pendingMessages（而非直接加入 messages）
+    ↓
+当前 turn 结束后，runLoop 检查 pendingMessages
+    ↓
+pendingMessages 非空 → 清空并继续循环
+    ↓
+pendingMessages 为空 → 结束 turn</code></pre>
+
+        <div class="caveat-box">
+          <div class="caveat-box-title">为什么不用直接加入 messages？</div>
+          <p>因为 tool 执行是串行的，加入 messages 后 LLM 会在同一轮看到 tool result 和 newMessages，导致格式混乱。用 <code>pendingMessages</code> 触发独立的新循环，LLM 按正常流程处理。</p>
+        </div>
+      </section>
+
+      <section class="body-section" id="sec4">
+        <h2>4. UI 过滤</h2>
+        <p><code>isMeta: true</code> 的消息对 LLM 可见，但 UI 层（MessageList）不显示。</p>
+        <p><strong>过滤点：</strong><code>src/tui/components/MessageList.tsx</code>（或对应组件）按 <code>isMeta</code> 过滤。</p>
+      </section>
+
+      <section class="body-section" id="sec5">
+        <h2>5. 待验证 / 遗留问题</h2>
+        <ol>
+          <li><strong>contextModifier 真实用途</strong> — 目前是占位实现，<code>allowedTools</code> 限制还未生效</li>
+          <li><strong>followUpQueue 是否必要</strong> — 有了 <code>context.pendingMessages</code>，<code>followUpQueue</code> 看起来是过度设计，但暂未移除</li>
+          <li><strong>多轮 skill 展开</strong> — 如果一个 skill 返回的 newMessages 再次触发 skill 调用，循环是否能正确处理？</li>
+        </ol>
+      </section>
+
+      <section class="body-section source-spread" id="sec6">
+        <h2>6. 相关文件索引</h2>
+        <dl class="file-index">
+          <dt><code>src/agent/tools/skill.ts</code></dt>
+          <dd>SkillTool 定义与执行</dd>
+          <dt><code>src/commands/index.ts</code></dt>
+          <dd>命令路由与执行</dd>
+          <dt><code>src/commands/types.ts</code></dt>
+          <dd>Command / PromptCommand 类型定义</dd>
+          <dt><code>src/commands/parser.ts</code></dt>
+          <dd>Slash command 解析</dd>
+          <dt><code>src/skills/loadSkillsDir.ts</code></dt>
+          <dd>Skill 批量加载</dd>
+          <dt><code>src/skills/frontmatter.ts</code></dt>
+          <dd>Frontmatter 解析</dd>
+          <dt><code>src/tui/app.tsx</code></dt>
+          <dd>TUI 层调用入口</dd>
+          <dt><code>src/agent/types.ts</code></dt>
+          <dd>AgentContext（pendingMessages 定义处）</dd>
+          <dt><code>src/agent/tool-execution.ts</code></dt>
+          <dd>newMessages 收集与 pendingMessages 注入</dd>
+          <dt><code>src/agent/agent-loop.ts</code></dt>
+          <dd>pendingMessages 循环触发检查</dd>
+        </dl>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

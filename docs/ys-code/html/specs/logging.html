@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>日志系统设计 - ys-code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #0a0a0a;
+      --surface-container-lowest: #0a0a0a;
+      --surface-container-low: #0d160d;
+      --surface-container: #102610;
+      --surface-container-high: #153315;
+      --primary: #33ff00;
+      --secondary: #ffb000;
+      --muted: #1f521f;
+      --accent: #33ff00;
+      --error: #ff3333;
+      --border: #1f521f;
+      --border-strong: #33ff00;
+      --fg-1: #33ff00;
+      --fg-2: #b7ff9a;
+      --fg-muted: #1f521f;
+      --on-primary: #050505;
+      --green: #33ff00;
+      --yellow: #ffb000;
+      --red: #ff3333;
+      --blue: #72d5ff;
+      --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+      --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+      --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+      --shadow-accent: none;
+      --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .terminal-prompt {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-md) var(--space-xl);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .prompt-user { color: var(--fg-2); }
+    .prompt-host { color: var(--fg-muted); }
+    .prompt-path { color: var(--secondary); }
+    .prompt-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--primary);
+      animation: blink 1s step-end infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .dev-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    .finding-bar {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      padding: var(--space-lg) var(--space-xl);
+      margin-bottom: var(--space-xl);
+    }
+
+    .finding-bar .status-code {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-weight: 700;
+      margin-right: var(--space-md);
+    }
+
+    .terminal-pane {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      margin-bottom: var(--space-xl);
+    }
+
+    .pane-title {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pane-title::before {
+      content: '+--- ';
+      color: var(--fg-muted);
+    }
+
+    .pane-title::after {
+      content: ' ---+';
+      color: var(--fg-muted);
+    }
+
+    .pane-content {
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--font-headline);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--space-md);
+    }
+
+    h1 { font-size: 18px; color: var(--primary); margin-bottom: var(--space-lg); }
+    h2 { font-size: 15px; color: var(--fg-1); margin-top: var(--space-xl); border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+    h3 { font-size: 13px; color: var(--fg-2); margin-top: var(--space-lg); }
+    h4 { font-size: 12px; color: var(--fg-muted); margin-top: var(--space-md); }
+
+    p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    ul, ol {
+      margin-left: var(--space-xl);
+      margin-bottom: var(--space-md);
+    }
+
+    li {
+      margin-bottom: var(--space-xs);
+      color: var(--fg-2);
+    }
+
+    li::marker {
+      color: var(--fg-muted);
+    }
+
+    pre, code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    pre {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: var(--space-md);
+    }
+
+    code {
+      background: var(--surface-container-low);
+      padding: 1px 4px;
+      color: var(--fg-1);
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-md);
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-md);
+      text-align: left;
+    }
+
+    th {
+      background: var(--surface-container-low);
+      color: var(--fg-1);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    td {
+      color: var(--fg-2);
+    }
+
+    tr:nth-child(even) {
+      background: var(--surface-container-lowest);
+    }
+
+    blockquote {
+      border-left: 2px solid var(--primary);
+      padding-left: var(--space-lg);
+      margin: var(--space-md) 0;
+      color: var(--fg-2);
+      font-style: italic;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: var(--space-xl) 0;
+    }
+
+    strong {
+      color: var(--fg-1);
+      font-weight: 700;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .ascii-divider {
+      color: var(--fg-muted);
+      font-size: 12px;
+      margin: var(--space-lg) 0;
+      letter-spacing: 0.1em;
+    }
+
+    .log-output {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--fg-2);
+      margin: var(--space-md) 0;
+    }
+
+    .log-line {
+      margin-bottom: 4px;
+    }
+
+    .log-info { color: var(--green); }
+    .log-debug { color: var(--blue); }
+    .log-warn { color: var(--yellow); }
+    .log-error { color: var(--red); }
+
+    .status-ok { background: var(--green); color: var(--on-primary); }
+    .status-warn { background: var(--yellow); color: var(--on-primary); }
+    .status-err { background: var(--red); color: var(--on-primary); }
+
+    .copy-handoff {
+      display: inline-block;
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container);
+      color: var(--fg-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: var(--space-md);
+    }
+
+    .copy-handoff:hover {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    @media (max-width: 768px) {
+      .dev-shell {
+        padding: var(--space-md);
+      }
+
+      pre {
+        padding: var(--space-md);
+        font-size: 11px;
+      }
+
+      table {
+        font-size: 11px;
+      }
+
+      th, td {
+        padding: var(--space-xs) var(--space-sm);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .prompt-cursor {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal-prompt">
+    <span class="prompt-user">review</span>
+    <span class="prompt-host">@</span>
+    <span class="prompt-path">ys-code:~/docs/logging$</span>
+    <span>cat logging.md --verbose</span>
+    <span class="prompt-cursor"></span>
+  </div>
+
+  <div class="dev-shell">
+    <div class="finding-bar">
+      <span class="status-code">[OK]</span>
+      <span>ys-code 日志系统设计 | 统一、非侵入式、人类可读的日志系统</span>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">1. 设计目标</div>
+      <div class="pane-content">
+        <p>为 <code>ys-code</code> 提供一套统一、非侵入式、人类可读的日志系统：</p>
+        <ul>
+          <li><strong>debug 级别</strong>：开发排错使用（API 请求/响应详情、内部状态变化）</li>
+          <li><strong>info 级别</strong>：用户可见的运行记录（会话开始/结束、工具调用摘要）</li>
+          <li><strong>warn/error 级别</strong>：异常与错误记录</li>
+          <li><strong>完全不干扰 TUI</strong>：日志写入文件，不在 stdout 输出，避免破坏 Ink 界面</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">2. 架构设计</div>
+      <div class="pane-content">
+        <h2>2.1 技术选型：pino + pino-pretty</h2>
+        <p>选择 <code>pino</code> 的理由：</p>
+        <ul>
+          <li><strong>性能最优</strong>：Bun/Node 生态中基准测试领先的日志库</li>
+          <li><strong>非阻塞</strong>：transport 在 worker thread 中运行，主线程只做最小化 JSON 序列化，不影响 TUI 渲染响应性</li>
+          <li><strong>Bun 兼容</strong>：经过社区广泛验证，Bun 兼容性良好</li>
+          <li><strong>生态成熟</strong>：<code>pino-pretty</code> 负责格式化，<code>pino/file</code> 负责文件输出，组合灵活</li>
+        </ul>
+
+        <pre>┌─────────────────────────────────────────┐
+│           ys-code 主进程                 │
+│  ┌──────────────┐   ┌────────────────┐  │
+│  │ 业务代码     │──▶│ pino (主线程)  │  │
+│  │ (agent/tui)  │   │ 生成 JSON 日志  │  │
+│  └──────────────┘   └────────────────┘  │
+│            │ 通过 MessageChannel          │
+│            ▼                            │
+│  ┌────────────────────────────────────┐ │
+│  │ pino-pretty transport (worker)     │ │
+│  │ 格式化为人类可读文本 ──▶ ys-code.log │ │
+│  └────────────────────────────────────┘ │
+└─────────────────────────────────────────┘</pre>
+
+        <h2>2.2 核心模块</h2>
+        <p><strong><code>src/utils/logger.ts</code></strong>：单例 Logger，所有业务代码统一导入使用。</p>
+        <pre><code>import pino from 'pino';
+
+const transport = pino.transport({
+  target: 'pino-pretty',
+  options: {
+    destination: './ys-code.log',
+    append: true,
+    colorize: false,
+    translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+    ignore: 'pid,hostname',
+  }
+});
+
+export const logger = pino({
+  level: process.env.YS_LOG_LEVEL || 'info',
+}, transport);
+
+// 进程退出时优雅关闭
+process.on('beforeExit', () => {
+  transport.end?.();
+});</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">3. 日志级别与使用场景</div>
+      <div class="pane-content">
+        <table>
+          <thead>
+            <tr>
+              <th>级别</th>
+              <th>使用场景</th>
+              <th>示例</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>debug</code></td>
+              <td>开发排错信息</td>
+              <td>API 请求/响应详情、内部状态变化、工具参数</td>
+            </tr>
+            <tr>
+              <td><code>info</code></td>
+              <td>用户可见的运行记录</td>
+              <td>会话开始/结束、工具调用摘要、用户操作</td>
+            </tr>
+            <tr>
+              <td><code>warn</code></td>
+              <td>非致命异常</td>
+              <td>网络重试、降级行为、配置缺失但可恢复</td>
+            </tr>
+            <tr>
+              <td><code>error</code></td>
+              <td>致命错误</td>
+              <td>未捕获异常、API 调用完全失败、文件不可读</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>使用示例</h3>
+        <pre><code>import { logger } from '../utils/logger.js';
+
+logger.info('用户启动了会话');
+logger.debug({ tool: 'read', file: 'src/main.ts' }, '调用工具');
+logger.error(err, 'API 调用失败');</code></pre>
+
+        <h3>输出示例</h3>
+        <div class="log-output">
+          <div class="log-line log-info">[2025-04-19 14:30:25] INFO: 用户启动了会话</div>
+          <div class="log-line log-debug">[2025-04-19 14:30:26] DEBUG: 调用工具</div>
+          <div class="log-line log-error">[2025-04-19 14:30:27] ERROR: API 调用失败</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">4. 生命周期与错误处理</div>
+      <div class="pane-content">
+        <h2>4.1 进程退出</h2>
+        <p>通过 <code>process.on('beforeExit')</code> 在进程退出前调用 <code>transport.end()</code>，确保缓冲中的日志落盘。</p>
+
+        <h2>4.2 错误场景</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>场景</th>
+              <th>行为</th>
+              <th>对 TUI 影响</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>文件不可写（无权限、只读目录）</td>
+              <td>worker thread 静默丢弃，不抛异常到主线程</td>
+              <td>无影响</td>
+            </tr>
+            <tr>
+              <td>磁盘满</td>
+              <td>worker thread 静默丢弃</td>
+              <td>无影响</td>
+            </tr>
+            <tr>
+              <td>进程异常崩溃</td>
+              <td>缓冲中最后 1-2 条可能丢失，其余已落盘</td>
+              <td>无影响</td>
+            </tr>
+            <tr>
+              <td>日志级别过滤（如 debug 被过滤）</td>
+              <td>主线程直接跳过序列化，零开销</td>
+              <td>无影响</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">5. 环境变量</div>
+      <div class="pane-content">
+        <table>
+          <thead>
+            <tr>
+              <th>变量</th>
+              <th>默认值</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>YS_LOG_LEVEL</code></td>
+              <td><code>info</code></td>
+              <td>控制日志级别：<code>debug</code> / <code>info</code> / <code>warn</code> / <code>error</code> / <code>silent</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">6. 迁移计划</div>
+      <div class="pane-content">
+        <p>替换现有 <code>console.*</code> 调用：</p>
+        <table>
+          <thead>
+            <tr>
+              <th>文件</th>
+              <th>当前代码</th>
+              <th>替换为</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>src/core/ai/utils/validation.ts</code></td>
+              <td><code>console.warn(...)</code></td>
+              <td><code>logger.warn(...)</code></td>
+            </tr>
+            <tr>
+              <td><code>src/tui/index.tsx</code></td>
+              <td><code>console.error(...)</code></td>
+              <td><code>logger.error(...)</code></td>
+            </tr>
+            <tr>
+              <td><code>src/agent/tools/read/image.ts</code></td>
+              <td><code>console.warn(...)</code></td>
+              <td><code>logger.warn(...)</code></td>
+            </tr>
+            <tr>
+              <td><code>src/agent/system-prompt/systemPrompt.ts</code></td>
+              <td><code>console.warn(...)</code></td>
+              <td><code>logger.warn(...)</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p><strong>后续规范</strong>：新代码统一使用 <code>import { logger } from '../utils/logger.js'</code>（路径根据实际调整），不再直接使用 <code>console.*</code>。</p>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">7. 依赖</div>
+      <div class="pane-content">
+        <p>新增运行时依赖：</p>
+        <ul>
+          <li><code>pino</code>: ^9.x（核心日志库）</li>
+          <li><code>pino-pretty</code>: ^11.x（格式化 transport）</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ascii-divider">// --- END OF DOCUMENT --- //</div>
+  </div>
+</body>
+</html>

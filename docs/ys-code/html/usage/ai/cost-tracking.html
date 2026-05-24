@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token 用量与费用计算</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.dev-shell { max-width: 960px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-xl);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.terminal-prompt .user { color: var(--fg-2); }
+.terminal-prompt .host { color: var(--fg-muted); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 10px; height: 18px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.terminal-pane {
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  color: var(--fg-2);
+  font-size: 12px;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.pane-body { padding: var(--space-md); }
+h1, h2, h3, h4 {
+  font-family: var(--font-headline);
+  color: var(--fg-1);
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+h1 { font-size: 18px; font-weight: 700; }
+h2 { font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+h3 { font-size: 14px; font-weight: 600; color: var(--fg-2); }
+h4 { font-size: 13px; font-weight: 600; color: var(--fg-2); }
+p { margin: var(--space-md) 0; color: var(--fg-2); }
+pre {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 1px 4px;
+  color: var(--fg-1);
+}
+pre code { background: transparent; padding: 0; }
+ul, ol { margin: var(--space-md) 0; padding-left: var(--space-xl); color: var(--fg-2); }
+li { margin: var(--space-xs) 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  font-size: 12px;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+}
+th { background: var(--surface-container-low); color: var(--fg-1); font-weight: 600; }
+td { color: var(--fg-2); }
+.status-code {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: var(--space-sm);
+}
+.status-code.ok { background: var(--green); color: var(--on-primary); }
+.status-code.warn { background: var(--yellow); color: var(--on-primary); }
+.status-code.err { background: var(--red); color: #fff; }
+.status-code.hyp { background: var(--blue); color: var(--on-primary); }
+.nav-links { margin: var(--space-md) 0; }
+.nav-links a {
+  display: inline-block;
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-right: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.nav-links a:hover { border-color: var(--border-strong); color: var(--fg-1); background: var(--surface-container-low); }
+@media (max-width: 640px) {
+  .dev-shell { padding: var(--space-md); }
+  h1 { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="dev-shell">
+<div class="terminal-prompt">
+<span class="user">dev</span>@<span class="host">ys-code</span>:<span class="path">~/docs/ai</span>$ cat cost-tracking.md<span class="cursor"></span>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- COST TRACKING GUIDE ---+</div>
+<div class="pane-body">
+
+<h1>Token 用量与费用计算</h1>
+
+<h2>Usage 结构</h2>
+<pre><code>interface Usage {
+  input: number;       // 输入 token 数
+  output: number;      // 输出 token 数
+  cacheRead: number;   // 缓存读取 token 数
+  cacheWrite: number;  // 缓存写入 token 数
+  totalTokens: number; // 总 token 数
+  cost: {
+    input: number;     // 输入费用（美元）
+    output: number;    // 输出费用（美元）
+    cacheRead: number; // 缓存读取费用
+    cacheWrite: number;// 缓存写入费用
+    total: number;     // 总费用
+  };
+}</code></pre>
+
+<h2>获取 Usage</h2>
+
+<h3>从 done 事件</h3>
+<pre><code>for await (const event of stream) {
+  if (event.type === "done") {
+    const { usage } = event.message;
+    console.log(usage);
+  }
+}</code></pre>
+
+<p>输出示例：</p>
+<pre><code>{
+  input: 120,
+  output: 85,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 205,
+  cost: {
+    input: 0.000036,
+    output: 0.000102,
+    cacheRead: 0,
+    cacheWrite: 0,
+    total: 0.000138
+  }
+}</code></pre>
+
+<h3>从完整响应</h3>
+<pre><code>const result = await completeSimple(model, context);
+console.log(result.usage);</code></pre>
+
+<h2>模型定价</h2>
+
+<p><code>models.generated.ts</code> 中定义：</p>
+<pre><code>const MODELS = {
+  "minimax-cn": {
+    "MiniMax-M2.7-highspeed": {
+      cost: {
+        input: 0.6,        // $0.6 / 1M tokens
+        output: 2.4,      // $2.4 / 1M tokens
+        cacheRead: 0.06,  // $0.06 / 1M tokens
+        cacheWrite: 0.375, // $0.375 / 1M tokens
+      },
+    },
+  },
+};</code></pre>
+
+<table>
+<tr><th>模型</th><th>输入</th><th>输出</th><th>缓存读</th><th>缓存写</th></tr>
+<tr><td>MiniMax-M2.7</td><td>$0.3/M</td><td>$1.2/M</td><td>$0.06/M</td><td>$0.375/M</td></tr>
+<tr><td>MiniMax-M2.7-highspeed</td><td>$0.6/M</td><td>$2.4/M</td><td>$0.06/M</td><td>$0.375/M</td></tr>
+</table>
+
+<h2>手动计算费用</h2>
+<pre><code>import { calculateCost } from "../../src/core/ai/index.js";
+
+const usage = {
+  input: 1000,
+  output: 500,
+  cacheRead: 2000,
+  cacheWrite: 100,
+  totalTokens: 3600,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
+
+const cost = calculateCost(model, usage);
+
+console.log(`总费用: $${cost.total.toFixed(6)}`);
+// 总费用: $0.001125</code></pre>
+
+<h2>calculateCost 公式</h2>
+<pre><code>cost.input = (model.cost.input / 1_000_000) * usage.input;
+cost.output = (model.cost.output / 1_000_000) * usage.output;
+cost.cacheRead = (model.cost.cacheRead / 1_000_000) * usage.cacheRead;
+cost.cacheWrite = (model.cost.cacheWrite / 1_000_000) * usage.cacheWrite;
+cost.total = cost.input + cost.output + cacheRead + cacheWrite;</code></pre>
+
+<h2>Thinking Token 费用</h2>
+
+<p>Thinking token 按 <strong>output 价格</strong>计费。</p>
+
+<pre><code>// 有 reasoning 的请求
+for await (const event of stream) {
+  if (event.type === "done") {
+    console.log(event.message.usage);
+  }
+}
+
+// 输出示例（reasoning: "medium"）
+{
+  input: 120,
+  output: 280,      // 包括 thinking token
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 400,
+}</code></pre>
+
+<h2>缓存优惠</h2>
+
+<p>使用 <code>cacheRetention: "long"</code> 可以使用缓存：</p>
+
+<pre><code>const stream = streamSimple(model, context, {
+  cacheRetention: "long",  // "none" | "short" | "long"
+});</code></pre>
+
+<p>缓存命中后：</p>
+<ul>
+<li><code>cacheRead</code> 会 &gt; 0</li>
+<li>缓存读费用是正常输入费用的 1/5~1/10</li>
+</ul>
+
+<h2>成本监控示例</h2>
+<pre><code>interface RequestCost {
+  model: string;
+  provider: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+  reasoning?: string;
+}
+
+function trackCost(event: AssistantMessageEvent): RequestCost | null {
+  if (event.type !== "done") return null;
+
+  return {
+    model: event.message.model,
+    provider: event.message.provider,
+    inputTokens: event.message.usage.input,
+    outputTokens: event.message.usage.output,
+    totalCost: event.message.usage.cost.total,
+  };
+}
+
+// 使用
+for await (const event of stream) {
+  const cost = trackCost(event);
+  if (cost) {
+    console.log(`[${cost.model}] ${cost.inputTokens} in + ${cost.outputTokens} out = $${cost.totalCost.toFixed(6)}`);
+  }
+}</code></pre>
+
+<h2>注意事项</h2>
+<ol>
+<li><strong>usage 来自 API 返回</strong>：模型实际计算的 token 数</li>
+<li><strong>cost 是估算</strong>：使用模型定价表计算，实际费用以账单为准</li>
+<li><strong>thinking token 包含在 output 中</strong>：无法单独区分</li>
+<li><strong>缓存 token 仅在命中时出现</strong>：<code>cacheRead: 0</code> 表示未使用缓存</li>
+</ol>
+
+<div class="nav-links">
+<a href="README.html">README</a>
+<a href="api-reference.html">API 参考</a>
+<a href="streaming.html">流式输出</a>
+<a href="thinking.html">Thinking</a>
+<a href="tool-call.html">Tool Call</a>
+</div>
+
+</div>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- STATUS ---+</div>
+<div class="pane-body">
+<span class="status-code ok">OK</span> Cost tracking guide loaded<br>
+<span class="status-code ok">OK</span> 2 models priced<br>
+<span class="status-code ok">OK</span> Cache retention + thinking cost covered
+</div>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Loop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.dev-shell { max-width: 1100px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.terminal-prompt .user { color: var(--green); }
+.terminal-prompt .host { color: var(--yellow); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 8px; height: 16px;
+  background: var(--green);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.finding-bar {
+  border: 1px solid var(--border);
+  background: var(--surface-container-low);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xl);
+  font-size: 13px;
+}
+.finding-bar .status-code {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: var(--space-sm);
+  font-weight: 700;
+}
+.finding-bar .status-code.ok { background: var(--green); color: var(--on-primary); }
+.terminal-pane {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: var(--space-xl);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pane-body { padding: var(--space-md) var(--space-lg); }
+.raw-artifact {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: var(--space-md) 0;
+}
+.raw-artifact pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.status-code { font-weight: 700; font-size: 12px; }
+.status-code.ok { color: var(--green); }
+.status-code.warn { color: var(--yellow); }
+.status-code.err { color: var(--red); }
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: var(--space-xl) 0 var(--space-md);
+}
+h1 { font-size: 18px; }
+h2 { font-size: 15px; color: var(--fg-2); }
+h3 { font-size: 13px; color: var(--fg-muted); }
+p { margin-bottom: var(--space-md); }
+ul, ol { margin-left: var(--space-xl); margin-bottom: var(--space-md); }
+li { margin-bottom: var(--space-xs); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 2px 4px;
+  color: var(--fg-2);
+}
+.scanline-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  z-index: 9999;
+}
+.nav-links { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-xl); }
+.nav-links a {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+}
+.nav-links a:hover { background: var(--surface-container); text-decoration: none; }
+@media (max-width: 600px) {
+  .dev-shell { padding: var(--space-md); }
+  .finding-bar { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="scanline-overlay"></div>
+<div class="dev-shell">
+  <div class="terminal-prompt">
+    <span class="user">agent</span>@<span class="host">ys-code</span>:<span class="path">~/docs/agent</span>$ cat loop.md<span class="cursor"></span>
+  </div>
+
+  <div class="finding-bar">
+    <span class="status-code ok">[OK]</span> Agent Loop — 低级循环函数与生命周期
+  </div>
+
+  <div class="nav-links">
+    <a href="./README.html">快速开始</a>
+    <a href="./api-reference.html">API 参考</a>
+    <a href="./events.html">事件</a>
+    <a href="./tools.html">Tools</a>
+    <a href="./state.html">状态管理</a>
+    <a href="./architecture.html">架构</a>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 概述 ---+</div>
+    <div class="pane-body">
+      <p><code>runAgentLoop</code> 和 <code>runAgentLoopContinue</code> 是低级别的循环函数，绕过了 <code>Agent</code> 类的状态管理。当你需要完全控制消息历史、事件流或自定义状态持久化时，可以使用它们。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- runAgentLoop ---+</div>
+    <div class="pane-body">
+      <p>启动新的 agent 对话：</p>
+      <div class="raw-artifact"><pre>import { runAgentLoop, type AgentEventSink } from "../../src/agent/index.js";
+import { asSystemPrompt, getModel } from "../../src/core/ai/index.js";
+
+const emit: AgentEventSink = async (event) => {
+  console.log("Event:", event.type);
+};
+
+await runAgentLoop(
+  [{ role: "user", content: [{ type: "text", text: "Hello" }], timestamp: Date.now() }],
+  {
+    messages: [],
+    tools: [/* your tools */],
+  },
+  {
+    model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a helpful assistant."]),
+    reasoning: "off",
+    convertToLlm: (msgs) => msgs.filter(m => ["user", "assistant", "toolResult"].includes(m.role)),
+    getApiKey: () => process.env.MINIMAX_API_KEY,
+  },
+  emit,
+  signal,  // 可选 AbortSignal
+  streamFn,  // 可选自定义流函数
+);</pre></div>
+      <p><code>runAgentLoop</code> 不返回本轮新增消息。需要消费消息时，请在 <code>emit</code> 中监听 <code>message_end</code> / <code>turn_end</code> 事件，或在外层维护自己的消息状态。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- runAgentLoopContinue ---+</div>
+    <div class="pane-body">
+      <p>继续现有对话：</p>
+      <div class="raw-artifact"><pre>const existingContext = {
+  messages: [
+    { role: "user", content: [{ type: "text", text: "What is 2 + 2?" }], timestamp: Date.now() },
+    { role: "assistant", content: [{ type: "text", text: "4" }], timestamp: Date.now() },
+    { role: "user", content: [{ type: "text", text: "Please explain why." }], timestamp: Date.now() },
+  ],
+  tools: [/* your tools */],
+};
+
+await runAgentLoopContinue(
+  existingContext,
+  {
+    model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a helpful assistant."]),
+    reasoning: "off",
+    convertToLlm: (msgs) => msgs.filter(m => ["user", "assistant", "toolResult"].includes(m.role)),
+    getApiKey: () => process.env.MINIMAX_API_KEY,
+  },
+  emit,
+  signal,
+  streamFn,
+);</pre></div>
+      <p><code>runAgentLoopContinue</code> 同样只通过事件输出执行过程，不通过返回值输出 assistant 消息。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- AgentLoopConfig 速查表 ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>interface AgentLoopConfig extends SimpleStreamOptions {
+  systemPrompt?: SystemPrompt;
+  model: Model&lt;any&gt;;
+  convertToLlm: (messages: AgentMessage[]) => Message[] | Promise&lt;Message[]&gt;;
+  getApiKey?: (provider: string) => Promise&lt;string | undefined&gt; | string | undefined;
+  getSteeringMessages?: () => Promise&lt;AgentMessage[]&gt;;
+  getFollowUpMessages?: () => Promise&lt;AgentMessage[]&gt;;
+  toolExecution?: ToolExecutionMode;
+  disableUserContext?: boolean;
+  fileStateCache: FileStateCache;
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 何时使用 Low-Level Loop ---+</div>
+    <div class="pane-body">
+      <ul>
+        <li><strong>需要更多控制</strong>：直接管理消息历史</li>
+        <li><strong>自定义状态管理</strong>：不想用 Agent 类的内置状态</li>
+        <li><strong>嵌入式使用</strong>：将 agent 嵌入到现有系统</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 对比：Agent 类 vs Low-Level Loop ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>| 特性 | Agent 类 | Low-Level Loop |
+|------|----------|----------------|
+| 状态管理 | 内置 | 手动 |
+| 消息队列 | 内置（steer/followUp） | 手动实现 |
+| 事件订阅 | 内置 subscribe() | 手动 emit |
+| 复杂度 | 简单 | 较高 |
+| 灵活性 | 一般 | 高 |</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 完整示例 ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>import { runAgentLoop, type AgentEventSink } from "../../src/agent/index.js";
+import { asSystemPrompt, getModel } from "../../src/core/ai/index.js";
+import { Type } from "@sinclair/typebox";
+
+const addTool = {
+  name: "add",
+  description: "Add two numbers",
+  parameters: Type.Object({ a: Type.Number(), b: Type.Number() }),
+  outputSchema: Type.Object({ result: Type.Number() }),
+  label: "Add",
+  async execute(id, params) {
+    return { result: params.a + params.b };
+  },
+  formatResult: (output) => [{ type: "text", text: String(output.result) }],
+};
+
+const emit: AgentEventSink = async (event) => {
+  console.log(`[${event.type}]`);
+};
+
+await runAgentLoop(
+  [{ role: "user", content: [{ type: "text", text: "What is 5 + 3?" }], timestamp: Date.now() }],
+  {
+    messages: [],
+    tools: [addTool],
+  },
+  {
+    model: getModel("minimax-cn", "MiniMax-M2.7-highspeed"),
+    systemPrompt: asSystemPrompt(["You are a math assistant. Use tools for calculations."]),
+    reasoning: "off",
+    convertToLlm: (msgs) => msgs.filter((m) =>
+      ["user", "assistant", "toolResult"].includes(m.role)
+    ),
+    getApiKey: () => process.env.MINIMAX_API_KEY,
+  },
+  emit
+);</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 生命周期事件时序 ---+</div>
+    <div class="pane-body">
+      <p>一次完整的 agent 会话会按以下顺序发射事件（缩进表示嵌套关系）：</p>
+      <div class="raw-artifact"><pre>agent_start
+  turn_start
+    message_start  (prompt 或 pending message)
+    message_end
+    message_start  (assistant 响应开始)
+      message_update  (流式 delta，可能多次)
+    message_end    (assistant 响应结束)
+    tool_execution_start
+      tool_execution_update  (可选，可能多次)
+    tool_execution_end
+    ... (更多 tool_execution_*，如果顺序执行)
+  turn_end
+  turn_start  (新 turn，如果有 follow-up 或 steering)
+  ...
+agent_end</pre></div>
+      <p>关于每种事件类型的详细定义，请参考 <a href="./events.html">events.md</a>。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- steering 与 follow-up 机制 ---+</div>
+    <div class="pane-body">
+      <h2>steering</h2>
+      <p><code>getSteeringMessages</code> 在每次 turn 结束后被调用。如果返回非空数组，这些消息会被注入到<strong>下一轮 turn</strong> 的上下文中，用于动态调整 agent 行为。</p>
+
+      <h2>follow-up</h2>
+      <p><code>getFollowUpMessages</code> 在 agent 即将停止时被调用。如果返回非空数组，这些消息会触发<strong>新一轮外层 turn</strong>，通常用于追问或补充上下文。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 入口函数的职责边界 ---+</div>
+    <div class="pane-body">
+      <ul>
+        <li><strong><code>runAgentLoop</code></strong>：初始化上下文（拷贝并合并 prompts）、发射 <code>agent_start</code> 和首次 <code>turn_start</code>、注入 prompts 的 <code>message_start/end</code>、最后进入 <code>runLoop</code></li>
+        <li><strong><code>runAgentLoopContinue</code></strong>：校验上下文（最后一条消息不能是 assistant）、发射 <code>agent_start</code> 和首次 <code>turn_start</code>、然后进入 <code>runLoop</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- runLoop 控制流图解 ---+</div>
+    <div class="pane-body">
+      <p><code>runLoop</code> 使用双层循环控制整个会话：</p>
+      <ul>
+        <li><strong>外层 <code>while (true)</code></strong>：管理 turn 周期，处理 follow-up 消息，决定何时结束会话</li>
+        <li><strong>内层 <code>while (hasMoreToolCalls || pendingMessages.length &gt; 0)</code></strong>：管理单次 turn 内部的链式调用，包括 steering 消息注入、assistant 响应、工具执行</li>
+      </ul>
+      <p><code>runLoop</code> 不直接处理流式响应细节，而是将单次 turn 的执行委托给 <code>runTurnOnce</code>。</p>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 源码导航 ---+</div>
+    <div class="pane-body">
+      <ul>
+        <li><code>runAgentLoop</code> / <code>runAgentLoopContinue</code>：<code>src/agent/agent-loop.ts</code></li>
+        <li><code>runLoop</code>：<code>src/agent/agent-loop.ts</code></li>
+        <li><code>runTurnOnce</code>：<code>src/agent/agent-loop.ts</code></li>
+        <li><code>streamAssistantResponse</code>：<code>src/agent/stream-assistant.ts</code></li>
+        <li><code>executeToolCalls</code>：<code>src/agent/tool-execution.ts</code></li>
+      </ul>
+      <p>想了解模块之间的完整关系，请参考 <a href="./architecture.html">architecture.md</a>。</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

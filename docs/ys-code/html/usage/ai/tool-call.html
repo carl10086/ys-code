@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tool Call 完整流程</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.dev-shell { max-width: 960px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-xl);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.terminal-prompt .user { color: var(--fg-2); }
+.terminal-prompt .host { color: var(--fg-muted); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 10px; height: 18px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.terminal-pane {
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  color: var(--fg-2);
+  font-size: 12px;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.pane-body { padding: var(--space-md); }
+h1, h2, h3, h4 {
+  font-family: var(--font-headline);
+  color: var(--fg-1);
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+h1 { font-size: 18px; font-weight: 700; }
+h2 { font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+h3 { font-size: 14px; font-weight: 600; color: var(--fg-2); }
+h4 { font-size: 13px; font-weight: 600; color: var(--fg-2); }
+p { margin: var(--space-md) 0; color: var(--fg-2); }
+pre {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 1px 4px;
+  color: var(--fg-1);
+}
+pre code { background: transparent; padding: 0; }
+ul, ol { margin: var(--space-md) 0; padding-left: var(--space-xl); color: var(--fg-2); }
+li { margin: var(--space-xs) 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  font-size: 12px;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+}
+th { background: var(--surface-container-low); color: var(--fg-1); font-weight: 600; }
+td { color: var(--fg-2); }
+.status-code {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: var(--space-sm);
+}
+.status-code.ok { background: var(--green); color: var(--on-primary); }
+.status-code.warn { background: var(--yellow); color: var(--on-primary); }
+.status-code.err { background: var(--red); color: #fff; }
+.status-code.hyp { background: var(--blue); color: var(--on-primary); }
+.nav-links { margin: var(--space-md) 0; }
+.nav-links a {
+  display: inline-block;
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-right: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.nav-links a:hover { border-color: var(--border-strong); color: var(--fg-1); background: var(--surface-container-low); }
+@media (max-width: 640px) {
+  .dev-shell { padding: var(--space-md); }
+  h1 { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="dev-shell">
+<div class="terminal-prompt">
+<span class="user">dev</span>@<span class="host">ys-code</span>:<span class="path">~/docs/ai</span>$ cat tool-call.md<span class="cursor"></span>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- TOOL CALL GUIDE ---+</div>
+<div class="pane-body">
+
+<h1>Tool Call 完整流程</h1>
+
+<h2>概述</h2>
+<p>Tool Call 允许模型调用本地函数，实现「AI + 工具」的能力。</p>
+<pre><code>用户 → AI: "东京天气怎么样？"
+AI → 用户: (tool_call: get_weather, city: "Tokyo")
+用户 → AI: (tool_result: "25°C, sunny")
+AI → 用户: "东京今天天气晴朗，温度25°C"</code></pre>
+
+<h2>定义 Tool</h2>
+<pre><code>import { Type } from "@sinclair/typebox";
+
+const getWeatherTool = {
+  name: "get_weather",
+  description: "获取指定城市的天气信息",
+  parameters: Type.Object({
+    city: Type.String({ description: "城市名称" }),
+    unit: Type.Optional(Type.Union([
+      Type.Literal("celsius"),
+      Type.Literal("fahrenheit"),
+    ])),
+  }),
+};
+
+// 更多 tool...
+const tools = [getWeatherTool];</code></pre>
+
+<h2>发起 Tool Call 请求</h2>
+<pre><code>const stream = streamSimple(
+  model,
+  {
+    systemPrompt: "你是一个有用的助手。",
+    messages: [
+      { role: "user", content: "东京天气怎么样？", timestamp: Date.now() },
+    ],
+    tools: [getWeatherTool],
+  },
+  { apiKey: process.env.MINIMAX_API_KEY },
+);</code></pre>
+
+<h2>监听 Tool Call 事件</h2>
+<pre><code>const toolCalls = [];
+
+for await (const event of stream) {
+  if (event.type === "toolcall_start") {
+    console.log("Tool 调用开始:", event.toolCall);
+  } else if (event.type === "toolcall_delta") {
+    process.stdout.write(event.delta);  // 参数 JSON 片段
+  } else if (event.type === "toolcall_end") {
+    const toolCall = event.toolCall;
+    console.log("Tool 调用完成:", toolCall);
+    toolCalls.push(toolCall);
+  } else if (event.type === "text_delta") {
+    process.stdout.write(event.delta);
+  } else if (event.type === "done") {
+    // 收集完整的 assistant message
+    const assistantMessage = event.message;
+    console.log("Usage:", assistantMessage.usage);
+  }
+}</code></pre>
+
+<h2>执行 Tool 并返回结果</h2>
+<pre><code>async function executeToolCall(toolCall: ToolCall) {
+  switch (toolCall.name) {
+    case "get_weather": {
+      const { city, unit } = toolCall.arguments;
+      // 实际调用天气 API
+      const weather = await fetchWeather(city, unit);
+      return {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        content: [{ type: "text", text: JSON.stringify(weather) }],
+        isError: false,
+      };
+    }
+    default:
+      return {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        content: [{ type: "text", text: "Unknown tool" }],
+        isError: true,
+      };
+  }
+}</code></pre>
+
+<h2>完整的多轮对话示例</h2>
+<pre><code>async function chatWithTools(userMessage: string) {
+  const messages = [
+    { role: "user" as const, content: userMessage, timestamp: Date.now() },
+  ];
+
+  // 第一轮：获取 tool call
+  const toolCalls = [];
+  const toolResults = [];
+
+  const stream = streamSimple(model, {
+    systemPrompt: "你是一个有用的助手。",
+    messages,
+    tools: [getWeatherTool],
+  }, { apiKey });
+
+  for await (const event of stream) {
+    if (event.type === "toolcall_end") {
+      toolCalls.push(event.toolCall);
+    } else if (event.type === "text_delta") {
+      process.stdout.write(event.delta);
+    } else if (event.type === "done") {
+      messages.push({
+        role: "assistant",
+        content: event.message.content,
+        // ... 其他字段
+      } as AssistantMessage);
+    }
+  }
+
+  // 执行 tool calls
+  for (const toolCall of toolCalls) {
+    const result = await executeToolCall(toolCall);
+    toolResults.push(result);
+  }
+
+  // 添加 tool results 到消息
+  messages.push(...toolResults);
+
+  // 第二轮：发送结果给模型
+  const stream2 = streamSimple(model, {
+    systemPrompt: "你是一个有用的助手。",
+    messages,
+    tools: [getWeatherTool],
+  }, { apiKey });
+
+  for await (const event of stream2) {
+    if (event.type === "text_delta") {
+      process.stdout.write(event.delta);
+    }
+  }
+}</code></pre>
+
+<h2>toolChoice 选项</h2>
+<p>控制模型的 tool 使用行为：</p>
+<pre><code>// 自动（默认）
+const stream = streamSimple(model, context, {
+  toolChoice: "auto",
+});
+
+// 任意 tool
+const stream = streamSimple(model, context, {
+  toolChoice: "any",
+});
+
+// 禁用 tool
+const stream = streamSimple(model, context, {
+  toolChoice: "none",
+});
+
+// 指定特定 tool
+const stream = streamSimple(model, context, {
+  toolChoice: { type: "tool", name: "get_weather" },
+});</code></pre>
+
+<h2>ToolResultMessage 结构</h2>
+<pre><code>interface ToolResultMessage {
+  role: "toolResult";
+  toolCallId: string;       // 对应 toolCall.id
+  toolName: string;          // 工具名称
+  content: (TextContent | ImageContent)[];
+  details?: any;             // 可选的详细信息
+  isError: boolean;          // 是否是错误结果
+  timestamp: number;
+}</code></pre>
+
+<h2>注意事项</h2>
+<ol>
+<li><strong>toolCall.id 由模型生成</strong>：Anthropic 要求格式为 <code>toolu_xxx</code>，代码会自动标准化</li>
+<li><strong>toolResult 需要匹配 id</strong>：否则模型无法关联结果</li>
+<li><strong>thinking 块可能出现在 tool call 前</strong>：如果启用了 reasoning，thinking 事件会先于 tool call 事件</li>
+<li><strong>多个 tool call 可以并行</strong>：可以收集多个 toolcall_end 后一起执行</li>
+</ol>
+
+<div class="nav-links">
+<a href="README.html">README</a>
+<a href="api-reference.html">API 参考</a>
+<a href="streaming.html">流式输出</a>
+<a href="thinking.html">Thinking</a>
+<a href="cost-tracking.html">费用追踪</a>
+</div>
+
+</div>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- STATUS ---+</div>
+<div class="pane-body">
+<span class="status-code ok">OK</span> Tool call guide loaded<br>
+<span class="status-code ok">OK</span> 4 toolChoice options documented<br>
+<span class="status-code ok">OK</span> Multi-turn example included
+</div>
+</div>
+
+</div>
+</body>
+</html>
