@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ys-code 文档索引</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Brand */
+      --primary: #a03b00;
+      --primary-container: #c94c00;
+      --primary-fixed: #ffdbcd;
+      --primary-fixed-dim: #ffb597;
+      --on-primary: #ffffff;
+      --accent-glow: #E8400D;
+
+      /* Secondary / tertiary */
+      --secondary: #d5baff;
+      --secondary-container: #7b40e0;
+      --tertiary: #4d44e3;
+      --accent-cyan: #00D4FF;
+
+      /* Surfaces */
+      --bg: #fff8f6;
+      --surface: #fff8f6;
+      --surface-container-lowest: #ffffff;
+      --surface-container-low: #fbf2ef;
+      --surface-container: #f5ece9;
+      --surface-container-high: #efe6e3;
+
+      /* Text */
+      --fg-1: #1e1b19;
+      --fg-2: #594138;
+      --fg-muted: #8d7166;
+
+      /* Borders */
+      --border: rgba(0, 0, 0, 0.06);
+      --border-strong: rgba(0, 0, 0, 0.12);
+      --outline-variant: #e1bfb2;
+
+      /* Status */
+      --green: #10b981;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+
+      /* Typography */
+      --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+
+      /* Spacing (4px base) */
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+
+      /* Radius */
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+      --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+      --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+      --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #060B18;
+        --surface: #0B1426;
+        --surface-container-lowest: #101D35;
+        --surface-container-low: #101D35;
+        --surface-container: #162544;
+        --surface-container-high: #1c2d52;
+        --fg-1: #F8FAFC;
+        --fg-2: #CBD5E1;
+        --fg-muted: #64748B;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --primary: #FF6B35;
+        --accent-glow: #00D4FF;
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* Document Shell */
+    .document-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-3xl) var(--space-xl);
+    }
+
+    /* Cover / Masthead */
+    .cover {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: var(--space-4xl) var(--space-3xl);
+      margin-bottom: var(--space-3xl);
+      box-shadow: var(--shadow-md);
+    }
+
+    .cover-title {
+      font-family: var(--font-headline);
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--fg-1);
+      margin-bottom: var(--space-md);
+    }
+
+    .cover-subtitle {
+      font-size: 1.125rem;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-xl);
+      max-width: 600px;
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: var(--space-lg);
+      flex-wrap: wrap;
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+    }
+
+    .cover-meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    .cover-meta .meta-badge {
+      background: var(--primary-fixed);
+      color: var(--primary);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-pill);
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+
+    /* Search Bar */
+    .search-container {
+      margin-bottom: var(--space-3xl);
+    }
+
+    .search-input {
+      width: 100%;
+      max-width: 600px;
+      padding: var(--space-md) var(--space-lg);
+      font-family: var(--font-body);
+      font-size: 1rem;
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      color: var(--fg-1);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(160, 59, 0, 0.1);
+    }
+
+    .search-input::placeholder {
+      color: var(--fg-muted);
+    }
+
+    /* Reader Rail - Section Navigation */
+    .reader-rail {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-3xl);
+      flex-wrap: wrap;
+      padding-bottom: var(--space-lg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rail-tab {
+      padding: var(--space-sm) var(--space-md);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--fg-muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .rail-tab:hover {
+      color: var(--fg-1);
+      background: var(--surface-container);
+    }
+
+    .rail-tab.active {
+      color: var(--primary);
+      background: var(--primary-fixed);
+      border-color: var(--primary-fixed-dim);
+    }
+
+    /* Body Section */
+    .body-section {
+      margin-bottom: var(--space-4xl);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-md);
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .section-title {
+      font-family: var(--font-headline);
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--fg-1);
+      letter-spacing: -0.01em;
+    }
+
+    .section-count {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-fixed);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-pill);
+    }
+
+    /* Subsection */
+    .subsection {
+      margin-bottom: var(--space-2xl);
+      padding-left: var(--space-lg);
+      border-left: 3px solid var(--surface-container-high);
+    }
+
+    .subsection-title {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--fg-2);
+      margin-bottom: var(--space-md);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .subsection-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface-container-high);
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+    }
+
+    /* Link Cards */
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .link-card {
+      display: block;
+      padding: var(--space-lg);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .link-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--primary);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .link-card:hover {
+      border-color: var(--primary-fixed-dim);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .link-card:hover::before {
+      opacity: 1;
+    }
+
+    .link-card-title {
+      font-family: var(--font-headline);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--fg-1);
+      margin-bottom: var(--space-xs);
+    }
+
+    .link-card-path {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      word-break: break-all;
+    }
+
+    .link-card-arrow {
+      position: absolute;
+      top: var(--space-lg);
+      right: var(--space-lg);
+      color: var(--fg-muted);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .link-card:hover .link-card-arrow {
+      opacity: 1;
+      color: var(--primary);
+    }
+
+    /* Quick Reference Table */
+    .fact-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: var(--space-xl);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .fact-table th,
+    .fact-table td {
+      padding: var(--space-md) var(--space-lg);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .fact-table th {
+      font-family: var(--font-headline);
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--fg-2);
+      background: var(--surface-container);
+    }
+
+    .fact-table td {
+      font-size: 0.875rem;
+      color: var(--fg-1);
+    }
+
+    .fact-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .fact-table a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .fact-table a:hover {
+      text-decoration: underline;
+    }
+
+    .fact-table .tag {
+      display: inline-block;
+      padding: var(--space-xs) var(--space-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: var(--radius-pill);
+      background: var(--surface-container);
+      color: var(--fg-muted);
+      margin-right: var(--space-xs);
+    }
+
+    .tag-spec { background: #dbeafe; color: #1e40af; }
+    .tag-guide { background: #dcfce7; color: #166534; }
+    .tag-usage { background: #fef3c7; color: #92400e; }
+
+    @media (prefers-color-scheme: dark) {
+      .tag-spec { background: #1e3a5f; color: #93bbfd; }
+      .tag-guide { background: #14532d; color: #86efac; }
+      .tag-usage { background: #78350f; color: #fcd34d; }
+    }
+
+    /* Evidence Margin - Topic Flows */
+    .evidence-margin {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-top: var(--space-3xl);
+    }
+
+    .evidence-margin h3 {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--space-lg);
+      color: var(--fg-1);
+    }
+
+    .topic-flow {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .topic-flow a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .topic-flow a:hover {
+      text-decoration: underline;
+    }
+
+    .topic-flow .arrow {
+      color: var(--fg-muted);
+      font-size: 0.75rem;
+    }
+
+    .topic-flow .topic-label {
+      font-size: 0.875rem;
+      color: var(--fg-muted);
+      font-weight: 500;
+    }
+
+    /* Question Panel */
+    .question-panel {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-top: var(--space-3xl);
+    }
+
+    .question-panel h3 {
+      font-family: var(--font-headline);
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--space-md);
+      color: var(--fg-1);
+    }
+
+    .question-panel p {
+      color: var(--fg-muted);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    /* Hidden state for search */
+    .hidden {
+      display: none !important;
+    }
+
+    .dimmed {
+      opacity: 0.3;
+    }
+
+    /* Footer */
+    .document-footer {
+      margin-top: var(--space-5xl);
+      padding-top: var(--space-xl);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--fg-muted);
+      font-size: 0.875rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .document-shell {
+        padding: var(--space-xl) var(--space-md);
+      }
+
+      .cover {
+        padding: var(--space-2xl) var(--space-lg);
+      }
+
+      .cover-title {
+        font-size: 1.75rem;
+      }
+
+      .link-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .reader-rail {
+        gap: var(--space-xs);
+      }
+
+      .rail-tab {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: 0.8125rem;
+      }
+
+      .fact-table {
+        font-size: 0.8125rem;
+      }
+
+      .fact-table th,
+      .fact-table td {
+        padding: var(--space-sm);
+      }
+    }
+
+    /* Smooth scroll */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Focus states */
+    a:focus-visible,
+    .search-input:focus-visible,
+    .rail-tab:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="document-shell">
+    <!-- Cover / Masthead -->
+    <header class="cover">
+      <h1 class="cover-title">ys-code 文档索引</h1>
+      <p class="cover-subtitle">ys-code 项目的设计文档、实现指南和 API 使用参考中心。涵盖架构总览、设计规格、模块实现指南和 API 使用手册。</p>
+      <div class="cover-meta">
+        <span class="meta-badge">技术文档</span>
+        <span>ys-code 项目</span>
+        <span>最后更新: 2025-05-23</span>
+      </div>
+    </header>
+
+    <!-- Search -->
+    <div class="search-container">
+      <input
+        type="text"
+        class="search-input"
+        id="searchInput"
+        placeholder="搜索文档... (支持标题、路径、关键词)"
+        aria-label="搜索文档"
+      >
+    </div>
+
+    <!-- Reader Rail -->
+    <nav class="reader-rail" role="tablist" aria-label="文档分类导航">
+      <a href="#overview" class="rail-tab active" role="tab" data-section="overview">架构总览</a>
+      <a href="#specs" class="rail-tab" role="tab" data-section="specs">设计规格</a>
+      <a href="#guides" class="rail-tab" role="tab" data-section="guides">实现指南</a>
+      <a href="#usage" class="rail-tab" role="tab" data-section="usage">使用手册</a>
+      <a href="#quickref" class="rail-tab" role="tab" data-section="quickref">快速参考</a>
+    </nav>
+
+    <!-- Architecture Overview -->
+    <section class="body-section" id="overview" data-searchable>
+      <div class="section-header">
+        <h2 class="section-title">架构总览</h2>
+        <span class="section-count">1</span>
+      </div>
+      <div class="link-grid">
+        <a href="./architecture.html" class="link-card" data-title="架构文档" data-path="architecture">
+          <div class="link-card-title">架构文档</div>
+          <div class="link-card-path">./architecture.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Design Specs -->
+    <section class="body-section" id="specs" data-searchable>
+      <div class="section-header">
+        <h2 class="section-title">设计规格</h2>
+        <span class="section-count">10</span>
+      </div>
+      <div class="link-grid">
+        <a href="./specs/core-ai.html" class="link-card" data-title="Core AI 架构" data-path="core-ai">
+          <div class="link-card-title">Core AI 架构</div>
+          <div class="link-card-path">./specs/core-ai.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/logging.html" class="link-card" data-title="日志系统设计" data-path="logging">
+          <div class="link-card-title">日志系统设计</div>
+          <div class="link-card-path">./specs/logging.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/meta-message.html" class="link-card" data-title="元消息设计" data-path="meta-message">
+          <div class="link-card-title">元消息设计</div>
+          <div class="link-card-path">./specs/meta-message.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/system-prompt.html" class="link-card" data-title="系统提示词设计" data-path="system-prompt">
+          <div class="link-card-title">系统提示词设计</div>
+          <div class="link-card-path">./specs/system-prompt.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/tool.html" class="link-card" data-title="工具设计" data-path="tool">
+          <div class="link-card-title">工具设计</div>
+          <div class="link-card-path">./specs/tool.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/skill.html" class="link-card" data-title="Skill 架构" data-path="skill">
+          <div class="link-card-title">Skill 架构</div>
+          <div class="link-card-path">./specs/skill.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/markdown-tui.html" class="link-card" data-title="Markdown TUI 渲染" data-path="markdown-tui">
+          <div class="link-card-title">Markdown TUI 渲染</div>
+          <div class="link-card-path">./specs/markdown-tui.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/persistence-compact.html" class="link-card" data-title="持久化与 Compact 设计" data-path="persistence-compact">
+          <div class="link-card-title">持久化与 Compact 设计</div>
+          <div class="link-card-path">./specs/persistence-compact.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/read-before-write.html" class="link-card" data-title="Read-Before-Write 设计" data-path="read-before-write">
+          <div class="link-card-title">Read-Before-Write 设计</div>
+          <div class="link-card-path">./specs/read-before-write.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+        <a href="./specs/message-architecture.html" class="link-card" data-title="消息架构重设计" data-path="message-architecture">
+          <div class="link-card-title">消息架构重设计</div>
+          <div class="link-card-path">./specs/message-architecture.md</div>
+          <span class="link-card-arrow">&rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Implementation Guides -->
+    <section class="body-section" id="guides" data-searchable>
+      <div class="section-header">
+        <h2 class="section-title">实现指南</h2>
+        <span class="section-count">3</span>
+      </div>
+
+      <!-- Compact -->
+      <div class="subsection" data-searchable>
+        <h3 class="subsection-title">
+          <span class="subsection-icon">C</span>
+          Compact
+        </h3>
+        <div class="link-grid">
+          <a href="./guide/compact/overview.html" class="link-card" data-title="Compact 概述" data-path="compact overview">
+            <div class="link-card-title">概述</div>
+            <div class="link-card-path">./guide/compact/overview.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/runtime-flow.html" class="link-card" data-title="运行时链路" data-path="compact runtime-flow">
+            <div class="link-card-title">运行时链路</div>
+            <div class="link-card-path">./guide/compact/runtime-flow.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/message-model.html" class="link-card" data-title="消息模型" data-path="compact message-model">
+            <div class="link-card-title">消息模型</div>
+            <div class="link-card-path">./guide/compact/message-model.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/summary.html" class="link-card" data-title="摘要与微压缩" data-path="compact summary">
+            <div class="link-card-title">摘要与微压缩</div>
+            <div class="link-card-path">./guide/compact/summary.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/attachments.html" class="link-card" data-title="附件恢复" data-path="compact attachments">
+            <div class="link-card-title">附件恢复</div>
+            <div class="link-card-path">./guide/compact/attachments.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/persistence.html" class="link-card" data-title="持久化与恢复" data-path="compact persistence">
+            <div class="link-card-title">持久化与恢复</div>
+            <div class="link-card-path">./guide/compact/persistence.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/safety.html" class="link-card" data-title="安全与失败模式" data-path="compact safety">
+            <div class="link-card-title">安全与失败模式</div>
+            <div class="link-card-path">./guide/compact/safety.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/compact/testing.html" class="link-card" data-title="测试地图" data-path="compact testing">
+            <div class="link-card-title">测试地图</div>
+            <div class="link-card-path">./guide/compact/testing.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Edit Tool -->
+      <div class="subsection" data-searchable>
+        <h3 class="subsection-title">
+          <span class="subsection-icon">E</span>
+          Edit Tool
+        </h3>
+        <div class="link-grid">
+          <a href="./guide/edit-tool/overview.html" class="link-card" data-title="Edit Tool 执行流程" data-path="edit-tool overview">
+            <div class="link-card-title">执行流程</div>
+            <div class="link-card-path">./guide/edit-tool/overview.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/read-before-write.html" class="link-card" data-title="Read-Before-Write" data-path="edit-tool read-before-write">
+            <div class="link-card-title">Read-Before-Write</div>
+            <div class="link-card-path">./guide/edit-tool/read-before-write.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/dirty-write.html" class="link-card" data-title="Dirty Write 检测" data-path="edit-tool dirty-write">
+            <div class="link-card-title">Dirty Write 检测</div>
+            <div class="link-card-path">./guide/edit-tool/dirty-write.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/quote-normalization.html" class="link-card" data-title="引用规范化" data-path="edit-tool quote-normalization">
+            <div class="link-card-title">引用规范化</div>
+            <div class="link-card-path">./guide/edit-tool/quote-normalization.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/file-state-cache.html" class="link-card" data-title="文件状态缓存" data-path="edit-tool file-state-cache">
+            <div class="link-card-title">文件状态缓存</div>
+            <div class="link-card-path">./guide/edit-tool/file-state-cache.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/error-handling.html" class="link-card" data-title="错误处理" data-path="edit-tool error-handling">
+            <div class="link-card-title">错误处理</div>
+            <div class="link-card-path">./guide/edit-tool/error-handling.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/testing.html" class="link-card" data-title="Edit Tool 测试" data-path="edit-tool testing">
+            <div class="link-card-title">测试</div>
+            <div class="link-card-path">./guide/edit-tool/testing.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./guide/edit-tool/cc-comparison.html" class="link-card" data-title="与 CC 对比" data-path="edit-tool cc-comparison">
+            <div class="link-card-title">与 CC 对比</div>
+            <div class="link-card-path">./guide/edit-tool/cc-comparison.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- MCP -->
+      <div class="subsection" data-searchable>
+        <h3 class="subsection-title">
+          <span class="subsection-icon">M</span>
+          MCP
+        </h3>
+        <div class="link-grid">
+          <a href="./guide/mcp/technical-guide.html" class="link-card" data-title="MCP 技术指南" data-path="mcp technical-guide">
+            <div class="link-card-title">技术指南</div>
+            <div class="link-card-path">./guide/mcp/technical-guide.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Usage Manuals -->
+    <section class="body-section" id="usage" data-searchable>
+      <div class="section-header">
+        <h2 class="section-title">使用手册</h2>
+        <span class="section-count">2</span>
+      </div>
+
+      <!-- AI Module -->
+      <div class="subsection" data-searchable>
+        <h3 class="subsection-title">
+          <span class="subsection-icon">AI</span>
+          AI 模块
+        </h3>
+        <div class="link-grid">
+          <a href="./usage/ai/README.html" class="link-card" data-title="AI 快速开始" data-path="ai README">
+            <div class="link-card-title">快速开始</div>
+            <div class="link-card-path">./usage/ai/README.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/ai/api-reference.html" class="link-card" data-title="AI API 参考" data-path="ai api-reference">
+            <div class="link-card-title">API 参考</div>
+            <div class="link-card-path">./usage/ai/api-reference.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/ai/streaming.html" class="link-card" data-title="流式输出" data-path="ai streaming">
+            <div class="link-card-title">流式输出</div>
+            <div class="link-card-path">./usage/ai/streaming.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/ai/thinking.html" class="link-card" data-title="Thinking" data-path="ai thinking">
+            <div class="link-card-title">Thinking</div>
+            <div class="link-card-path">./usage/ai/thinking.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/ai/tool-call.html" class="link-card" data-title="Tool Call" data-path="ai tool-call">
+            <div class="link-card-title">Tool Call</div>
+            <div class="link-card-path">./usage/ai/tool-call.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/ai/cost-tracking.html" class="link-card" data-title="费用追踪" data-path="ai cost-tracking">
+            <div class="link-card-title">费用追踪</div>
+            <div class="link-card-path">./usage/ai/cost-tracking.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Agent Module -->
+      <div class="subsection" data-searchable>
+        <h3 class="subsection-title">
+          <span class="subsection-icon">Ag</span>
+          Agent 模块
+        </h3>
+        <div class="link-grid">
+          <a href="./usage/agent/README.html" class="link-card" data-title="Agent 快速开始" data-path="agent README">
+            <div class="link-card-title">快速开始</div>
+            <div class="link-card-path">./usage/agent/README.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/api-reference.html" class="link-card" data-title="Agent API 参考" data-path="agent api-reference">
+            <div class="link-card-title">API 参考</div>
+            <div class="link-card-path">./usage/agent/api-reference.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/events.html" class="link-card" data-title="Agent 事件" data-path="agent events">
+            <div class="link-card-title">事件</div>
+            <div class="link-card-path">./usage/agent/events.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/tools.html" class="link-card" data-title="Agent Tools" data-path="agent tools">
+            <div class="link-card-title">Tools</div>
+            <div class="link-card-path">./usage/agent/tools.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/state.html" class="link-card" data-title="Agent 状态管理" data-path="agent state">
+            <div class="link-card-title">状态管理</div>
+            <div class="link-card-path">./usage/agent/state.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/loop.html" class="link-card" data-title="Agent Loop" data-path="agent loop">
+            <div class="link-card-title">Loop</div>
+            <div class="link-card-path">./usage/agent/loop.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+          <a href="./usage/agent/architecture.html" class="link-card" data-title="Agent 架构" data-path="agent architecture">
+            <div class="link-card-title">架构</div>
+            <div class="link-card-path">./usage/agent/architecture.md</div>
+            <span class="link-card-arrow">&rarr;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Reference Table -->
+    <section class="body-section" id="quickref" data-searchable>
+      <div class="section-header">
+        <h2 class="section-title">快速参考</h2>
+        <span class="section-count">按模块</span>
+      </div>
+      <table class="fact-table">
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>规格</th>
+            <th>实现指南</th>
+            <th>使用文档</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Compact</strong></td>
+            <td><a href="./specs/persistence-compact.html">persistence-compact</a> <span class="tag tag-spec">spec</span></td>
+            <td><a href="./guide/compact/overview.html">guide/compact/</a> <span class="tag tag-guide">guide</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>EditTool</strong></td>
+            <td><a href="./specs/read-before-write.html">read-before-write</a> <span class="tag tag-spec">spec</span></td>
+            <td><a href="./guide/edit-tool/overview.html">guide/edit-tool/</a> <span class="tag tag-guide">guide</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Agent</strong></td>
+            <td><a href="./specs/message-architecture.html">message-architecture</a> <span class="tag tag-spec">spec</span></td>
+            <td>—</td>
+            <td><a href="./usage/agent/README.html">usage/agent/</a> <span class="tag tag-usage">usage</span></td>
+          </tr>
+          <tr>
+            <td><strong>AI</strong></td>
+            <td><a href="./specs/core-ai.html">core-ai</a> <span class="tag tag-spec">spec</span></td>
+            <td>—</td>
+            <td><a href="./usage/ai/README.html">usage/ai/</a> <span class="tag tag-usage">usage</span></td>
+          </tr>
+          <tr>
+            <td><strong>MCP</strong></td>
+            <td>—</td>
+            <td><a href="./guide/mcp/technical-guide.html">guide/mcp/</a> <span class="tag tag-guide">guide</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Skill</strong></td>
+            <td><a href="./specs/skill.html">skill</a> <span class="tag tag-spec">spec</span></td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>System Prompt</strong></td>
+            <td><a href="./specs/system-prompt.html">system-prompt</a> <span class="tag tag-spec">spec</span></td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Tool</strong></td>
+            <td><a href="./specs/tool.html">tool</a> <span class="tag tag-spec">spec</span></td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Evidence Margin - Topic Flows -->
+    <div class="evidence-margin" data-searchable>
+      <h3>主题链路</h3>
+      <div class="topic-flow">
+        <span class="topic-label">消息架构:</span>
+        <a href="./specs/meta-message.html">meta-message</a>
+        <span class="arrow">&rarr;</span>
+        <a href="./specs/message-architecture.html">message-architecture</a>
+      </div>
+      <div class="topic-flow">
+        <span class="topic-label">上下文压缩:</span>
+        <a href="./specs/persistence-compact.html">persistence-compact</a>
+        <span class="arrow">&rarr;</span>
+        <a href="./guide/compact/overview.html">compact/overview</a>
+      </div>
+      <div class="topic-flow">
+        <span class="topic-label">文件编辑:</span>
+        <a href="./specs/read-before-write.html">read-before-write</a>
+        <span class="arrow">&rarr;</span>
+        <a href="./guide/edit-tool/overview.html">edit-tool/overview</a>
+      </div>
+      <div class="topic-flow">
+        <span class="topic-label">TUI 渲染:</span>
+        <a href="./specs/markdown-tui.html">markdown-tui</a>
+      </div>
+      <div class="topic-flow">
+        <span class="topic-label">日志系统:</span>
+        <a href="./specs/logging.html">logging</a>
+      </div>
+    </div>
+
+    <!-- Question Panel -->
+    <div class="question-panel" data-searchable>
+      <h3>文档风格说明</h3>
+      <p>文件名采用英文 kebab-case，无日期前缀。技术术语保留英文原文（如 compact、tool call）。代码块使用 TypeScript 语法高亮。过时内容使用 "状态: 已过时" 标注。</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="document-footer">
+      <p>ys-code 文档中心 · 技术文档导航</p>
+    </footer>
+  </div>
+
+  <script>
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const searchableElements = document.querySelectorAll('[data-searchable]');
+    const linkCards = document.querySelectorAll('.link-card');
+
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+
+      if (!query) {
+        // Show everything
+        searchableElements.forEach(el => el.classList.remove('hidden'));
+        linkCards.forEach(card => card.classList.remove('hidden'));
+        document.querySelectorAll('.subsection').forEach(sub => sub.classList.remove('hidden'));
+        return;
+      }
+
+      // Filter link cards
+      linkCards.forEach(card => {
+        const title = card.getAttribute('data-title').toLowerCase();
+        const path = card.getAttribute('data-path').toLowerCase();
+        const text = card.textContent.toLowerCase();
+
+        if (title.includes(query) || path.includes(query) || text.includes(query)) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      // Hide empty subsections
+      document.querySelectorAll('.subsection').forEach(subsection => {
+        const visibleCards = subsection.querySelectorAll('.link-card:not(.hidden)');
+        if (visibleCards.length === 0) {
+          subsection.classList.add('hidden');
+        } else {
+          subsection.classList.remove('hidden');
+        }
+      });
+
+      // Hide empty sections
+      document.querySelectorAll('.body-section').forEach(section => {
+        const visibleSubsections = section.querySelectorAll('.subsection:not(.hidden)');
+        const visibleCards = section.querySelectorAll('.link-card:not(.hidden)');
+        const hasTable = section.querySelector('.fact-table');
+
+        if (visibleSubsections.length === 0 && visibleCards.length === 0 && !hasTable) {
+          section.classList.add('hidden');
+        } else {
+          section.classList.remove('hidden');
+        }
+      });
+    });
+
+    // Rail tab click handling
+    document.querySelectorAll('.rail-tab').forEach(tab => {
+      tab.addEventListener('click', function(e) {
+        document.querySelectorAll('.rail-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+
+    // Smooth scroll for rail tabs
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

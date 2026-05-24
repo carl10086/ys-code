@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>状态管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.dev-shell { max-width: 1100px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.terminal-prompt .user { color: var(--green); }
+.terminal-prompt .host { color: var(--yellow); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 8px; height: 16px;
+  background: var(--green);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.finding-bar {
+  border: 1px solid var(--border);
+  background: var(--surface-container-low);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xl);
+  font-size: 13px;
+}
+.finding-bar .status-code {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: var(--space-sm);
+  font-weight: 700;
+}
+.finding-bar .status-code.ok { background: var(--green); color: var(--on-primary); }
+.terminal-pane {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: var(--space-xl);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pane-body { padding: var(--space-md) var(--space-lg); }
+.raw-artifact {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: var(--space-md) 0;
+}
+.raw-artifact pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.status-code { font-weight: 700; font-size: 12px; }
+.status-code.ok { color: var(--green); }
+.status-code.warn { color: var(--yellow); }
+.status-code.err { color: var(--red); }
+h1, h2, h3 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: var(--space-xl) 0 var(--space-md);
+}
+h1 { font-size: 18px; }
+h2 { font-size: 15px; color: var(--fg-2); }
+h3 { font-size: 13px; color: var(--fg-muted); }
+p { margin-bottom: var(--space-md); }
+ul, ol { margin-left: var(--space-xl); margin-bottom: var(--space-md); }
+li { margin-bottom: var(--space-xs); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 2px 4px;
+  color: var(--fg-2);
+}
+.scanline-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  z-index: 9999;
+}
+.nav-links { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-xl); }
+.nav-links a {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+}
+.nav-links a:hover { background: var(--surface-container); text-decoration: none; }
+@media (max-width: 600px) {
+  .dev-shell { padding: var(--space-md); }
+  .finding-bar { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="scanline-overlay"></div>
+<div class="dev-shell">
+  <div class="terminal-prompt">
+    <span class="user">agent</span>@<span class="host">ys-code</span>:<span class="path">~/docs/agent</span>$ cat state.md<span class="cursor"></span>
+  </div>
+
+  <div class="finding-bar">
+    <span class="status-code ok">[OK]</span> 状态管理 — AgentState 结构与读写
+  </div>
+
+  <div class="nav-links">
+    <a href="./README.html">快速开始</a>
+    <a href="./api-reference.html">API 参考</a>
+    <a href="./events.html">事件</a>
+    <a href="./tools.html">Tools</a>
+    <a href="./loop.html">Loop</a>
+    <a href="./architecture.html">架构</a>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- AgentState 结构 ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>interface AgentState {
+  systemPrompt: string;                    // 系统提示词
+  model: Model&lt;any&gt;;                     // 当前模型
+  thinkingLevel: ThinkingLevel;            // thinking 等级
+  tools: AgentTool&lt;any&gt;[];                // 工具列表
+  messages: AgentMessage[];                // 消息历史
+  readonly isStreaming: boolean;           // 是否正在流式输出
+  readonly streamingMessage?: AgentMessage; // 当前流式消息
+  readonly pendingToolCalls: ReadonlySet&lt;string&gt;; // 正在执行的工具 ID
+  readonly errorMessage?: string;           // 最近错误信息
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 读取状态 ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>console.log(agent.state.messages);       // 所有消息
+console.log(agent.state.tools);          // 所有工具
+console.log(agent.state.model);           // 当前模型
+console.log(agent.state.isStreaming);     // 是否在运行中</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 修改状态 ---+</div>
+    <div class="pane-body">
+      <h2>systemPrompt</h2>
+      <div class="raw-artifact"><pre>agent.state.systemPrompt = "You are now a coding assistant.";</pre></div>
+
+      <h2>model</h2>
+      <div class="raw-artifact"><pre>import { getModel } from "../../src/core/ai/index.js";
+agent.state.model = getModel("minimax-cn", "MiniMax-M2.7-highspeed");</pre></div>
+
+      <h2>thinkingLevel</h2>
+      <div class="raw-artifact"><pre>agent.state.thinkingLevel = "high";  // "off" | "minimal" | "low" | "medium" | "high" | "xhigh"</pre></div>
+
+      <h2>tools</h2>
+      <div class="raw-artifact"><pre>// 添加工具
+agent.state.tools = [...agent.state.tools, newTool];
+
+// 移除工具
+agent.state.tools = agent.state.tools.filter(t => t.name !== "unused_tool");</pre></div>
+
+      <h2>messages</h2>
+      <div class="raw-artifact"><pre>// 添加消息
+agent.state.messages = [...agent.state.messages, newMessage];
+
+// 清空历史
+agent.state.messages = [];
+
+// 注意：也可以直接 push，但会创建新数组
+agent.state.messages.push(newMessage);  // 效果同上</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- Copy-on-Write 行为 ---+</div>
+    <div class="pane-body">
+      <p>Agent 对 <code>tools</code> 和 <code>messages</code> 使用 copy-on-write 模式：</p>
+      <div class="raw-artifact"><pre>// 读取返回原数组引用
+const tools = agent.state.tools;
+const messages = agent.state.messages;
+
+// 赋值会复制新数组
+agent.state.tools = newTools;  // 不会影响原有数组</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 只读属性 ---+</div>
+    <div class="pane-body">
+      <h2>isStreaming</h2>
+      <div class="raw-artifact"><pre>if (agent.state.isStreaming) {
+  console.log("Agent is running, please wait...");
+}</pre></div>
+
+      <h2>streamingMessage</h2>
+      <div class="raw-artifact"><pre>if (agent.state.streamingMessage) {
+  console.log("Current streaming message:", agent.state.streamingMessage);
+}</pre></div>
+
+      <h2>pendingToolCalls</h2>
+      <div class="raw-artifact"><pre>console.log("Running tools:", agent.state.pendingToolCalls.size);
+for (const id of agent.state.pendingToolCalls) {
+  console.log(" - ", id);
+}</pre></div>
+
+      <h2>errorMessage</h2>
+      <div class="raw-artifact"><pre>if (agent.state.errorMessage) {
+  console.error("Last error:", agent.state.errorMessage);
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- reset() 方法 ---+</div>
+    <div class="pane-body">
+      <p>完全重置 agent 状态：</p>
+      <div class="raw-artifact"><pre>agent.reset();
+
+// 等同于：
+// - messages = []
+// - isStreaming = false
+// - streamingMessage = undefined
+// - pendingToolCalls = empty
+// - errorMessage = undefined
+// - 清空所有队列</pre></div>
+    </div>
+  </div>
+
+  <div class="terminal-pane">
+    <div class="pane-title">+--- 状态与事件的关系 ---+</div>
+    <div class="pane-body">
+      <div class="raw-artifact"><pre>agent.subscribe((event) => {
+  switch (event.type) {
+    case "message_end":
+      // 此时 state.messages 已更新
+      console.log("Total messages:", agent.state.messages.length);
+      break;
+    case "tool_execution_start":
+      // 此时 state.pendingToolCalls 已更新
+      console.log("Pending:", agent.state.pendingToolCalls.size);
+      break;
+    case "turn_end":
+      // 检查是否有错误
+      if (event.message.errorMessage) {
+        console.log("Error:", event.message.errorMessage);
+      }
+      break;
+  }
+});</pre></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

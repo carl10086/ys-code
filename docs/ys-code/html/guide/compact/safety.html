@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compact 安全与失败模式 - ys-code 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+  --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+  --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.document-shell {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+.cover {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: var(--space-3xl);
+  margin-bottom: var(--space-4xl);
+}
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: var(--space-lg);
+  color: var(--fg-1);
+}
+.meta-line {
+  font-size: 13px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-xl);
+}
+.tldr {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.tldr h3 {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: var(--space-md);
+}
+.tldr ul {
+  list-style: none;
+  padding: 0;
+}
+.tldr li {
+  padding: var(--space-sm) 0;
+  padding-left: var(--space-lg);
+  position: relative;
+  color: var(--fg-2);
+}
+.tldr li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.reader-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-2xl);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+.reader-rail.open {
+  transform: translateX(0);
+}
+.reader-rail h4 {
+  font-family: var(--font-headline);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+}
+.reader-rail ul {
+  list-style: none;
+  padding: 0;
+}
+.reader-rail li {
+  margin-bottom: var(--space-xs);
+}
+.reader-rail a {
+  display: block;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.reader-rail a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+.rail-toggle {
+  position: fixed;
+  left: var(--space-lg);
+  top: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  transition: all 0.2s;
+}
+.rail-toggle:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.body-section {
+  margin-bottom: var(--space-4xl);
+}
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-1);
+}
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: var(--space-2xl) 0 var(--space-md);
+  color: var(--fg-1);
+}
+.body-section p {
+  margin-bottom: var(--space-md);
+  color: var(--fg-2);
+}
+.body-section ul, .body-section ol {
+  margin: var(--space-md) 0 var(--space-md) var(--space-xl);
+  color: var(--fg-2);
+}
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+.pull-quote {
+  border-left: 4px solid var(--primary);
+  padding-left: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-style: italic;
+  color: var(--fg-1);
+  font-size: 1.05rem;
+}
+pre, .code-block {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border);
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+.fact-table th, .fact-table td {
+  padding: var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--surface-container);
+}
+.fact-table td {
+  color: var(--fg-2);
+}
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-md) 0;
+  box-shadow: var(--shadow-sm);
+}
+.claim-card h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+.guard-box {
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-md) 0;
+  border-left: 4px solid var(--red);
+}
+.guard-box h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--red);
+}
+.risk-matrix {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  border: 1px solid var(--border);
+}
+.risk-matrix h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  color: var(--fg-1);
+}
+.risk-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.risk-item:last-child {
+  border-bottom: none;
+}
+.risk-label {
+  color: var(--fg-2);
+  font-size: 14px;
+}
+.risk-level {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.risk-high {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--red);
+}
+.risk-medium {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--yellow);
+}
+.risk-low {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--green);
+}
+@media (min-width: 1200px) {
+  .document-shell {
+    margin-left: 280px;
+    max-width: 800px;
+  }
+  .reader-rail {
+    transform: translateX(0);
+  }
+  .rail-toggle {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+}
+@media print {
+  .reader-rail, .rail-toggle { display: none; }
+  .document-shell { margin-left: 0; max-width: none; }
+  body { background: white; color: black; }
+}
+</style>
+</head>
+<body>
+<button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">目录</button>
+<nav class="reader-rail">
+  <h4>文档导航</h4>
+  <ul>
+    <li><a href="#overview">概述</a></li>
+    <li><a href="#atomic">原子性</a></li>
+    <li><a href="#streaming">streaming guard</a></li>
+    <li><a href="#duplicate">duplicate compact guard</a></li>
+    <li><a href="#late">late message guard</a></li>
+    <li><a href="#fail">local command 失败不回退</a></li>
+    <li><a href="#reserved">reserved builtin command</a></li>
+    <li><a href="#redaction">secret redaction</a></li>
+    <li><a href="#attachment">attachment 安全边界</a></li>
+    <li><a href="#residual">transcript 本地残留风险</a></li>
+    <li><a href="#injection">prompt injection 残余风险</a></li>
+    <li><a href="#nongoals">已知非目标</a></li>
+  </ul>
+</nav>
+<main class="document-shell">
+  <header class="cover">
+    <h1>Compact 安全与失败模式</h1>
+    <div class="meta-line">分析对象：src/agent/session.ts, src/commands/index.ts, src/session/compact/*, src/session/session-storage.ts @ 73baf03 | 日期：2026-05-03</div>
+    <div class="tldr">
+      <h3>核心要点</h3>
+      <ul>
+        <li>核心安全目标：成功时完整接管 active context，失败时完全不改变 active context</li>
+        <li>多层 guard 机制：streaming、duplicate、late message、local command 失败不回退</li>
+        <li>secret redaction 覆盖 PEM、Bearer、env、provider token 等常见凭据格式</li>
+        <li>attachment 恢复具备 8 层安全过滤，不依赖模型遵守 prompt</li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="body-section" id="overview">
+    <h2>概述</h2>
+    <p>compact 的核心安全目标是：<strong>成功时完整接管 active context，失败时完全不改变 active context</strong>。</p>
+    <p>这要求 compact 在命令调度、summary 生成、message 替换、持久化、安全过滤等多个位置都保持明确边界。</p>
+  </section>
+
+  <section class="body-section" id="atomic">
+    <h2>原子性</h2>
+    <p><code>AgentSession.compact()</code> 只在 <code>compactConversation()</code> 成功返回、且消息快照未变化时替换 messages。</p>
+    <p>失败路径包括：</p>
+    <ul>
+      <li>summary runner 抛错</li>
+      <li>prompt-too-long 重试仍失败</li>
+      <li>compact 期间有 late message 追加</li>
+      <li>正在 streaming</li>
+      <li>已有 compact 正在执行</li>
+    </ul>
+    <p>这些失败都不会调用：</p>
+    <pre>SessionManager.replaceMessages()
+Agent.replaceMessages()</pre>
+  </section>
+
+  <section class="body-section" id="streaming">
+    <h2>streaming guard</h2>
+    <p>如果模型正在流式输出，<code>AgentSession.compact()</code> 会拒绝：</p>
+    <pre>Cannot compact while a model response is streaming</pre>
+    <p>原因是 streaming 期间 assistant message、tool call 或 tool result 可能还在追加。此时 compact 会产生不完整或过期的 summary。</p>
+  </section>
+
+  <section class="body-section" id="duplicate">
+    <h2>duplicate compact guard</h2>
+    <p><code>compactInProgress</code> 防止同一 session 同时执行多个 compact。</p>
+    <pre>if compactInProgress:
+    throw "Compact is already in progress"</pre>
+    <p><code>finally</code> 会重置该标志，避免失败后无法再次 compact。</p>
+  </section>
+
+  <section class="body-section" id="late">
+    <h2>late message guard</h2>
+    <p>compact 开始时记录：</p>
+    <pre>messagesAtStart = this.agent.state.messages
+messageSnapshot = messagesAtStart.slice()</pre>
+    <p>summary 生成完成后检查：</p>
+    <ul>
+      <li>messages 数组引用是否仍相同</li>
+      <li>messages 长度是否仍相同</li>
+      <li>每个位置的 message 对象引用是否仍相同</li>
+    </ul>
+    <p>只要不一致，就抛出：</p>
+    <pre>Messages changed during compact; retry /compact.</pre>
+    <p>这样可以避免 compact 期间产生的新消息被 <code>replaceMessages()</code> 覆盖丢失。</p>
+  </section>
+
+  <section class="body-section" id="fail">
+    <h2>local command 失败不回退</h2>
+    <p><code>executeCommand()</code> 对 local command 的 catch 分支返回：</p>
+    <pre>handled: true
+skipPrompt: true
+textResult: "Command failed. See logs for details."</pre>
+    <p>这保证 <code>/compact</code> 失败时不会被当成普通 prompt 发送给主模型。</p>
+    <p>详细错误写入 logger，但 UI 只展示泛化错误。</p>
+  </section>
+
+  <section class="body-section" id="reserved">
+    <h2>reserved builtin command</h2>
+    <p><code>compact</code> 是 reserved builtin command：</p>
+    <pre>RESERVED_BUILTIN_COMMAND_NAMES = new Set(["compact"])</pre>
+    <p>skills、user commands、project commands 都不能覆盖 <code>/compact</code>。</p>
+    <p>这避免外部同名命令把 <code>/compact</code> 变成 prompt command 或其他不安全行为。</p>
+  </section>
+
+  <section class="body-section" id="redaction">
+    <h2>secret redaction</h2>
+    <p><code>formatCompactSummary()</code> 会在 summary 持久化前调用 <code>redactSecrets()</code>。</p>
+    <p>当前覆盖：</p>
+    <ul>
+      <li>PEM private key block</li>
+      <li><code>Authorization: Bearer ...</code></li>
+      <li>env-style key-value</li>
+      <li>token / secret / password / api key 类 key-value</li>
+      <li>常见 provider token，如 <code>sk-...</code>、<code>ghp_...</code>、<code>github_pat_...</code>、<code>xoxb-...</code>、<code>npm_...</code>、<code>AKIA...</code></li>
+    </ul>
+    <p><code>containsSecret()</code> 复用同一套 redaction 逻辑，用于 attachment content 检测。</p>
+  </section>
+
+  <section class="body-section" id="attachment">
+    <h2>attachment 安全边界</h2>
+    <p>post-compact attachment restore 具备多层过滤：</p>
+    <div class="filter-list">
+      <div class="item">partial read skip</div>
+      <div class="item">cwd realpath containment</div>
+      <div class="item">symlink escape skip</div>
+      <div class="item">sensitive path skip</div>
+      <div class="item">non-file skip</div>
+      <div class="item">content secret skip</div>
+      <div class="item">single-file byte budget</div>
+      <div class="item">total byte budget</div>
+    </div>
+    <p>这些过滤由工程代码执行，不依赖模型遵守 prompt。</p>
+  </section>
+
+  <section class="body-section" id="residual">
+    <h2>transcript 本地残留风险</h2>
+    <p>compact 使用 append-only transcript，因此旧历史仍保留在本地 session JSONL 中。</p>
+    <p>缓解措施：</p>
+    <ul>
+      <li>session 目录尽量 chmod <code>0o700</code></li>
+      <li>session 文件尽量 chmod <code>0o600</code></li>
+      <li>损坏行日志不输出原文</li>
+      <li>restore 只从最新结构化 boundary 恢复 active context</li>
+    </ul>
+    <p>残余风险：</p>
+    <ul>
+      <li>本机有权限读取 session 文件的人仍能看到 compact 前历史</li>
+      <li>compact 不是 secure delete</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="injection">
+    <h2>prompt injection 残余风险</h2>
+    <p>summary prompt 要求不要遵循 tool/web/file 内容中的新指令，但 summary 仍由 LLM 生成，并会作为 <code>isMeta: true</code> user message 进入后续上下文。</p>
+    <p>因此仍有残余风险：</p>
+    <ul>
+      <li>恶意网页或文件内容可能诱导 summary 写入错误的 "Current Work"</li>
+      <li>后续模型可能把被污染的 summary 当作事实</li>
+    </ul>
+    <p>当前缓解：</p>
+    <ul>
+      <li>summary runner <code>tools: []</code></li>
+      <li>prompt 明确标记 untrusted data</li>
+      <li>attachment 过滤敏感路径和内容 secret</li>
+    </ul>
+    <p>后续可加强：</p>
+    <ul>
+      <li>为 summary 增加更强的非权威前缀</li>
+      <li>在 summary 中区分 user intent 与 untrusted evidence</li>
+      <li>增加恶意 WebFetch/file 注入测试</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="nongoals">
+    <h2>已知非目标</h2>
+    <p>当前 compact 不保证：</p>
+    <ul>
+      <li>删除磁盘历史</li>
+      <li>检出所有可能 secret 格式</li>
+      <li>自动判断何时 compact</li>
+      <li>compact 后 attachment 内容一定是磁盘最新版</li>
+      <li>summary 完全免疫 prompt injection</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

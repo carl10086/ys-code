@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Prompt 系统设计 - ys-code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #0a0a0a;
+      --surface-container-lowest: #0a0a0a;
+      --surface-container-low: #0d160d;
+      --surface-container: #102610;
+      --surface-container-high: #153315;
+      --primary: #33ff00;
+      --secondary: #ffb000;
+      --muted: #1f521f;
+      --accent: #33ff00;
+      --error: #ff3333;
+      --border: #1f521f;
+      --border-strong: #33ff00;
+      --fg-1: #33ff00;
+      --fg-2: #b7ff9a;
+      --fg-muted: #1f521f;
+      --on-primary: #050505;
+      --green: #33ff00;
+      --yellow: #ffb000;
+      --red: #ff3333;
+      --blue: #72d5ff;
+      --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+      --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+      --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+      --shadow-accent: none;
+      --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .terminal-prompt {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-md) var(--space-xl);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .prompt-user { color: var(--fg-2); }
+    .prompt-host { color: var(--fg-muted); }
+    .prompt-path { color: var(--secondary); }
+    .prompt-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--primary);
+      animation: blink 1s step-end infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .dev-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    .finding-bar {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      padding: var(--space-lg) var(--space-xl);
+      margin-bottom: var(--space-xl);
+    }
+
+    .finding-bar .status-code {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-weight: 700;
+      margin-right: var(--space-md);
+    }
+
+    .terminal-pane {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      margin-bottom: var(--space-xl);
+    }
+
+    .pane-title {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pane-title::before {
+      content: '+--- ';
+      color: var(--fg-muted);
+    }
+
+    .pane-title::after {
+      content: ' ---+';
+      color: var(--fg-muted);
+    }
+
+    .pane-content {
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--font-headline);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--space-md);
+    }
+
+    h1 { font-size: 18px; color: var(--primary); margin-bottom: var(--space-lg); }
+    h2 { font-size: 15px; color: var(--fg-1); margin-top: var(--space-xl); border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+    h3 { font-size: 13px; color: var(--fg-2); margin-top: var(--space-lg); }
+    h4 { font-size: 12px; color: var(--fg-muted); margin-top: var(--space-md); }
+
+    p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    ul, ol {
+      margin-left: var(--space-xl);
+      margin-bottom: var(--space-md);
+    }
+
+    li {
+      margin-bottom: var(--space-xs);
+      color: var(--fg-2);
+    }
+
+    li::marker {
+      color: var(--fg-muted);
+    }
+
+    pre, code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    pre {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: var(--space-md);
+    }
+
+    code {
+      background: var(--surface-container-low);
+      padding: 1px 4px;
+      color: var(--fg-1);
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-md);
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-md);
+      text-align: left;
+    }
+
+    th {
+      background: var(--surface-container-low);
+      color: var(--fg-1);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    td {
+      color: var(--fg-2);
+    }
+
+    tr:nth-child(even) {
+      background: var(--surface-container-lowest);
+    }
+
+    blockquote {
+      border-left: 2px solid var(--primary);
+      padding-left: var(--space-lg);
+      margin: var(--space-md) 0;
+      color: var(--fg-2);
+      font-style: italic;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: var(--space-xl) 0;
+    }
+
+    strong {
+      color: var(--fg-1);
+      font-weight: 700;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .ascii-divider {
+      color: var(--fg-muted);
+      font-size: 12px;
+      margin: var(--space-lg) 0;
+      letter-spacing: 0.1em;
+    }
+
+    .data-flow {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--fg-2);
+      margin: var(--space-md) 0;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .copy-handoff {
+      display: inline-block;
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container);
+      color: var(--fg-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: var(--space-md);
+    }
+
+    .copy-handoff:hover {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    @media (max-width: 768px) {
+      .dev-shell {
+        padding: var(--space-md);
+      }
+
+      pre {
+        padding: var(--space-md);
+        font-size: 11px;
+      }
+
+      table {
+        font-size: 11px;
+      }
+
+      th, td {
+        padding: var(--space-xs) var(--space-sm);
+      }
+
+      .data-flow {
+        font-size: 10px;
+        padding: var(--space-md);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .prompt-cursor {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal-prompt">
+    <span class="prompt-user">review</span>
+    <span class="prompt-host">@</span>
+    <span class="prompt-path">ys-code:~/docs/system-prompt$</span>
+    <span>cat system-prompt.md --verbose</span>
+    <span class="prompt-cursor"></span>
+  </div>
+
+  <div class="dev-shell">
+    <div class="finding-bar">
+      <span class="status-code">[OK]</span>
+      <span>System Prompt 系统设计 | 组合式构建器模式 + 缓存机制 + 动静分离策略</span>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">1. 概述</div>
+      <div class="pane-content">
+        <p><code>ys-code</code> 的 System Prompt 系统采用<strong>组合式构建器模式</strong>，将完整的 system prompt 拆分为多个独立的 Section，通过缓存机制和动静分离策略，实现高效、可维护的 prompt 管理。</p>
+
+        <h2>设计目标</h2>
+        <ol>
+          <li><strong>类型安全</strong>：使用 branded type 防止误用</li>
+          <li><strong>组合优先</strong>：通过 section 组合而非硬编码字符串</li>
+          <li><strong>性能优化</strong>：静态 section 缓存，动态 section 按需重算</li>
+          <li><strong>职责分离</strong>：<code>AgentSession</code> 管理 prompt 生命周期，<code>Agent</code> 纯执行</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">2. 核心类型</div>
+      <div class="pane-content">
+        <h2>SystemPrompt (src/core/ai/types.ts)</h2>
+        <pre><code>export type SystemPrompt = readonly string[] & { readonly __brand: 'SystemPrompt' };
+
+export function asSystemPrompt(value: readonly string[]): SystemPrompt {
+  return value as unknown as SystemPrompt;
+}</code></pre>
+        <p>使用 branded type 而非直接用 <code>string[]</code>，确保类型层面区分"普通字符串数组"和"作为 system prompt 的数组"。</p>
+
+        <h2>SystemPromptContext (src/agent/system-prompt/types.ts)</h2>
+        <pre><code>export interface SystemPromptContext {
+  /** 当前工作目录 */
+  cwd: string;
+  /** 可用工具列表 */
+  tools: AgentTool<any, any>[];
+  /** 当前模型 */
+  model: Model<any>;
+  /** memory 文件内容（可选） */
+  memoryFiles?: string[];
+  /** 其他动态状态（可扩展） */
+  [key: string]: unknown;
+}</code></pre>
+        <p>构建 system prompt 时所需的上下文信息，由调用方提供。</p>
+
+        <h2>SystemPromptSection (src/agent/system-prompt/types.ts)</h2>
+        <pre><code>export type SectionCompute = (context: SystemPromptContext) => Promise<string>;
+
+export interface SystemPromptSection {
+  /** section 名称 */
+  name: string;
+  /** 内容计算函数 */
+  compute: SectionCompute;
+  /** 缓存键生成函数；返回 undefined 表示 dynamic（每轮强制重算） */
+  getCacheKey?: (context: SystemPromptContext) => string | undefined;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">3. 架构设计</div>
+      <div class="pane-content">
+        <h2>3.1 构建器模式</h2>
+        <p><code>createSystemPromptBuilder</code> 是核心工厂函数：</p>
+        <pre><code>export function createSystemPromptBuilder(
+  sections: SystemPromptSection[],
+): (context: SystemPromptContext) => Promise<SystemPrompt></code></pre>
+        <p>内部维护一个 <code>Map<string, CacheEntry></code> 缓存，遍历 sections 时：</p>
+        <ul>
+          <li>有 <code>getCacheKey</code> 的 section 尝试从缓存读取</li>
+          <li>无 <code>getCacheKey</code> 的 section 判定为 dynamic，每轮强制重算</li>
+        </ul>
+
+        <h2>3.2 缓存机制</h2>
+        <p><strong>静态 sections</strong>：通过 <code>getCacheKey: () => name</code> 返回固定键名，实现进程内单次缓存。</p>
+        <p><strong>动态 sections</strong>：<code>getCacheKey</code> 返回 <code>undefined</code>，每次都重新计算。</p>
+        <pre><code>// 静态 section 示例
+staticSection("intro", intro.compute)
+// 相当于
+{ name: "intro", compute: intro.compute, getCacheKey: () => "intro" }
+
+// 动态 section 示例
+dynamicSection("using-your-tools", usingYourTools.compute)
+// 相当于
+{ name: "using-your-tools", compute: usingYourTools.compute }
+// getCacheKey 为 undefined</code></pre>
+
+        <h2>3.3 动静分离边界</h2>
+        <p><code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code> 标记用于分隔静态和动态 sections：</p>
+        <pre><code>// 静态 sections 结果
+[section1, section2, ...]
+// 分隔符
+"\n\n=== DYNAMIC SYSTEM PROMPT SECTIONS ===\n\n"
+// 动态 sections 结果
+[dynamicSection1, dynamicSection2, ...]</code></pre>
+        <p>这样 LLM 可以感知哪些内容是静态的（可缓存）、哪些是动态的（每轮变化）。</p>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">4. Section 详解</div>
+      <div class="pane-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>类型</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Intro</strong></td>
+              <td>静态</td>
+              <td>身份声明，定义 Agent 的核心定位</td>
+            </tr>
+            <tr>
+              <td><strong>System</strong></td>
+              <td>静态</td>
+              <td>系统行为约束，包含关键运行时机制说明</td>
+            </tr>
+            <tr>
+              <td><strong>Doing Tasks</strong></td>
+              <td>静态</td>
+              <td>任务执行原则，定义软件工程任务的核心指导思想</td>
+            </tr>
+            <tr>
+              <td><strong>Actions</strong></td>
+              <td>静态</td>
+              <td>执行动作时的谨慎原则，明确何时需要用户确认</td>
+            </tr>
+            <tr>
+              <td><strong>Using Your Tools</strong></td>
+              <td>动态</td>
+              <td>基于当前工具列表生成的工具使用规范</td>
+            </tr>
+            <tr>
+              <td><strong>Env Info</strong></td>
+              <td>动态</td>
+              <td>环境信息，随 context 变化</td>
+            </tr>
+            <tr>
+              <td><strong>Output Efficiency</strong></td>
+              <td>静态</td>
+              <td>输出效率要求，强调简洁直接</td>
+            </tr>
+            <tr>
+              <td><strong>Tone and Style</strong></td>
+              <td>静态</td>
+              <td>语气风格规范</td>
+            </tr>
+            <tr>
+              <td><strong>Summarize Tool Results</strong></td>
+              <td>静态</td>
+              <td>工具结果记忆提示</td>
+            </tr>
+            <tr>
+              <td><strong>Session Specific Guidance</strong></td>
+              <td>静态</td>
+              <td>预留扩展接口，当前返回空字符串</td>
+            </tr>
+            <tr>
+              <td><strong>Memory</strong></td>
+              <td>动态</td>
+              <td>可选的 memory 文件内容注入</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>4.5 Using Your Tools（动态）</h2>
+        <p>基于当前工具列表生成的工具使用规范。<strong>无工具时返回空字符串，有工具时生成详细规范</strong>：</p>
+        <ul>
+          <li>优先使用专用工具而非 Bash</li>
+          <li>并行调用工具的条件</li>
+          <li>工具调用格式要求</li>
+        </ul>
+
+        <h2>4.6 Env Info（动态）</h2>
+        <p>环境信息，随 context 变化：</p>
+        <pre><code>[
+  "# Environment",
+  `  - Primary working directory: ${cwd}`,
+  `  - Current model: ${model.id}`,
+]</code></pre>
+
+        <h2>4.11 Memory（动态）</h2>
+        <p>可选的 memory 文件内容注入：</p>
+        <pre><code>if (!context.memoryFiles || context.memoryFiles.length === 0) {
+  return "";
+}
+return ["Memory content:", ...context.memoryFiles].join("\n");</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">5. 使用方式</div>
+      <div class="pane-content">
+        <h2>5.1 AgentSession 中的使用</h2>
+        <p><code>AgentSession</code> 是主要的入口点，在每次 <code>prompt()</code> 前自动刷新 system prompt：</p>
+        <pre><code>// src/agent/session.ts
+
+class AgentSession {
+  private readonly systemPromptBuilder: (context: SystemPromptContext) => Promise<SystemPrompt>;
+
+  constructor(options: AgentSessionOptions) {
+    // ...
+    this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
+  }
+
+  async prompt(text: string): Promise<void> {
+    await this.refreshSystemPrompt();  // 每次 prompt 前刷新
+    await this.agent.prompt(text);
+  }
+
+  private async refreshSystemPrompt(): Promise<void> {
+    const context: SystemPromptContext = {
+      cwd: this.cwd,
+      tools: this.agent.state.tools,
+      model: this.agent.state.model,
+    };
+    const prompt = await this.systemPromptBuilder(context);
+    this.agent.systemPrompt = async () => prompt;
+  }
+}</code></pre>
+
+        <h2>5.2 自定义 System Prompt</h2>
+        <p>通过 <code>AgentSessionOptions.systemPrompt</code> 注入自定义构建器：</p>
+        <pre><code>const session = new AgentSession({
+  cwd: process.cwd(),
+  model,
+  apiKey,
+  systemPrompt: async (context) => {
+    // 自定义逻辑
+    return asSystemPrompt([
+      "You are a specialized code reviewer.",
+      `Analyzing: ${context.cwd}`,
+    ]);
+  },
+});</code></pre>
+
+        <h2>5.3 Coding Agent 默认构建</h2>
+        <p><code>buildCodingAgentSystemPrompt</code> 组合所有 sections：</p>
+        <pre><code>// src/agent/system-prompt/coding-agent.ts
+
+const sections: SystemPromptSection[] = [
+  staticSection("intro", intro.compute),
+  staticSection("system", system.compute),
+  staticSection("doing-tasks", doingTasks.compute),
+  staticSection("actions", actions.compute),
+  dynamicSection("using-your-tools", usingYourTools.compute),
+  dynamicSection("env-info", envInfo.compute),
+  staticSection("output-efficiency", outputEfficiency.compute),
+  staticSection("tone-and-style", toneAndStyle.compute),
+  staticSection("summarize-tool-results", summarizeToolResults.compute),
+  staticSection("session-specific-guidance", sessionSpecificGuidance.compute),
+];
+
+export function buildCodingAgentSystemPrompt(
+  context: SystemPromptContext,
+): Promise<SystemPrompt> {
+  return createSystemPromptBuilder(sections)(context);
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">6. 数据流图</div>
+      <div class="pane-content">
+        <div class="data-flow">┌─────────────────────────────────────────────────────────────────────┐
+│                        AgentSession.prompt()                        │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    refreshSystemPrompt()                            │
+│  context = { cwd, tools, model }                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              buildCodingAgentSystemPrompt(context)                  │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ createSystemPromptBuilder(sections)                         │    │
+│  │                                                              │    │
+│  │  for section in sections:                                    │    │
+│  │    if hasCacheKey(section):                                  │    │
+│  │      if cacheHit: reuse                                     │    │
+│  │      else: compute + cache                                   │    │
+│  │    else:  // dynamic                                        │    │
+│  │      compute every turn                                      │    │
+│  │                                                              │    │
+│  │  merge: [static...] + BOUNDARY + [dynamic...]               │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│         this.agent.systemPrompt = async () => prompt               │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Agent.createLoopConfig()                       │
+│  resolvedPrompt = await this.systemPrompt(context)                  │
+│  config.systemPrompt = resolvedPrompt                              │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Anthropic Provider                              │
+│  params.system = buildSystemBlocks(context.systemPrompt)            │
+└─────────────────────────────────────────────────────────────────────┘</div>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">7. 关键设计决策</div>
+      <div class="pane-content">
+        <h2>7.1 为什么用 branded type？</h2>
+        <p>防止将普通 <code>string[]</code> 误传给需要 <code>SystemPrompt</code> 的位置。TypeScript 的 structural typing 会让 <code>string[]</code> 和 <code>readonly string[]</code> 双向兼容，用 branded type 可以在编译期捕获这类错误。</p>
+
+        <h2>7.2 为什么动静分离？</h2>
+        <p>静态内容可以缓存在 LLM 的 context window 边界，减少每轮 token 消耗。动态内容（如工具列表、环境信息）每轮必须更新，分隔标记让 LLM 清楚知道哪些内容可能过期。</p>
+
+        <h2>7.3 为什么 Agent 和 AgentSession 分层？</h2>
+        <p><code>Agent</code> 保持通用和简单，只负责"执行"；<code>AgentSession</code> 负责"管理"，包括 system prompt 的生命周期、事件转发等。这样 <code>Agent</code> 可以独立测试和使用。</p>
+
+        <h2>7.4 为什么用 <code>async () => asSystemPrompt([""])</code> 作为默认值？</h2>
+        <p>避免 <code>systemPrompt</code> 为 <code>undefined</code> 时崩溃，同时提供一个最小化的空 prompt。当 <code>AgentSession</code> 接管后，会立即用真实 prompt 替换。</p>
+      </div>
+    </div>
+
+    <div class="ascii-divider">// --- END OF DOCUMENT --- //</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compact 消息模型 - ys-code 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+  --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+  --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.document-shell {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+.cover {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: var(--space-3xl);
+  margin-bottom: var(--space-4xl);
+}
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: var(--space-lg);
+  color: var(--fg-1);
+}
+.meta-line {
+  font-size: 13px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-xl);
+}
+.tldr {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.tldr h3 {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: var(--space-md);
+}
+.tldr ul {
+  list-style: none;
+  padding: 0;
+}
+.tldr li {
+  padding: var(--space-sm) 0;
+  padding-left: var(--space-lg);
+  position: relative;
+  color: var(--fg-2);
+}
+.tldr li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.reader-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-2xl);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+.reader-rail.open {
+  transform: translateX(0);
+}
+.reader-rail h4 {
+  font-family: var(--font-headline);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+}
+.reader-rail ul {
+  list-style: none;
+  padding: 0;
+}
+.reader-rail li {
+  margin-bottom: var(--space-xs);
+}
+.reader-rail a {
+  display: block;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.reader-rail a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+.rail-toggle {
+  position: fixed;
+  left: var(--space-lg);
+  top: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  transition: all 0.2s;
+}
+.rail-toggle:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.body-section {
+  margin-bottom: var(--space-4xl);
+}
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-1);
+}
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: var(--space-2xl) 0 var(--space-md);
+  color: var(--fg-1);
+}
+.body-section p {
+  margin-bottom: var(--space-md);
+  color: var(--fg-2);
+}
+.body-section ul, .body-section ol {
+  margin: var(--space-md) 0 var(--space-md) var(--space-xl);
+  color: var(--fg-2);
+}
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+.pull-quote {
+  border-left: 4px solid var(--primary);
+  padding-left: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-style: italic;
+  color: var(--fg-1);
+  font-size: 1.05rem;
+}
+pre, .code-block {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border);
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+.fact-table th, .fact-table td {
+  padding: var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--surface-container);
+}
+.fact-table td {
+  color: var(--fg-2);
+}
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-md) 0;
+  box-shadow: var(--shadow-sm);
+}
+.claim-card h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+.message-flow {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+}
+.message-flow .msg {
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-xs) 0;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--primary);
+}
+.message-flow .msg.meta {
+  border-left-color: var(--blue);
+}
+.message-flow .msg.attachment {
+  border-left-color: var(--green);
+}
+@media (min-width: 1200px) {
+  .document-shell {
+    margin-left: 280px;
+    max-width: 800px;
+  }
+  .reader-rail {
+    transform: translateX(0);
+  }
+  .rail-toggle {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+}
+@media print {
+  .reader-rail, .rail-toggle { display: none; }
+  .document-shell { margin-left: 0; max-width: none; }
+  body { background: white; color: black; }
+}
+</style>
+</head>
+<body>
+<button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">目录</button>
+<nav class="reader-rail">
+  <h4>文档导航</h4>
+  <ul>
+    <li><a href="#overview">概述</a></li>
+    <li><a href="#boundary">compact_boundary</a></li>
+    <li><a href="#why-skip">为什么 boundary 不发给 LLM</a></li>
+    <li><a href="#summary">compact summary message</a></li>
+    <li><a href="#command">command records</a></li>
+    <li><a href="#attachments">attachments</a></li>
+    <li><a href="#build">buildPostCompactMessages</a></li>
+    <li><a href="#multi">多次 compact</a></li>
+  </ul>
+</nav>
+<main class="document-shell">
+  <header class="cover">
+    <h1>Compact 消息模型</h1>
+    <div class="meta-line">分析对象：src/session/compact/types.ts, src/session/compact/messages.ts, src/session/entry-types.ts, src/agent/attachments/normalize.ts @ 73baf03 | 日期：2026-05-03</div>
+    <div class="tldr">
+      <h3>核心要点</h3>
+      <ul>
+        <li>compact 的核心是重建后续模型会看到的 active messages，不是生成一段摘要文本</li>
+        <li>消息顺序：boundary → summary → command → stdout → attachments</li>
+        <li>compact_boundary 是结构标记，不发给 LLM，只供工程代码使用</li>
+        <li>attachment message 不持久化到 transcript，是运行时上下文材料</li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="body-section" id="overview">
+    <h2>概述</h2>
+    <p>compact 的核心不是生成一段摘要文本，而是重建后续模型会看到的 active messages。</p>
+    <p>当前 compact 成功后的消息顺序是：</p>
+    <div class="message-flow">
+      <div class="msg">compact_boundary</div>
+      <div class="msg meta">compact summary user meta message</div>
+      <div class="msg">/compact command user message</div>
+      <div class="msg meta">local-command-stdout user meta message</div>
+      <div class="msg attachment">restored attachments</div>
+    </div>
+    <p>这些消息共同表达三件事：</p>
+    <ul>
+      <li>旧历史已经被压缩</li>
+      <li>后续模型应基于 summary 延续工作</li>
+      <li>当前必要的精确材料通过 attachments 恢复</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="boundary">
+    <h2>compact_boundary</h2>
+    <p><code>compact_boundary</code> 是结构标记，不是普通 LLM 消息。</p>
+    <p>类型定义位于 <code>src/session/compact/types.ts</code>：</p>
+    <pre>export interface CompactBoundaryMessage {
+  role: "compact_boundary";
+  uuid: string;
+  timestamp: number;
+  parentUuid?: string | null;
+  compactMetadata: CompactMetadata;
+}</pre>
+    <p>metadata 记录 compact 指标：</p>
+    <pre>trigger: "manual" | "auto"
+preTokens
+postTokens
+tokensSavedByMicrocompact
+clearedToolCallIds</pre>
+    <p>当前只使用 <code>trigger: "manual"</code>，<code>"auto"</code> 是未来扩展位。</p>
+  </section>
+
+  <section class="body-section" id="why-skip">
+    <h2>为什么 boundary 不发给 LLM</h2>
+    <p>LLM provider 不认识 <code>compact_boundary</code> 这种 role。<code>normalizeMessages()</code> 在转换 LLM payload 时会跳过它：</p>
+    <pre>if (msg.role === "compact_boundary") {
+  continue;
+}</pre>
+    <p>它的消费者主要是工程代码：</p>
+    <ul>
+      <li><code>getMessagesAfterCompactBoundary()</code> 用它筛选最新 active context</li>
+      <li><code>SessionLoader.restoreMessages()</code> 用它决定 restore 起点</li>
+      <li><code>SessionManager.messageToEntry()</code> 把它持久化为 <code>CompactBoundaryEntry</code></li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="summary">
+    <h2>compact summary message</h2>
+    <p>summary message 是 <code>role: "user"</code> 且 <code>isMeta: true</code> 的消息：</p>
+    <pre>role: "user"
+isMeta: true
+content: [{ type: "text", text: "Summary:\n..." }]</pre>
+    <p>它会进入后续 LLM context，但通常不会作为普通用户发言展示。</p>
+    <p>选择 user meta message 的原因：</p>
+    <ul>
+      <li>对齐现有 meta message 机制</li>
+      <li>让后续模型自然看到"上一段会话总结"</li>
+      <li>不需要引入新的 provider message role</li>
+    </ul>
+  </section>
+
+  <section class="body-section" id="command">
+    <h2>command records</h2>
+    <p><code>AgentSession.compact()</code> 会把本次命令记录放入 compact 后上下文：</p>
+    <pre>/compact [instructions]</pre>
+    <p>随后再追加一个 local command stdout meta message：</p>
+    <pre>&lt;local-command-stdout&gt;Compacted conversation: ...&lt;/local-command-stdout&gt;</pre>
+    <p>这样后续模型既知道用户触发过 compact，也知道 compact 的本地执行结果。</p>
+  </section>
+
+  <section class="body-section" id="attachments">
+    <h2>attachments</h2>
+    <p>attachments 位于 post-compact messages 尾部。当前主要来源是最近读取文件的缓存快照。</p>
+    <p>attachment message 不直接持久化到 transcript：</p>
+    <pre>SessionManager.appendMessage()
+    if message.role === "attachment" return</pre>
+    <p>原因是 attachment 是运行时上下文材料，不是用户/assistant 对话历史本体。</p>
+  </section>
+
+  <section class="body-section" id="build">
+    <h2>buildPostCompactMessages</h2>
+    <p><code>buildPostCompactMessages()</code> 负责基础排序：</p>
+    <pre>boundaryMessage
+summaryMessage
+...messagesToKeep
+...attachments</pre>
+    <p><code>compactConversation()</code> 先生成这个基础结果。随后 <code>AgentSession.compact()</code> 会把 <code>local-command-stdout</code> 追加到 <code>messagesToKeep</code> 后，再生成最终 messages。</p>
+    <p>最终顺序保持为：</p>
+    <div class="message-flow">
+      <div class="msg">boundary</div>
+      <div class="msg meta">summary</div>
+      <div class="msg">command message</div>
+      <div class="msg meta">stdout meta</div>
+      <div class="msg attachment">attachments</div>
+    </div>
+  </section>
+
+  <section class="body-section" id="multi">
+    <h2>多次 compact</h2>
+    <p>多次 compact 后，历史 transcript 中会出现多个 <code>compact_boundary</code>。</p>
+    <p>运行时和恢复时都只关注最新的结构化 boundary：</p>
+    <ul>
+      <li><code>getMessagesAfterCompactBoundary()</code> 取 active messages 中最后一个 boundary 之后的消息</li>
+      <li><code>SessionLoader.restoreMessages()</code> 在 active branch 中查找最后一个带 <code>compactMetadata</code> 的 boundary</li>
+    </ul>
+    <p>这避免再次 compact 时重复总结更早的已压缩历史。</p>
+  </section>
+</main>
+</body>
+</html>

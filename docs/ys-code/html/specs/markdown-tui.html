@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown TUI 渲染系统实现计划</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+    --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+    --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+    --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--fg-1);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .document-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4xl) var(--space-xl);
+  }
+
+  .cover {
+    margin-bottom: var(--space-4xl);
+    padding-bottom: var(--space-3xl);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .cover-label {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-xl);
+    max-width: 640px;
+  }
+
+  .meta-line {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .reader-rail {
+    display: flex;
+    gap: var(--space-3xl);
+  }
+
+  .toc-column {
+    flex: 0 0 200px;
+    position: sticky;
+    top: var(--space-3xl);
+    align-self: flex-start;
+  }
+
+  .toc-title {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-list li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .toc-list a {
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+  }
+
+  .toc-list a:hover {
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+
+  .body-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-4xl);
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-md);
+    color: var(--fg-1);
+  }
+
+  .body-section ul, .body-section ol {
+    margin-bottom: var(--space-md);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .body-section blockquote {
+    border-left: 3px solid var(--primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-xl) 0;
+    color: var(--fg-2);
+    font-style: italic;
+  }
+
+  .body-section code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-container);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+  }
+
+  .body-section pre {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .body-section pre code {
+    background: none;
+    padding: 0;
+    color: var(--fg-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-lg) 0;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--fg-1);
+    background: var(--surface-container);
+  }
+
+  tr:hover {
+    background: var(--surface-container-low);
+  }
+
+  .claim-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .claim-card-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evidence-margin {
+    background: var(--surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-size: 13px;
+  }
+
+  .evidence-margin-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+  }
+
+  .caveat-box {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+  }
+
+  .caveat-box-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  .source-spread {
+    margin-top: var(--space-5xl);
+    padding-top: var(--space-3xl);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .source-spread h2 {
+    font-size: 22px;
+  }
+
+  .phase-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+    margin: var(--space-xl) 0;
+  }
+
+  .phase-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+  }
+
+  .phase-card h4 {
+    font-family: var(--font-headline);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+    margin-top: 0;
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  @media (max-width: 768px) {
+    .document-shell {
+      padding: var(--space-xl) var(--space-lg);
+    }
+
+    .cover h1 {
+      font-size: 28px;
+    }
+
+    .reader-rail {
+      flex-direction: column;
+      gap: var(--space-2xl);
+    }
+
+    .toc-column {
+      position: static;
+      flex: none;
+    }
+
+    .phase-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media print {
+    body { background: white; }
+    .document-shell { max-width: none; }
+    .toc-column { display: none; }
+    .cover { page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <header class="cover">
+    <div class="cover-label">实现计划文档</div>
+    <h1>Markdown TUI 渲染系统实现计划</h1>
+    <p class="deck">为 ys-code 引入对标 claude-code-haha 的 Markdown 终端渲染能力，支持标题、代码块、列表、表格、链接等元素的友好展示。采用分阶段递进策略，先解决 90% 场景的视觉体验，再逐步引入性能优化和复杂排版。</p>
+  </header>
+
+  <div class="reader-rail">
+    <nav class="toc-column">
+      <div class="toc-title">目录</div>
+      <ul class="toc-list">
+        <li><a href="#sec1">方案选型</a></li>
+        <li><a href="#sec2">第一阶段详细设计</a></li>
+        <li><a href="#sec3">第二阶段计划</a></li>
+        <li><a href="#sec4">第三阶段计划</a></li>
+        <li><a href="#sec5">测试策略</a></li>
+        <li><a href="#sec6">时间估算</a></li>
+        <li><a href="#sec7">风险与备选</a></li>
+      </ul>
+    </nav>
+
+    <main class="body-column">
+
+      <section class="body-section" id="sec1">
+        <h2>方案选型：分阶段递进</h2>
+
+        <table>
+          <thead>
+            <tr><th>维度</th><th>第一阶段（当前）</th><th>第二阶段</th><th>第三阶段</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>核心能力</td><td>marked 解析 + ANSI 渲染</td><td>Token 缓存 + Streaming 增量</td><td>完整表格自适应</td></tr>
+            <tr><td>表格</td><td>纯文本 fallback</td><td>简化表格</td><td>列宽自适应、换行、vertical fallback</td></tr>
+            <tr><td>性能优化</td><td>无</td><td>LRU Cache（500 条）+ Fast Path</td><td>维持</td></tr>
+            <tr><td>流式渲染</td><td>每次全量解析</td><td>StreamingMarkdown 增量解析</td><td>维持</td></tr>
+            <tr><td>语法高亮</td><td>无</td><td>引入 cli-highlight</td><td>维持</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec2">
+        <h2>第一阶段详细设计</h2>
+
+        <h3>文件结构</h3>
+        <pre><code>src/tui/
+  components/
+    MessageItem.tsx          # 修改：text/assistant_start 类型接入 Markdown
+    Markdown.tsx             # 新增：React 组件，接收字符串输出 Ink 节点
+    MarkdownTable.tsx        # 新增：表格简化渲染（或 fallback）
+  utils/
+    markdown.ts              # 新增：formatToken 递归函数，token → ANSI 字符串</code></pre>
+
+        <h3>核心流程</h3>
+
+        <h4>1. Markdown 组件渲染流程</h4>
+        <div class="claim-card">
+          <div class="claim-card-title">渲染流程</div>
+          <ol>
+            <li>调用 <code>configureMarked()</code> 配置 marked（禁用删除线解析）</li>
+            <li>调用 <code>marked.lexer(children)</code> 将 markdown 字符串解析为 Token 数组</li>
+            <li>遍历 Token 数组:
+              <ul>
+                <li>如果 token 类型是 "table": 累计之前的非表格内容为一个 ANSI 字符串，flush 到 elements 数组（包装为 <code>&lt;Ansi&gt;</code> 组件），将当前 table token 传给 <code>&lt;MarkdownTable&gt;</code> 组件，加入 elements</li>
+                <li>否则: 调用 <code>formatToken(token, theme)</code> 转为 ANSI 字符串，追加到 nonTableContent 缓冲区</li>
+              </ul>
+            </li>
+            <li>遍历结束后，flush 剩余的 nonTableContent</li>
+            <li>返回 <code>&lt;Box flexDirection="column" gap={1}&gt;{elements}&lt;/Box&gt;</code></li>
+          </ol>
+        </div>
+
+        <h4>2. formatToken 递归渲染（核心）</h4>
+        <pre><code>函数 formatToken(token, theme, listDepth=0, orderedListNumber=null, parent=null):
+    根据 token.type 分发:
+
+    case "heading":
+        如果 depth === 1:
+            返回 chalk.bold.italic.underline(子内容) + "\n\n"
+        否则:
+            返回 chalk.bold(子内容) + "\n\n"
+
+    case "code":
+        如果提供了 highlight 器且支持该语言:
+            返回 highlight.highlight(token.text, { language }) + "\n"
+        否则:
+            返回 token.text + "\n"
+
+    case "codespan":
+        返回 theme.codeColor(token.text)
+
+    case "strong":
+        返回 chalk.bold(递归渲染子 tokens)
+
+    case "em":
+        返回 chalk.italic(递归渲染子 tokens)
+
+    case "blockquote":
+        对每个子行:
+            如果行不为空: 返回 "│ " + chalk.italic(行内容)
+            否则: 返回空行
+        所有行用 "\n" 连接
+
+    case "link":
+        提取链接文本（递归渲染子 tokens）
+        如果文本与 URL 不同:
+            返回 createHyperlink(URL, 带样式的文本)
+        否则:
+            返回 createHyperlink(URL)
+
+    case "list":
+        遍历每个 item:
+            调用 formatToken(item, theme, listDepth, ordered ? start + index : null, token)
+        用 "" 连接所有项
+
+    case "list_item":
+        对每个子 token:
+            前缀 = "  ".repeat(listDepth)
+            如果是有序列表: 编号 = getListNumber(listDepth, orderedListNumber) + ". "
+            否则: 编号 = "- "
+            返回 前缀 + 编号 + 递归渲染内容
+
+    case "paragraph":
+        返回 递归渲染子 tokens + "\n"
+
+    case "space":
+        返回 "\n"
+
+    case "table":
+        // 第一阶段：简化处理，直接返回原始文本或基础表格
+        返回 renderSimpleTable(token, theme)
+
+    default:
+        返回 ""  // 忽略不支持的 token</code></pre>
+
+        <h4>3. MarkdownTable 简化渲染</h4>
+        <pre><code>函数 MarkdownTable({ token, highlight }):
+    1. 提取表头：对 token.header 的每个单元格，调用 formatCell(tokens) 获取 ANSI 文本
+    2. 提取所有行：对 token.rows 的每行每列，调用 formatCell(tokens)
+    3. 计算每列最大宽度
+    4. 构建输出（含边框、对齐、padding）
+    5. 所有行用 "\n" 连接，返回 &lt;Ansi&gt;{结果}&lt;/Ansi&gt;</code></pre>
+
+        <h4>4. 链接处理（OSC 8 超链接）</h4>
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">OSC 8 格式</div>
+          <p><code>\e]8;;URL\e\\TEXT\e]8;;\e\\</code></p>
+          <p>如果终端不支持超链接，fallback 为 text || url</p>
+        </div>
+
+        <h4>5. Issue 引用自动链接（可选增强）</h4>
+        <pre><code>正则匹配: /(^|[^\w./-])([A-Za-z0-9][\w-]*\/[A-Za-z0-9][\w.-]*)#(\d+)\b/g
+替换为: prefix + createHyperlink("https://github.com/" + repo + "/issues/" + num, repo + "#" + num)</code></pre>
+
+        <h3>依赖</h3>
+        <div class="claim-card">
+          <div class="claim-card-title">已具备</div>
+          <ul>
+            <li><code>marked</code> (^18.0.1)：markdown 解析</li>
+            <li><code>chalk</code> (5.6.2)：ANSI 颜色</li>
+            <li><code>strip-ansi</code> (7.2.0)：去除 ANSI 计算可见宽度</li>
+            <li><code>wrap-ansi</code> (10.0.0)：ANSI 感知换行</li>
+            <li><code>ink</code> (^7.0.0)：TUI 框架</li>
+          </ul>
+        </div>
+        <div class="evidence-margin">
+          <div class="evidence-margin-label">待评估引入</div>
+          <p><code>cli-highlight</code>：代码语法高亮（第二阶段）</p>
+        </div>
+
+        <h3>接口定义</h3>
+        <pre><code>// src/tui/components/Markdown.tsx
+interface MarkdownProps {
+  children: string;
+  /** 是否以 dim 颜色渲染所有文本 */
+  dimColor?: boolean;
+}
+
+// src/tui/utils/markdown.ts
+export function formatToken(
+  token: Token,
+  theme: ThemeName,
+  listDepth?: number,
+  orderedListNumber?: number | null,
+  parent?: Token | null,
+  highlight?: CliHighlight | null,
+): string;
+
+export function applyMarkdown(
+  content: string,
+  theme: ThemeName,
+  highlight?: CliHighlight | null,
+): string;</code></pre>
+      </section>
+
+      <section class="body-section" id="sec3">
+        <h2>第二阶段计划</h2>
+
+        <div class="phase-grid">
+          <div class="phase-card">
+            <h4>Token 缓存系统</h4>
+            <p>全局 Map 缓存，key 为内容 hash，value 为 tokens。最大 500 条，MRU 淘汰策略。</p>
+          </div>
+          <div class="phase-card">
+            <h4>Fast Path</h4>
+            <p>纯文本短路：无 markdown 语法时直接返回单个 paragraph token，跳过完整解析。</p>
+          </div>
+          <div class="phase-card">
+            <h4>StreamingMarkdown</h4>
+            <p>增量解析：区分稳定前缀和不稳定后缀，稳定部分 useMemo 缓存，避免重复解析。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="body-section" id="sec4">
+        <h2>第三阶段计划</h2>
+
+        <h3>完整 MarkdownTable</h3>
+        <ul>
+          <li>计算每列最小宽度（最长单词）和理想宽度（完整内容）</li>
+          <li>列宽分配策略：理想宽度 → 最小宽度+溢出比例 → 强制压缩（允许断词）</li>
+          <li>判断是否转 vertical 格式（key-value 对）</li>
+          <li>安全边距检查：超宽时回退到 vertical 格式</li>
+        </ul>
+      </section>
+
+      <section class="body-section" id="sec5">
+        <h2>测试策略</h2>
+
+        <h3>第一阶段测试用例</h3>
+        <ol>
+          <li><strong>基础文本</strong>：纯文本段落正常显示</li>
+          <li><strong>标题</strong>：<code># h1</code>, <code>## h2</code>, <code>### h3</code> 分别有加粗、下划线效果</li>
+          <li><strong>行内样式</strong>：<code>**粗体**</code>, <code>*斜体*</code>, <code>`代码`</code></li>
+          <li><strong>代码块</strong>：带语言标识的 fence code，有边框或背景色区分</li>
+          <li><strong>列表</strong>：有序/无序列表，嵌套列表缩进正确</li>
+          <li><strong>引用块</strong>：<code>&gt; quote</code> 有左边框竖线</li>
+          <li><strong>链接</strong>：URL 可点击（OSC 8），文字链接显示文字+URL</li>
+          <li><strong>表格</strong>：简单表格有边框对齐</li>
+        </ol>
+
+        <h3>第二阶段测试用例</h3>
+        <ol>
+          <li><strong>缓存命中</strong>：相同内容重复渲染从缓存读取</li>
+          <li><strong>Fast Path</strong>：无 markdown 语法的文本不走 <code>marked.lexer</code></li>
+          <li><strong>Streaming</strong>：流式输出时稳定前缀不闪烁、不重复解析</li>
+        </ol>
+      </section>
+
+      <section class="body-section" id="sec6">
+        <h2>时间估算</h2>
+
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>任务</th><th>预估</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>一</td><td>markdown.ts + Markdown.tsx + MarkdownTable.tsx</td><td>4-6h</td></tr>
+            <tr><td>一</td><td>MessageItem 集成 + 测试</td><td>2h</td></tr>
+            <tr><td>二</td><td>Token Cache + Fast Path + StreamingMarkdown</td><td>3-4h</td></tr>
+            <tr><td>二</td><td>集成测试</td><td>1-2h</td></tr>
+            <tr><td>三</td><td>完整 MarkdownTable + vertical fallback</td><td>4-6h</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec7">
+        <h2>风险与备选</h2>
+
+        <table>
+          <thead>
+            <tr><th>风险</th><th>影响</th><th>备选方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>marked</code> v18 与 cc 使用的版本行为差异</td><td>解析结果不一致</td><td>锁定 <code>marked</code> 版本，或升级至 cc 相同版本</td></tr>
+            <tr><td>表格渲染在窄终端溢出</td><td>布局错乱</td><td>第一阶段先限制表格最小宽度，超宽时 fallback 原始文本</td></tr>
+            <tr><td>ANSI 颜色与 Ink <code>&lt;Text color&gt;</code> 冲突</td><td>颜色显示异常</td><td>确保 <code>&lt;Ansi&gt;</code> 组件正确处理 ANSI 转义序列</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>

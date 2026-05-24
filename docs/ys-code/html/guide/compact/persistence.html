@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compact 持久化与恢复 - ys-code 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+  --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+  --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.document-shell {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+.cover {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: var(--space-3xl);
+  margin-bottom: var(--space-4xl);
+}
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: var(--space-lg);
+  color: var(--fg-1);
+}
+.meta-line {
+  font-size: 13px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-xl);
+}
+.tldr {
+  background: var(--surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+}
+.tldr h3 {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  margin-bottom: var(--space-md);
+}
+.tldr ul {
+  list-style: none;
+  padding: 0;
+}
+.tldr li {
+  padding: var(--space-sm) 0;
+  padding-left: var(--space-lg);
+  position: relative;
+  color: var(--fg-2);
+}
+.tldr li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.reader-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-2xl);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+.reader-rail.open {
+  transform: translateX(0);
+}
+.reader-rail h4 {
+  font-family: var(--font-headline);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+}
+.reader-rail ul {
+  list-style: none;
+  padding: 0;
+}
+.reader-rail li {
+  margin-bottom: var(--space-xs);
+}
+.reader-rail a {
+  display: block;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.reader-rail a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+.rail-toggle {
+  position: fixed;
+  left: var(--space-lg);
+  top: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  transition: all 0.2s;
+}
+.rail-toggle:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.body-section {
+  margin-bottom: var(--space-4xl);
+}
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-1);
+}
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: var(--space-2xl) 0 var(--space-md);
+  color: var(--fg-1);
+}
+.body-section p {
+  margin-bottom: var(--space-md);
+  color: var(--fg-2);
+}
+.body-section ul, .body-section ol {
+  margin: var(--space-md) 0 var(--space-md) var(--space-xl);
+  color: var(--fg-2);
+}
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+.pull-quote {
+  border-left: 4px solid var(--primary);
+  padding-left: var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-style: italic;
+  color: var(--fg-1);
+  font-size: 1.05rem;
+}
+pre, .code-block {
+  background: var(--surface-container-high);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border);
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+.fact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+.fact-table th, .fact-table td {
+  padding: var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.fact-table th {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--surface-container);
+}
+.fact-table td {
+  color: var(--fg-2);
+}
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-md) 0;
+  box-shadow: var(--shadow-sm);
+}
+.claim-card h4 {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+@media (min-width: 1200px) {
+  .document-shell {
+    margin-left: 280px;
+    max-width: 800px;
+  }
+  .reader-rail {
+    transform: translateX(0);
+  }
+  .rail-toggle {
+    display: none;
+  }
+}
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+}
+@media print {
+  .reader-rail, .rail-toggle { display: none; }
+  .document-shell { margin-left: 0; max-width: none; }
+  body { background: white; color: black; }
+}
+</style>
+</head>
+<body>
+<button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">目录</button>
+<nav class="reader-rail">
+  <h4>文档导航</h4>
+  <ul>
+    <li><a href="#overview">概述</a></li>
+    <li><a href="#append">append-only 策略</a></li>
+    <li><a href="#why">为什么不覆盖旧 transcript</a></li>
+    <li><a href="#boundary">CompactBoundaryEntry</a></li>
+    <li><a href="#restore">active branch 恢复</a></li>
+    <li><a href="#compat">旧 boundary 兼容</a></li>
+    <li><a href="#perms">session 文件权限</a></li>
+    <li><a href="#corrupt">损坏行处理</a></li>
+    <li><a href="#integration">restoreSession 集成</a></li>
+  </ul>
+</nav>
+<main class="document-shell">
+  <header class="cover">
+    <h1>Compact 持久化与恢复</h1>
+    <div class="meta-line">分析对象：src/session/session-manager.ts, src/session/session-loader.ts, src/session/session-storage.ts, src/session/entry-types.ts @ 73baf03 | 日期：2026-05-03</div>
+    <div class="tldr">
+      <h3>核心要点</h3>
+      <ul>
+        <li>compact 成功后同时更新内存 active messages 和磁盘 session transcript</li>
+        <li>transcript 采用 append-only 策略，保留完整历史，不覆盖旧记录</li>
+        <li>restore 时从最新结构化 compact_boundary 开始，不恢复已压缩的旧历史</li>
+        <li>session 文件权限收紧（目录 0o700，文件 0o600），损坏行跳过且不记录原文</li>
+      </ul>
+    </div>
+  </header>
+
+  <section class="body-section" id="overview">
+    <h2>概述</h2>
+    <p>compact 有两个状态面：</p>
+    <ol>
+      <li>内存中的 active messages</li>
+      <li>磁盘上的 session transcript</li>
+    </ol>
+    <p>compact 成功后，两者都要更新：</p>
+    <pre>SessionManager.replaceMessages(postCompactMessages)
+Agent.replaceMessages(postCompactMessages)</pre>
+    <p>内存替换让当前会话立即使用压缩后的上下文。transcript append 让重启后能够从最新 compact boundary 恢复。</p>
+  </section>
+
+  <section class="body-section" id="append">
+    <h2>append-only 策略</h2>
+    <p><code>SessionManager.replaceMessages()</code> 不是覆盖 session 文件，而是把 compact 后的消息追加到 JSONL transcript 末尾。</p>
+    <p>伪代码：</p>
+    <pre>parentUuid = lastUuid
+
+for message in postCompactMessages:
+    if message.role === "attachment":
+        continue
+
+    entry = messageToEntry(message, parentUuid)
+    appendEntry(entry)
+    parentUuid = entry.uuid
+
+lastUuid = parentUuid</pre>
+    <p>这保留了完整历史，同时在尾部追加新的 active branch。</p>
+  </section>
+
+  <section class="body-section" id="why">
+    <h2>为什么不覆盖旧 transcript</h2>
+    <p>append-only 的好处：</p>
+    <ul>
+      <li>不破坏历史记录</li>
+      <li>不需要重写大文件</li>
+      <li>与现有 session entry 链式结构兼容</li>
+      <li>compact 行为可以通过 transcript 审计</li>
+    </ul>
+    <p>代价：</p>
+    <ul>
+      <li>compact 前历史仍留在磁盘</li>
+      <li><code>/compact</code> 不等价于删除敏感信息</li>
+      <li>session 文件会随时间增长</li>
+    </ul>
+    <p>因此 session 文件权限必须收紧，用户文档也要明确 compact 只压缩 active context。</p>
+  </section>
+
+  <section class="body-section" id="boundary">
+    <h2>CompactBoundaryEntry</h2>
+    <p><code>compact_boundary</code> 会持久化成 <code>CompactBoundaryEntry</code>：</p>
+    <pre>type: "compact_boundary"
+summary: ""
+tokensBefore
+tokensAfter
+compactMetadata</pre>
+    <p><code>tokensBefore</code> 来自 <code>compactMetadata.preTokens</code>。</p>
+    <p><code>tokensAfter</code> 来自 <code>compactMetadata.postTokens</code>，如果缺失则为 0。</p>
+    <p>新版 restore 依赖 <code>compactMetadata</code> 判断这是结构化 boundary。</p>
+  </section>
+
+  <section class="body-section" id="restore">
+    <h2>active branch 恢复</h2>
+    <p><code>SessionLoader.restoreMessages()</code> 先通过 parentUuid 链找 active branch：</p>
+    <pre>entries
+    -> 找所有 leaves
+    -> 取最后一个 leaf
+    -> 沿 parentUuid 回溯到 header
+    -> 得到 activeBranch</pre>
+    <p>然后在 active branch 内查找最后一个结构化 compact boundary：</p>
+    <pre>entry.type === "compact_boundary" && entry.compactMetadata !== undefined</pre>
+    <p>如果找到了，就从这个 boundary 开始恢复：</p>
+    <pre>entriesToRestore = activeBranch.slice(lastStructuredCompactIndex)</pre>
+    <p>这意味着恢复后的 active messages 包含：</p>
+    <pre>compact_boundary
+summary meta message
+command record
+stdout meta message
+...</pre>
+    <p>旧 boundary 之前的历史不会进入恢复后的 active context。</p>
+  </section>
+
+  <section class="body-section" id="compat">
+    <h2>旧 boundary 兼容</h2>
+    <p>如果遇到没有 <code>compactMetadata</code> 的旧 <code>compact_boundary</code> entry，loader 会把它转换成普通 system message：</p>
+    <pre>role: "system"
+content: entry.summary</pre>
+    <p>这用于兼容早期简化 compact 逻辑。</p>
+    <p>新版 compact 只把带 <code>compactMetadata</code> 的 boundary 当作 active context 截断点。</p>
+  </section>
+
+  <section class="body-section" id="perms">
+    <h2>session 文件权限</h2>
+    <p><code>SessionStorage</code> 会尽量收紧本地 transcript 权限：</p>
+    <pre>session directory: 0o700
+session file:      0o600</pre>
+    <p>发生在三个位置：</p>
+    <ul>
+      <li>构造 <code>SessionStorage</code> 时创建或 chmod baseDir</li>
+      <li><code>createSession()</code> 创建 session 文件时使用 <code>mode: 0o600</code></li>
+      <li><code>appendEntry()</code> 每次追加后 chmod session 文件</li>
+    </ul>
+    <p>如果 chmod 失败，会记录 warn，但不会中断 session 功能。</p>
+  </section>
+
+  <section class="body-section" id="corrupt">
+    <h2>损坏行处理</h2>
+    <p><code>readAllEntries()</code> 逐行解析 JSONL。如果某一行损坏，会跳过该行并记录：</p>
+    <pre>filePath
+lineIndex
+byteLength</pre>
+    <p>日志不会包含损坏行原文，避免把可能含 secret 的 transcript 片段写入日志。</p>
+  </section>
+
+  <section class="body-section" id="integration">
+    <h2>restoreSession 集成</h2>
+    <p><code>AgentSession</code> 构造时如果传入 <code>restoreSession: true</code>：</p>
+    <ol>
+      <li><code>SessionManager.restoreLatest()</code> 找最新 session 文件</li>
+      <li><code>restoreMessages()</code> 恢复 active context</li>
+      <li>恢复结果 push 到 <code>agent.state.messages</code></li>
+    </ol>
+    <p>如果 session 文件中已有 compact，恢复会从最新结构化 <code>compact_boundary</code> 开始，而不是读回 compact 前的长历史。</p>
+  </section>
+</main>
+</body>
+</html>

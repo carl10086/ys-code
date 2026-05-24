@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>错误处理 - EditTool Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #a03b00;
+  --primary-container: #c94c00;
+  --primary-fixed: #ffdbcd;
+  --primary-fixed-dim: #ffb597;
+  --on-primary: #ffffff;
+  --accent-glow: #E8400D;
+  --secondary: #d5baff;
+  --secondary-container: #7b40e0;
+  --tertiary: #4d44e3;
+  --accent-cyan: #00D4FF;
+  --bg: #fff8f6;
+  --surface: #fff8f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #fbf2ef;
+  --surface-container: #f5ece9;
+  --surface-container-high: #efe6e3;
+  --fg-1: #1e1b19;
+  --fg-2: #594138;
+  --fg-muted: #8d7166;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --outline-variant: #e1bfb2;
+  --green: #10b981;
+  --blue: #3b82f6;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+  --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+  --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+  --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #060B18;
+    --surface: #0B1426;
+    --surface-container-lowest: #101D35;
+    --surface-container-low: #101D35;
+    --surface-container: #162544;
+    --surface-container-high: #1c2d52;
+    --fg-1: #F8FAFC;
+    --fg-2: #CBD5E1;
+    --fg-muted: #64748B;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --primary: #FF6B35;
+    --accent-glow: #00D4FF;
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  background: var(--bg);
+}
+
+.document-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-3xl) var(--space-xl);
+}
+
+.cover {
+  margin-bottom: var(--space-4xl);
+  padding-bottom: var(--space-3xl);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.cover h1 {
+  font-family: var(--font-headline);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-lg) 0;
+  color: var(--fg-1);
+  line-height: 1.2;
+}
+
+.meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.meta-item {
+  font-family: var(--font-mono);
+  background: var(--surface-container-low);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+.deck {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--fg-2);
+  max-width: 720px;
+}
+
+.reader-rail {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--border);
+  padding: var(--space-3xl) var(--space-lg);
+  overflow-y: auto;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.reader-rail.open {
+  transform: translateX(0);
+}
+
+.rail-header {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.rail-nav {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rail-nav li {
+  margin-bottom: var(--space-xs);
+}
+
+.rail-nav li.level-3 {
+  padding-left: var(--space-lg);
+  font-size: 13px;
+}
+
+.rail-nav a {
+  display: block;
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.rail-nav a:hover {
+  background: var(--surface-container);
+  color: var(--primary);
+}
+
+.rail-toggle {
+  position: fixed;
+  top: var(--space-lg);
+  left: var(--space-lg);
+  z-index: 101;
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-2);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.body-sheet {
+  max-width: 720px;
+  margin-left: 0;
+}
+
+@media (min-width: 1100px) {
+  .reader-rail {
+    position: sticky;
+    top: var(--space-3xl);
+    left: auto;
+    width: 240px;
+    height: auto;
+    max-height: calc(100vh - var(--space-5xl));
+    transform: none;
+    float: left;
+    margin-right: var(--space-4xl);
+    margin-bottom: var(--space-3xl);
+    border-radius: var(--radius-lg);
+    border-right: none;
+  }
+  .rail-toggle {
+    display: none;
+  }
+  .body-sheet {
+    margin-left: 280px;
+  }
+}
+
+.body-section h2 {
+  font-family: var(--font-headline);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: var(--space-4xl);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--primary);
+  color: var(--fg-1);
+}
+
+.body-section h3 {
+  font-family: var(--font-headline);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: var(--space-3xl);
+  margin-bottom: var(--space-md);
+  color: var(--fg-1);
+}
+
+.body-section h4 {
+  font-family: var(--font-headline);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: var(--space-2xl);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+}
+
+.body-section p {
+  margin: 0 0 var(--space-lg) 0;
+  max-width: 680px;
+}
+
+.body-section ul, .body-section ol {
+  margin: 0 0 var(--space-lg) 0;
+  padding-left: var(--space-2xl);
+}
+
+.body-section li {
+  margin-bottom: var(--space-sm);
+}
+
+.body-section blockquote {
+  margin: var(--space-xl) 0;
+  padding: var(--space-lg) var(--space-xl);
+  border-left: 3px solid var(--primary);
+  background: var(--surface-container-low);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-style: italic;
+  color: var(--fg-2);
+}
+
+.body-section hr {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: var(--space-3xl) 0;
+}
+
+.code-block {
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin: var(--space-lg) 0 var(--space-xl) 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code-block code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+}
+
+.body-section code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-container-high);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--primary);
+}
+
+.body-section table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-lg) 0 var(--space-xl) 0;
+  font-size: 14px;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.body-section th {
+  background: var(--surface-container-high);
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.body-section td {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.body-section tr:last-child td {
+  border-bottom: none;
+}
+
+.body-section tr:hover td {
+  background: var(--surface-container-low);
+}
+
+.fact-table {
+  margin: var(--space-xl) 0;
+}
+
+.claim-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  margin: var(--space-xl) 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.claim-card-title {
+  font-family: var(--font-headline);
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--fg-1);
+}
+
+.evidence-margin {
+  margin: var(--space-xl) 0;
+  padding: var(--space-lg);
+  background: var(--surface-container);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--secondary-container);
+}
+
+.caveat-box {
+  background: var(--surface-container-low);
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-xl);
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}
+
+.caveat-box strong {
+  color: var(--yellow);
+}
+
+.search-bar {
+  position: fixed;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 102;
+}
+
+.search-input {
+  background: var(--surface-container-high);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--fg-1);
+  width: 200px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(160, 59, 0, 0.15);
+}
+
+.search-input::placeholder {
+  color: var(--fg-muted);
+}
+
+.highlight {
+  background: rgba(160, 59, 0, 0.2);
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+
+@media print {
+  .reader-rail, .rail-toggle, .search-bar {
+    display: none !important;
+  }
+  .body-sheet {
+    margin-left: 0 !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+}
+
+@media (max-width: 768px) {
+  .document-shell {
+    padding: var(--space-xl) var(--space-md);
+  }
+  .cover h1 {
+    font-size: 1.8rem;
+  }
+  .search-input {
+    width: 140px;
+  }
+  .meta-bar {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+}
+</style>
+</head>
+<body>
+<div class="document-shell">
+  <header class="cover">
+    <h1>错误处理</h1>
+    <div class="meta-bar">
+<span class="meta-item">分析对象：src/agent/tools/edit.ts @ da24438</span></div>
+
+    <div class="deck">EditTool Technical Guide</div>
+  </header>
+  
+  <button class="rail-toggle" onclick="document.querySelector('.reader-rail').classList.toggle('open')">
+    目录
+  </button>
+  
+  <nav class="reader-rail">
+<div class="rail-header">目录</div>
+<ul class="rail-nav">
+<li class="level-2"><a href="#">错误码对照表</a></li>
+<li class="level-2"><a href="#">新增错误码决策记录</a></li>
+<li class="level-3"><a href="#-6--7">为什么用 6 和 7</a></li>
+<li class="level-3"><a href="#-2510">为什么未引入 2/5/10</a></li>
+<li class="level-2"><a href="#">错误恢复路径</a></li>
+<li class="level-3"><a href="#-6-">错误码 6 的恢复</a></li>
+<li class="level-3"><a href="#-7-">错误码 7 的恢复</a></li>
+<li class="level-3"><a href="#-89-">错误码 8/9 的恢复</a></li>
+</ul>
+</nav>
+
+  
+  <main class="body-sheet">
+    <div class="body-section">
+      <h1>错误处理</h1>
+<blockquote>
+分析对象：src/agent/tools/edit.ts @ da24438
+</blockquote>
+<hr>
+<h2 id="">错误码对照表</h2>
+<table>
+<thead>
+<tr><th>错误码</th><th>触发场景</th><th>消息示例</th><th>恢复路径</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>--------</th><th>---------</th><th>---------</th><th>---------</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>1</th><th><code>old<em>string === new</em>string</code></th><th>"No changes to make..."</th><th>检查输入是否有变化</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>3</th><th>文件存在但 <code>old_string</code> 为空</th><th>"Cannot create new file..."</th><th>使用 WriteTool 或提供 old_string</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>4</th><th>文件不存在且 <code>old_string</code> 非空</th><th>"File does not exist..."</th><th>使用 WriteTool 创建文件</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>6</th><th>文件未读取或部分读取</th><th>"File has not been read yet..."</th><th>调用 ReadTool 读取</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>7</th><th>文件在读取后被外部修改</th><th>"File has been modified since read..."</th><th>调用 ReadTool 重新读取</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>8</th><th><code>old_string</code> 找不到</th><th>"String to replace not found..."</th><th>检查 old_string 是否正确</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>9</th><th>多匹配但 <code>replace_all=false</code></th><th>"Found N matches..."</th><th>扩大上下文或启用 replace_all</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<h2 id="">新增错误码决策记录</h2>
+<h3 id="-6--7">为什么用 6 和 7</h3>
+<p>沿用 cc 的错误码体系，避免冲突：</p>
+<ul>
+<li>错误码 6：文件未读取 / 部分读取</li>
+<li>错误码 7：文件被外部修改</li>
+</ul>
+<p>这两个错误码在 cc 中已存在，ys-code 直接复用以保持语义一致。</p>
+<h3 id="-2510">为什么未引入 2/5/10</h3>
+<table>
+<thead>
+<tr><th>错误码</th><th>cc 用途</th><th>ys-code 未引入原因</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>--------</th><th>---------</th><th>-------------------</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>2</th><th>权限规则 deny</th><th>当前无权限系统</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>5</th><th>Jupyter Notebook</th><th>当前无 NotebookEditTool</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<table>
+<thead>
+<tr><th>10</th><th>文件超过 1GB</th><th>当前无文件大小限制</th></tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<h2 id="">错误恢复路径</h2>
+<h3 id="-6-">错误码 6 的恢复</h3>
+<pre class="code-block"><code class="language-text">EditTool 返回错误码 6
+    |
+    v
+模型调用 ReadTool 读取该文件（全量）
+    |
+    v
+ReadTool.execute 中调用 recordRead()
+    |
+    v
+模型再次调用 EditTool
+    |
+    v
+canEdit() 通过</code></pre>
+<h3 id="-7-">错误码 7 的恢复</h3>
+<p>与错误码 6 类似，但 ReadTool 读取的是<strong>最新内容</strong>（外部修改后的）。</p>
+<h3 id="-89-">错误码 8/9 的恢复</h3>
+<ul>
+<li>错误码 8：检查 <code>old_string</code> 是否与文件内容完全匹配（包括空格、缩进）</li>
+<li>错误码 9：扩大 <code>old<em>string</code> 的上下文范围，使其唯一；或设置 <code>replace</em>all: true</code></li>
+</ul>
+
+    </div>
+  </main>
+</div>
+
+<div class="search-bar">
+  <input type="text" class="search-input" placeholder="搜索..." id="searchInput">
+</div>
+
+<script>
+(function() {
+  const searchInput = document.getElementById('searchInput');
+  const bodySheet = document.querySelector('.body-sheet');
+  let currentHighlight = [];
+  
+  searchInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim().toLowerCase();
+    
+    currentHighlight.forEach(function(el) {
+      const parent = el.parentNode;
+      if (parent) {
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize();
+      }
+    });
+    currentHighlight = [];
+    
+    if (!query || query.length < 2) return;
+    
+    const walker = document.createTreeWalker(
+      bodySheet,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    const textNodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.nodeValue.toLowerCase().indexOf(query) !== -1) {
+        textNodes.push(node);
+      }
+    }
+    
+    textNodes.forEach(function(node) {
+      const escapedQuery = query.replace(/[.*+?^$\{}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('(' + escapedQuery + ')', 'gi');
+      const parts = node.nodeValue.split(regex);
+      
+      const fragment = document.createDocumentFragment();
+      parts.forEach(function(part) {
+        if (regex.test(part)) {
+          const mark = document.createElement('span');
+          mark.className = 'highlight';
+          mark.textContent = part;
+          fragment.appendChild(mark);
+          currentHighlight.push(mark);
+        } else {
+          fragment.appendChild(document.createTextNode(part));
+        }
+      });
+      
+      node.parentNode.replaceChild(fragment, node);
+    });
+  });
+  
+  document.querySelectorAll('.rail-nav a').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelector('.reader-rail').classList.remove('open');
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

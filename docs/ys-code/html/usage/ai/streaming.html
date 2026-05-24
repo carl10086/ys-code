@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流式输出详解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-container-lowest: #0a0a0a;
+  --surface-container-low: #0d160d;
+  --surface-container: #102610;
+  --surface-container-high: #153315;
+  --primary: #33ff00;
+  --secondary: #ffb000;
+  --muted: #1f521f;
+  --accent: #33ff00;
+  --error: #ff3333;
+  --border: #1f521f;
+  --border-strong: #33ff00;
+  --fg-1: #33ff00;
+  --fg-2: #b7ff9a;
+  --fg-muted: #1f521f;
+  --on-primary: #050505;
+  --green: #33ff00;
+  --yellow: #ffb000;
+  --red: #ff3333;
+  --blue: #72d5ff;
+  --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+  --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+  --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+  --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none; --shadow-accent: none;
+  --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.dev-shell { max-width: 960px; margin: 0 auto; padding: var(--space-lg); }
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-1);
+  margin-bottom: var(--space-xl);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.terminal-prompt .user { color: var(--fg-2); }
+.terminal-prompt .host { color: var(--fg-muted); }
+.terminal-prompt .path { color: var(--blue); }
+.terminal-prompt .cursor {
+  display: inline-block;
+  width: 10px; height: 18px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.terminal-pane {
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-xl);
+  background: var(--surface);
+}
+.pane-title {
+  background: var(--surface-container-low);
+  color: var(--fg-2);
+  font-size: 12px;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.pane-body { padding: var(--space-md); }
+h1, h2, h3, h4 {
+  font-family: var(--font-headline);
+  color: var(--fg-1);
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+h1 { font-size: 18px; font-weight: 700; }
+h2 { font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+h3 { font-size: 14px; font-weight: 600; color: var(--fg-2); }
+h4 { font-size: 13px; font-weight: 600; color: var(--fg-2); }
+p { margin: var(--space-md) 0; color: var(--fg-2); }
+pre {
+  background: var(--surface-container-low);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface-container-low);
+  padding: 1px 4px;
+  color: var(--fg-1);
+}
+pre code { background: transparent; padding: 0; }
+ul, ol { margin: var(--space-md) 0; padding-left: var(--space-xl); color: var(--fg-2); }
+li { margin: var(--space-xs) 0; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  font-size: 12px;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+}
+th { background: var(--surface-container-low); color: var(--fg-1); font-weight: 600; }
+td { color: var(--fg-2); }
+.status-code {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: var(--space-sm);
+}
+.status-code.ok { background: var(--green); color: var(--on-primary); }
+.status-code.warn { background: var(--yellow); color: var(--on-primary); }
+.status-code.err { background: var(--red); color: #fff; }
+.status-code.hyp { background: var(--blue); color: var(--on-primary); }
+.nav-links { margin: var(--space-md) 0; }
+.nav-links a {
+  display: inline-block;
+  border: 1px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-right: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.nav-links a:hover { border-color: var(--border-strong); color: var(--fg-1); background: var(--surface-container-low); }
+@media (max-width: 640px) {
+  .dev-shell { padding: var(--space-md); }
+  h1 { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="dev-shell">
+<div class="terminal-prompt">
+<span class="user">dev</span>@<span class="host">ys-code</span>:<span class="path">~/docs/ai</span>$ cat streaming.md<span class="cursor"></span>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- STREAMING OUTPUT GUIDE ---+</div>
+<div class="pane-body">
+
+<h1>流式输出详解</h1>
+
+<h2>基本模式</h2>
+<pre><code>const stream = streamSimple(model, context, options);
+
+for await (const event of stream) {
+  switch (event.type) {
+    case "start":
+      // 开始
+      console.log("开始生成...");
+      break;
+
+    case "text_delta":
+      // 文本片段
+      process.stdout.write(event.delta);
+      break;
+
+    case "text_end":
+      // 文本块结束
+      break;
+
+    case "thinking_delta":
+      // Thinking 片段（如果启用）
+      process.stdout.write(`[thinking: ${event.delta}]`);
+      break;
+
+    case "toolcall_delta":
+      // Tool 参数片段
+      process.stdout.write(event.delta);
+      break;
+
+    case "toolcall_end":
+      // Tool 调用完成
+      console.log("Tool call:", event.toolCall);
+      break;
+
+    case "done":
+      // 完成
+      console.log("\n生成完成");
+      console.log("Stop reason:", event.reason);
+      console.log("Usage:", event.message.usage);
+      break;
+
+    case "error":
+      // 错误
+      console.error("Error:", event.error.errorMessage);
+      break;
+  }
+}</code></pre>
+
+<h2>等待完整结果</h2>
+<p>如果不需要流式处理，直接等结果：</p>
+<pre><code>const result = await completeSimple(model, context);
+
+console.log(result.content);      // 完整文本
+console.log(result.usage);        // Token 用量
+console.log(result.stopReason);  // 结束原因</code></pre>
+
+<h2>取消请求</h2>
+<p>使用 <code>AbortSignal</code>：</p>
+<pre><code>const controller = new AbortController();
+
+const stream = streamSimple(model, context, {
+  signal: controller.signal,
+});
+
+// 5秒后取消
+setTimeout(() => controller.abort(), 5000);
+
+for await (const event of stream) {
+  // ...
+}</code></pre>
+
+<h2>contentIndex 机制</h2>
+<p>同一个 <code>AssistantMessage</code> 可以有多个 content block：</p>
+<pre><code>// 例如：同时输出文本和 tool call
+AssistantMessage.content = [
+  { type: "text", text: "Let me check..." },
+  { type: "toolCall", id: "toolu_123", name: "get_weather", arguments: { city: "Tokyo" } }
+];
+
+事件通过 contentIndex 标识属于哪个 block：
+
+if (event.type === "text_delta") {
+  console.log(`文本块 ${event.contentIndex}: ${event.delta}`);
+} else if (event.type === "toolcall_delta") {
+  console.log(`Tool块 ${event.contentIndex}: ${event.delta}`);
+}</code></pre>
+
+<h2>事件顺序</h2>
+<p>典型的事件序列：</p>
+<pre><code>1. start              - 开始，partial 包含空 AssistantMessage
+2. content_block_start - content[0] 开始（text 或 thinking 或 toolCall）
+3. content_block_delta - content[0] 片段...
+4. content_block_delta - content[0] 片段...
+5. content_block_stop  - content[0] 结束
+6. content_block_start - content[1] 开始（下一个 block）
+7. content_block_delta - content[1] 片段...
+8. content_block_stop  - content[1] 结束
+...（更多 blocks）
+n. message_delta       - 最终更新（usage, stopReason）
+n+1. done              - 完成</code></pre>
+
+<h2>中间件/拦截器</h2>
+<p>使用 <code>onPayload</code> 拦截和修改请求参数：</p>
+<pre><code>const stream = streamSimple(model, context, {
+  onPayload: (payload, model) => {
+    console.log("原始参数:", JSON.stringify(payload, null, 2));
+
+    // 修改参数
+    payload.max_tokens = 1000;
+
+    // 返回修改后的参数（返回 undefined 则不修改）
+    return payload;
+  }
+});</code></pre>
+
+<div class="nav-links">
+<a href="README.html">README</a>
+<a href="api-reference.html">API 参考</a>
+<a href="thinking.html">Thinking</a>
+<a href="tool-call.html">Tool Call</a>
+<a href="cost-tracking.html">费用追踪</a>
+</div>
+
+</div>
+</div>
+
+<div class="terminal-pane">
+<div class="pane-title">+--- STATUS ---+</div>
+<div class="pane-body">
+<span class="status-code ok">OK</span> Streaming guide loaded<br>
+<span class="status-code ok">OK</span> 11 event types documented<br>
+<span class="status-code ok">OK</span> AbortSignal, contentIndex, onPayload covered
+</div>
+</div>
+
+</div>
+</body>
+</html>

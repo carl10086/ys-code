@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="developer">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Message 系统设计 - ys-code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --surface: #0a0a0a;
+      --surface-container-lowest: #0a0a0a;
+      --surface-container-low: #0d160d;
+      --surface-container: #102610;
+      --surface-container-high: #153315;
+      --primary: #33ff00;
+      --secondary: #ffb000;
+      --muted: #1f521f;
+      --accent: #33ff00;
+      --error: #ff3333;
+      --border: #1f521f;
+      --border-strong: #33ff00;
+      --fg-1: #33ff00;
+      --fg-2: #b7ff9a;
+      --fg-muted: #1f521f;
+      --on-primary: #050505;
+      --green: #33ff00;
+      --yellow: #ffb000;
+      --red: #ff3333;
+      --blue: #72d5ff;
+      --font-headline: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-body: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 0; --radius-md: 0; --radius-lg: 0;
+      --radius-xl: 0; --radius-2xl: 0; --radius-pill: 0;
+      --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+      --shadow-accent: none;
+      --text-glow: 0 0 5px rgba(51, 255, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg-1);
+      line-height: 1.6;
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .terminal-prompt {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-md) var(--space-xl);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .prompt-user { color: var(--fg-2); }
+    .prompt-host { color: var(--fg-muted); }
+    .prompt-path { color: var(--secondary); }
+    .prompt-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--primary);
+      animation: blink 1s step-end infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .dev-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+    }
+
+    .finding-bar {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      padding: var(--space-lg) var(--space-xl);
+      margin-bottom: var(--space-xl);
+    }
+
+    .finding-bar .status-code {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font-weight: 700;
+      margin-right: var(--space-md);
+    }
+
+    .terminal-pane {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      margin-bottom: var(--space-xl);
+    }
+
+    .pane-title {
+      background: var(--surface-container-low);
+      border-bottom: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pane-title::before {
+      content: '+--- ';
+      color: var(--fg-muted);
+    }
+
+    .pane-title::after {
+      content: ' ---+';
+      color: var(--fg-muted);
+    }
+
+    .pane-content {
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--font-headline);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--space-md);
+    }
+
+    h1 { font-size: 18px; color: var(--primary); margin-bottom: var(--space-lg); }
+    h2 { font-size: 15px; color: var(--fg-1); margin-top: var(--space-xl); border-bottom: 1px solid var(--border); padding-bottom: var(--space-sm); }
+    h3 { font-size: 13px; color: var(--fg-2); margin-top: var(--space-lg); }
+    h4 { font-size: 12px; color: var(--fg-muted); margin-top: var(--space-md); }
+
+    p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    ul, ol {
+      margin-left: var(--space-xl);
+      margin-bottom: var(--space-md);
+    }
+
+    li {
+      margin-bottom: var(--space-xs);
+      color: var(--fg-2);
+    }
+
+    li::marker {
+      color: var(--fg-muted);
+    }
+
+    pre, code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    pre {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: var(--space-md);
+    }
+
+    code {
+      background: var(--surface-container-low);
+      padding: 1px 4px;
+      color: var(--fg-1);
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-md);
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: var(--space-sm) var(--space-md);
+      text-align: left;
+    }
+
+    th {
+      background: var(--surface-container-low);
+      color: var(--fg-1);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    td {
+      color: var(--fg-2);
+    }
+
+    tr:nth-child(even) {
+      background: var(--surface-container-lowest);
+    }
+
+    blockquote {
+      border-left: 2px solid var(--primary);
+      padding-left: var(--space-lg);
+      margin: var(--space-md) 0;
+      color: var(--fg-2);
+      font-style: italic;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: var(--space-xl) 0;
+    }
+
+    strong {
+      color: var(--fg-1);
+      font-weight: 700;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .ascii-divider {
+      color: var(--fg-muted);
+      font-size: 12px;
+      margin: var(--space-lg) 0;
+      letter-spacing: 0.1em;
+    }
+
+    .data-flow {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--fg-2);
+      margin: var(--space-md) 0;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .copy-handoff {
+      display: inline-block;
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container);
+      color: var(--fg-1);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: var(--space-md);
+    }
+
+    .copy-handoff:hover {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
+
+    @media (max-width: 768px) {
+      .dev-shell {
+        padding: var(--space-md);
+      }
+
+      pre {
+        padding: var(--space-md);
+        font-size: 11px;
+      }
+
+      table {
+        font-size: 11px;
+      }
+
+      th, td {
+        padding: var(--space-xs) var(--space-sm);
+      }
+
+      .data-flow {
+        font-size: 10px;
+        padding: var(--space-md);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .prompt-cursor {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal-prompt">
+    <span class="prompt-user">review</span>
+    <span class="prompt-host">@</span>
+    <span class="prompt-path">ys-code:~/docs/meta-message$</span>
+    <span>cat meta-message.md --verbose</span>
+    <span class="prompt-cursor"></span>
+  </div>
+
+  <div class="dev-shell">
+    <div class="finding-bar">
+      <span class="status-code">[OK]</span>
+      <span>Meta Message 系统设计 | 复刻 claude-code 的 CLAUDE.md 发现、解析与注入逻辑</span>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">1. 概述</div>
+      <div class="pane-content">
+        <p><code>ys-code</code> 的 Meta Message 机制复刻了 claude-code 的 CLAUDE.md 发现、解析与注入逻辑。CLAUDE.md 等规则文件<strong>不进入 system prompt</strong>，而是作为 <code>&lt;system-reminder&gt;</code> 包裹的 <strong>meta user message</strong>，在每次 API 调用前插入 <code>messages</code> 数组最前端。该 meta 消息<strong>不写入持久化历史</strong>，仅存活于单次请求。</p>
+
+        <h2>设计目标</h2>
+        <ol>
+          <li><strong>零侵入 provider</strong>：meta 消息对 provider 层完全透明，只是普通 UserMessage</li>
+          <li><strong>单次存活</strong>：meta 消息只存在于当次 API 调用，不进入 context.messages 历史</li>
+          <li><strong>完整兼容</strong>：支持 @include 递归、frontmatter paths 过滤、HTML 注释 stripping</li>
+          <li><strong>可控开关</strong>：通过 <code>disableUserContext</code> 可禁用自动注入</li>
+        </ol>
+
+        <h2>核心模块</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>模块</th>
+              <th>职责</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>src/utils/claudemd.ts</code></td>
+              <td>规则文件发现、解析、格式化</td>
+            </tr>
+            <tr>
+              <td><code>src/agent/context/user-context.ts</code></td>
+              <td>组装 UserContext 与 prepend 逻辑</td>
+            </tr>
+            <tr>
+              <td><code>stream-assistant.ts</code></td>
+              <td>集成点，调用 prependUserContext</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">2. 核心类型</div>
+      <div class="pane-content">
+        <h2>MemoryFileInfo (src/utils/claudemd.ts)</h2>
+        <pre><code>/** 规则文件信息 */
+export interface MemoryFileInfo {
+  /** 展示路径 */
+  path: string;
+  /** 磁盘真实路径 */
+  fullPath: string;
+  /** 处理后的内容 */
+  content: string;
+  /** 可选描述 */
+  description?: string;
+  /** 来源标识 */
+  source: string;
+}</code></pre>
+
+        <h2>MemoryFilePriority (src/utils/claudemd.ts)</h2>
+        <pre><code>/** 规则文件优先级（数值越小越靠前） */
+export enum MemoryFilePriority {
+  MANAGED = 0,
+  USER = 1,
+  PROJECT = 2,
+  LOCAL = 3,
+  AUTO_MEM = 4,
+  TEAM_MEM = 5,
+}</code></pre>
+
+        <h2>UserContext (src/agent/context/user-context.ts)</h2>
+        <pre><code>/** 用户上下文 */
+export interface UserContext {
+  /** CLAUDE.md 聚合内容 */
+  claudeMd?: string;
+  /** 当前日期 */
+  currentDate?: string;
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">3. 架构与数据流</div>
+      <div class="pane-content">
+        <div class="data-flow">磁盘文件系统
+    │
+    ▼
+[src/utils/claudemd.ts]
+    ├── 向上遍历目录发现规则文件
+    ├── 解析 frontmatter (paths 条件过滤)
+    ├── 处理 @include 递归包含
+    ├── strip HTML block comments
+    └── 返回 MemoryFileInfo[]
+    │
+    ▼
+[src/agent/context/user-context.ts]
+    ├── 调用 getMemoryFiles() (memoized)
+    ├── 过滤注入文件
+    ├── 格式化 getClaudeMds() → 字符串
+    ├── 附加 currentDate 等上下文
+    └── 返回 UserContext
+    │
+    ▼
+[stream-assistant.ts transformContext]
+    └── prependUserContext(messages, userContext)
+        └── 生成 UserMessage(&lt;system-reminder&gt;...)
+        └── 插入 messages 数组开头
+    │
+    ▼
+provider API (无感知，meta 就是普通 UserMessage)
+    │
+    ▼
+局部 messages（含 meta）仅用于当次请求
+不写入 context.messages 持久化历史</div>
+
+        <p><strong>关键原则：</strong></p>
+        <ul>
+          <li><code>claudemd.ts</code> 是纯工具模块，只负责发现、读取、格式化文件</li>
+          <li><code>user-context.ts</code> 是连接层，负责 memoization 和组装</li>
+          <li><code>stream-assistant.ts</code> 是注入点，保证 meta 消息只存活于单次 API 调用</li>
+          <li><strong>provider 层完全无感知</strong>，meta 就是普通 <code>UserMessage</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">4. claudemd.ts 详解</div>
+      <div class="pane-content">
+        <h2>4.1 文件发现规则</h2>
+        <p>从根目录向 <code>cwd</code> 遍历，每个目录层级收集：</p>
+        <table>
+          <thead>
+            <tr>
+              <th>文件</th>
+              <th>来源标识</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>CLAUDE.md</code></td>
+              <td>project</td>
+            </tr>
+            <tr>
+              <td><code>.claude/CLAUDE.md</code></td>
+              <td>project</td>
+            </tr>
+            <tr>
+              <td><code>.claude/rules/*.md</code></td>
+              <td>project</td>
+            </tr>
+            <tr>
+              <td><code>CLAUDE.local.md</code></td>
+              <td>local</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>同时读取用户主目录 <code>~/.claude/</code> 下的全局规则（user 优先级）。</p>
+        <p><strong>去重逻辑</strong>：同一 <code>fullPath</code> 只保留一次；高优先级（更靠近 <code>cwd</code>）覆盖低优先级。</p>
+
+        <h2>4.2 @include 机制</h2>
+        <ul>
+          <li><strong>语法</strong>：<code>@path/to/file.md</code>、<code>@./relative.md</code>、<code>@~/home.md</code>、<code>@/absolute.md</code></li>
+          <li><strong>循环检测</strong>：记录已 include 路径链，遇循环立即终止</li>
+          <li><strong>深度限制</strong>：默认 <code>maxDepth = 10</code></li>
+          <li><strong>解析位置</strong>：include 内容直接内联到当前位置</li>
+          <li><strong>展示策略</strong>：<code>getClaudeMds</code> 只展示宿主文件路径，被 include 文件不单独出现</li>
+        </ul>
+        <pre><code>const includeRegex = /^@([~.\/][^\s]+)$/gm;</code></pre>
+
+        <h2>4.3 paths 条件过滤</h2>
+        <ul>
+          <li>读取 YAML frontmatter</li>
+          <li>若存在 <code>paths: ["src/**/*.ts"]</code>，仅在 <code>cwd</code> 匹配 glob 时生效</li>
+          <li>不匹配则 <code>processMemoryFile</code> 返回 <code>null</code></li>
+        </ul>
+        <pre><code>if (frontmatter?.paths) {
+  const patterns = Array.isArray(frontmatter.paths) ? frontmatter.paths : [frontmatter.paths];
+  const matches = patterns.some((pattern: string) => {
+    return picomatch(pattern, { contains: true, dot: true })(cwd);
+  });
+  if (!matches) {
+    return null;
+  }
+}</code></pre>
+
+        <h2>4.4 HTML 注释 stripping</h2>
+        <ul>
+          <li>使用 <code>marked</code> lexer 解析 markdown</li>
+          <li>过滤 <code>type === 'html'</code> 且为块级注释的 token</li>
+        </ul>
+        <pre><code>function stripHtmlBlockComments(content: string): string {
+  try {
+    const tokens = marked.lexer(content);
+    const filtered = tokens.filter((token: any) => {
+      if (token.type === "html") {
+        const raw = token.raw?.trim() || "";
+        return !/^&lt;!--[\s\S]*?--&gt;$/m.test(raw);
+      }
+      return true;
+    });
+    return filtered.map((token: any) => token.raw || "").join("");
+  } catch {
+    return content;
+  }
+}</code></pre>
+
+        <h2>4.5 格式化输出</h2>
+        <p><code>getClaudeMds</code> 将 MemoryFileInfo 数组格式化为 claudeMd 字符串：</p>
+        <pre><code>The following additional context was automatically retrieved. It may or may not be relevant to the user's request. You should use it if it is, and ignore it if it is not.
+
+Contents of path/to/file.md:
+&lt;file content&gt;
+
+Contents of another.md:
+&lt;file content&gt;</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">5. user-context.ts 详解</div>
+      <div class="pane-content">
+        <h2>5.1 缓存机制</h2>
+        <p><code>getUserContext</code> 和 <code>getMemoryFiles</code> 都使用 memoization 缓存，按 <code>cwd</code> 索引避免重复 I/O。</p>
+        <pre><code>const userContextCache = new Map&lt;string, Promise&lt;UserContext&gt;&gt;();
+const memoryFilesCache = new Map&lt;string, Promise&lt;MemoryFileInfo[]&gt;&gt;();</code></pre>
+
+        <h2>5.2 prependUserContext</h2>
+        <p>将 <code>UserContext</code> 转换为 <code>&lt;system-reminder&gt;</code> 包裹的 <code>UserMessage</code>，插入 messages 数组最前面：</p>
+        <pre><code>export function prependUserContext(messages: Message[], context: UserContext): Message[] {
+  const entries = Object.entries(context).filter(([, value]) => value && value.trim() !== "");
+  if (entries.length === 0) return messages;
+
+  const content = [
+    "&lt;system-reminder&gt;",
+    "As you answer the user's questions, you can use the following context:",
+    ...entries.map(([key, value]) => `# ${key}\n${value}`),
+    "",
+    "IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.",
+    "&lt;/system-reminder&gt;",
+    "",
+  ].join("\n");
+
+  const metaMessage: UserMessage = {
+    role: "user",
+    content,
+    timestamp: Date.now(),
+  };
+
+  return [metaMessage, ...messages];
+}</code></pre>
+
+        <h2>5.3 输出格式示例</h2>
+        <pre><code>&lt;system-reminder&gt;
+As you answer the user's questions, you can use the following context:
+# claudeMd
+The following additional context was automatically retrieved. It may or may not be relevant to the user's request. You should use it if it is, and ignore it if it is not.
+
+Contents of CLAUDE.md:
+&lt;content&gt;
+
+Contents of .claude/rules/code.md:
+&lt;content&gt;
+
+# currentDate
+2026/04/19
+
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+&lt;/system-reminder&gt;</code></pre>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">6. 集成与配置</div>
+      <div class="pane-content">
+        <h2>6.1 AgentLoopConfig</h2>
+        <p>在 <code>AgentLoopConfig</code> 中增加可选字段：</p>
+        <pre><code>export interface AgentLoopConfig extends SimpleStreamOptions {
+  // ... 现有字段
+  /** 禁用自动 userContext prepend */
+  disableUserContext?: boolean;
+}</code></pre>
+
+        <h2>6.2 stream-assistant.ts 集成</h2>
+        <pre><code>let messages = context.messages;
+if (config.transformContext) {
+  messages = await config.transformContext(messages, signal);
+} else if (!config.disableUserContext) {
+  const userContext = await getUserContext({ cwd: process.cwd() });
+  messages = prependUserContext(messages as Message[], userContext) as typeof messages;
+}</code></pre>
+        <p><strong>优先级</strong>：</p>
+        <ol>
+          <li>若提供 <code>transformContext</code>，使用它</li>
+          <li>否则若 <code>disableUserContext !== true</code>，使用默认 prependUserContext</li>
+          <li>否则保持原 messages 不变</li>
+        </ol>
+
+        <h2>6.3 与 system prompt 的关系</h2>
+        <p>当前 <code>src/agent/system-prompt/types.ts</code> 已有 <code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code>，用于 <strong>system 通道</strong>的缓存分层。</p>
+        <p>本次设计的 CLAUDE.md + meta message 走 <strong>messages 通道</strong>，两者互不干扰：</p>
+        <ul>
+          <li><strong>system 侧</strong>：静态段 + <code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code> + 动态段</li>
+          <li><strong>messages 侧</strong>：每次 API 调用前插入 <code>&lt;system-reminder&gt;</code> user 消息</li>
+        </ul>
+        <p>无需改动 <code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code> 的任何逻辑。</p>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">7. 错误处理</div>
+      <div class="pane-content">
+        <table>
+          <thead>
+            <tr>
+              <th>场景</th>
+              <th>处理策略</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>cwd</code> 下无规则文件</td>
+              <td><code>getClaudeMds</code> 返回 <code>null</code>，<code>prependUserContext</code> 跳过该键</td>
+            </tr>
+            <tr>
+              <td><code>@include</code> 指向不存在文件</td>
+              <td>跳过该 include，位置留空</td>
+            </tr>
+            <tr>
+              <td><code>@include</code> 循环依赖</td>
+              <td>检测到循环即终止递归</td>
+            </tr>
+            <tr>
+              <td><code>paths</code> 不匹配</td>
+              <td>过滤掉整个文件</td>
+            </tr>
+            <tr>
+              <td>HTML comment stripping 失败</td>
+              <td>fallback 为原始内容</td>
+            </tr>
+            <tr>
+              <td>读取文件权限不足</td>
+              <td>跳过该文件，不阻断流程</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="terminal-pane">
+      <div class="pane-title">8. 文件结构</div>
+      <div class="pane-content">
+        <pre><code>src/
+  utils/
+    claudemd.ts              # 规则文件发现、解析、格式化
+    claudemd.test.ts         # 单元测试
+  agent/
+    context/
+      user-context.ts        # UserContext 组装与 prepend
+      user-context.test.ts   # 单元测试
+    stream-assistant.ts       # 集成默认 transformContext fallback
+    types.ts                  # AgentLoopConfig.disableUserContext</code></pre>
+      </div>
+    </div>
+
+    <div class="ascii-divider">// --- END OF DOCUMENT --- //</div>
+  </div>
+</body>
+</html>

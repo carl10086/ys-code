@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ys-code 持久化与 Compact 机制设计方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #a03b00;
+    --primary-container: #c94c00;
+    --primary-fixed: #ffdbcd;
+    --primary-fixed-dim: #ffb597;
+    --on-primary: #ffffff;
+    --accent-glow: #E8400D;
+    --secondary: #d5baff;
+    --secondary-container: #7b40e0;
+    --tertiary: #4d44e3;
+    --accent-cyan: #00D4FF;
+    --bg: #fff8f6;
+    --surface: #fff8f6;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #fbf2ef;
+    --surface-container: #f5ece9;
+    --surface-container-high: #efe6e3;
+    --fg-1: #1e1b19;
+    --fg-2: #594138;
+    --fg-muted: #8d7166;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-strong: rgba(0, 0, 0, 0.12);
+    --outline-variant: #e1bfb2;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+    --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+    --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+    --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+    --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+    --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+    --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+    --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #060B18;
+      --surface: #0B1426;
+      --surface-container-lowest: #101D35;
+      --surface-container-low: #101D35;
+      --surface-container: #162544;
+      --surface-container-high: #1c2d52;
+      --fg-1: #F8FAFC;
+      --fg-2: #CBD5E1;
+      --fg-muted: #64748B;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --primary: #FF6B35;
+      --accent-glow: #00D4FF;
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--fg-1);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  .document-shell {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--space-4xl) var(--space-xl);
+  }
+
+  .cover {
+    margin-bottom: var(--space-4xl);
+    padding-bottom: var(--space-3xl);
+    border-bottom: 1px solid var(--border-strong);
+  }
+
+  .cover-label {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .cover h1 {
+    font-family: var(--font-headline);
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+  }
+
+  .deck {
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--fg-2);
+    margin-bottom: var(--space-xl);
+    max-width: 640px;
+  }
+
+  .meta-line {
+    font-size: 13px;
+    color: var(--fg-muted);
+    font-family: var(--font-mono);
+  }
+
+  .reader-rail {
+    display: flex;
+    gap: var(--space-3xl);
+  }
+
+  .toc-column {
+    flex: 0 0 200px;
+    position: sticky;
+    top: var(--space-3xl);
+    align-self: flex-start;
+  }
+
+  .toc-title {
+    font-family: var(--font-headline);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-md);
+  }
+
+  .toc-list {
+    list-style: none;
+  }
+
+  .toc-list li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .toc-list a {
+    color: var(--fg-2);
+    text-decoration: none;
+    font-size: 13px;
+    display: block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+  }
+
+  .toc-list a:hover {
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+
+  .body-column {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .body-section {
+    margin-bottom: var(--space-4xl);
+  }
+
+  .body-section h2 {
+    font-family: var(--font-headline);
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-bottom: var(--space-lg);
+    letter-spacing: -0.01em;
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--primary);
+    display: inline-block;
+  }
+
+  .body-section h3 {
+    font-family: var(--font-headline);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--fg-1);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-md);
+  }
+
+  .body-section h4 {
+    font-family: var(--font-headline);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fg-2);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-sm);
+  }
+
+  .body-section p {
+    margin-bottom: var(--space-md);
+    color: var(--fg-1);
+  }
+
+  .body-section ul, .body-section ol {
+    margin-bottom: var(--space-md);
+    padding-left: var(--space-xl);
+  }
+
+  .body-section li {
+    margin-bottom: var(--space-xs);
+  }
+
+  .body-section blockquote {
+    border-left: 3px solid var(--primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-xl) 0;
+    color: var(--fg-2);
+    font-style: italic;
+  }
+
+  .body-section code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-container);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--primary);
+  }
+
+  .body-section pre {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .body-section pre code {
+    background: none;
+    padding: 0;
+    color: var(--fg-1);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-lg) 0;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--fg-1);
+    background: var(--surface-container);
+  }
+
+  tr:hover {
+    background: var(--surface-container-low);
+  }
+
+  .claim-card {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-lg) 0;
+  }
+
+  .claim-card-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evidence-margin {
+    background: var(--surface-container);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-size: 13px;
+  }
+
+  .evidence-margin-label {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    margin-bottom: var(--space-sm);
+  }
+
+  .caveat-box {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+  }
+
+  .caveat-box-title {
+    font-family: var(--font-headline);
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: var(--space-sm);
+  }
+
+  .source-spread {
+    margin-top: var(--space-5xl);
+    padding-top: var(--space-3xl);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .source-spread h2 {
+    font-size: 22px;
+  }
+
+  .phase-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-family: var(--font-headline);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    margin-bottom: var(--space-sm);
+  }
+
+  .insight-highlight {
+    background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary-fixed-dim) 100%);
+    border-left: 4px solid var(--primary);
+    padding: var(--space-xl);
+    margin: var(--space-xl) 0;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
+  @media (max-width: 768px) {
+    .document-shell {
+      padding: var(--space-xl) var(--space-lg);
+    }
+
+    .cover h1 {
+      font-size: 28px;
+    }
+
+    .reader-rail {
+      flex-direction: column;
+      gap: var(--space-2xl);
+    }
+
+    .toc-column {
+      position: static;
+      flex: none;
+    }
+  }
+
+  @media print {
+    body { background: white; }
+    .document-shell { max-width: none; }
+    .toc-column { display: none; }
+    .cover { page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+<div class="document-shell">
+
+  <header class="cover">
+    <div class="cover-label">设计方案</div>
+    <h1>ys-code 持久化与 Compact 机制设计方案</h1>
+    <p class="deck">ys-code 当前纯内存存储，退出即丢失。本方案设计会话持久化、上下文压缩（Compact）机制，以及渐进三阶段实现路径。</p>
+    <div class="meta-line">创建时间: 2026-04-21 &nbsp;|&nbsp; 状态: 方案确认中 &nbsp;|&nbsp; 核心决策: 数据结构向 CC 对齐，加载逻辑渐进优化</div>
+  </header>
+
+  <div class="reader-rail">
+    <nav class="toc-column">
+      <div class="toc-title">目录</div>
+      <ul class="toc-list">
+        <li><a href="#sec1">1. 概述</a></li>
+        <li><a href="#sec2">2. 数据结构</a></li>
+        <li><a href="#sec3">3. 技术演进</a></li>
+        <li><a href="#sec4">4. 演进时间线</a></li>
+        <li><a href="#sec5">5. 工作量预估</a></li>
+        <li><a href="#sec6">6. 关键决策确认</a></li>
+        <li><a href="#sec7">7. 与现有代码集成</a></li>
+      </ul>
+    </nav>
+
+    <main class="body-column">
+
+      <section class="body-section" id="sec1">
+        <h2>1. 概述</h2>
+
+        <h3>1.1 当前现状</h3>
+        <p>ys-code 当前<strong>纯内存存储</strong>，<code>Agent._state.messages</code> 是 <code>AgentMessage[]</code> 数组，退出即丢失。无持久化、无会话恢复、无 compact。</p>
+
+        <h3>1.2 设计目标</h3>
+        <ol>
+          <li><strong>会话持久化</strong>: 对话历史保存到磁盘，重启后可恢复</li>
+          <li><strong>上下文压缩（Compact）</strong>: token 超过阈值时，自动将历史替换为摘要</li>
+          <li><strong>渐进演进</strong>: 初期简单，后期可无缝升级性能优化</li>
+          <li><strong>尽早暴露问题</strong>: 每个阶段都有明确的风险点和回退方案</li>
+        </ol>
+
+        <h3>1.3 核心设计决策</h3>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>决策</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Entry 格式</td><td>独立类型体系（header / user / assistant / toolResult / compact_boundary）</td></tr>
+            <tr><td>消息链接</td><td><code>parentUuid</code>（DAG 结构，支持未来 fork）</td></tr>
+            <tr><td>Compact 标记</td><td><code>compact_boundary</code>（CC 语义）</td></tr>
+            <tr><td>Summary 角色</td><td>恢复时转为 <code>system</code> 消息注入 context</td></tr>
+            <tr><td>加载策略</td><td>Phase 1 全量读取 → Phase 3 分块截断</td></tr>
+            <tr><td>会话恢复</td><td>header 记录 sessionId，从最后叶子回走 root</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec2">
+        <h2>2. 数据结构</h2>
+
+        <h3>2.1 Entry 类型体系</h3>
+        <pre><code>文件: ~/.ys-code/sessions/&lt;cwd-hash&gt;/&lt;sessionId&gt;.jsonl
+每行一个 JSON entry
+
+Entry 基类:
+  - type: string           // 条目类型
+  - uuid: string           // 唯一标识
+  - parentUuid: string|null  // 父条目（链式/DAG 结构）
+  - timestamp: number      // 时间戳
+
+HeaderEntry:
+  - type: "header"
+  - version: 1
+  - sessionId: string
+  - cwd: string
+
+UserEntry:
+  - type: "user"
+  - content: 文本或内容块数组
+  - isMeta?: boolean       // UI 隐藏，LLM 可见
+
+AssistantEntry:
+  - type: "assistant"
+  - content: 内容块数组
+  - model: string
+  - usage: Token 使用量
+  - stopReason: 停止原因
+  - errorMessage?: string
+
+ToolResultEntry:
+  - type: "toolResult"
+  - toolCallId: string
+  - toolName: string
+  - content: 结果内容
+  - isError: boolean
+
+CompactBoundaryEntry:
+  - type: "compact_boundary"
+  - summary: string        // 摘要内容
+  - tokensBefore: number   // 压缩前 token 数
+  - tokensAfter: number    // 压缩后 token 数</code></pre>
+
+        <h3>2.2 文件示例</h3>
+        <pre><code>{"type":"header","uuid":"hdr-1","parentUuid":null,"timestamp":1000,"version":1,"sessionId":"sess-abc","cwd":"/projects/ys-code"}
+{"type":"user","uuid":"msg-1","parentUuid":"hdr-1","timestamp":1001,"content":"Hello"}
+{"type":"assistant","uuid":"msg-2","parentUuid":"msg-1","timestamp":1002,"content":"Hi","usage":{...}}
+{"type":"user","uuid":"msg-3","parentUuid":"msg-2","timestamp":1003,"content":"How are you?"}
+{"type":"assistant","uuid":"msg-4","parentUuid":"msg-3","timestamp":1004,"content":"Good","usage":{...}}</code></pre>
+      </section>
+
+      <section class="body-section" id="sec3">
+        <h2>3. 技术演进（三个阶段）</h2>
+
+        <div class="phase-badge">Phase 1</div>
+        <h3>基础持久化</h3>
+        <p><strong>目标:</strong> 消息写入磁盘，重启后可恢复。无 compact，无性能优化。</p>
+
+        <h4>写入流程</h4>
+        <pre><code>当用户发送消息时:
+  1. Agent 处理消息，生成 assistant 回复
+  2. 收到 message_end 事件
+  3. 将消息追加到会话文件（JSONL 格式）</code></pre>
+
+        <h4>加载流程</h4>
+        <pre><code>当程序启动时:
+  1. 扫描会话目录，找最近修改的会话文件
+  2. 读取文件所有行
+  3. 解析每行为 Entry
+  4. 从最后一条消息回走 parentUuid，构建活跃分支
+  5. 将活跃分支的消息注入 Agent._state.messages</code></pre>
+
+        <h4>核心逻辑（中文伪代码）</h4>
+        <pre><code>函数 写入条目(条目):
+    文件.追加内容(JSON.stringify(条目) + "\n")
+
+函数 加载会话(文件路径):
+    内容 = 文件.读取全部(文件路径)
+    行列表 = 内容.按行分割().过滤(非空)
+    条目列表 = 行列表.映射(解析JSON)
+    返回 条目列表
+
+函数 恢复消息(条目列表):
+    如果 条目列表 为空:
+        返回 []
+
+    // 找到叶子节点（最后一条消息）
+    有父节点的 = 新集合()
+    对于 条目 在 条目列表 中:
+        如果 条目.parentUuid 不为空:
+            有父节点的.添加(条目.parentUuid)
+
+    叶子列表 = []
+    对于 条目 在 条目列表 中:
+        如果 条目.uuid 不在 有父节点 中:
+            叶子列表.添加(条目)
+
+    如果 叶子列表 为空:
+        返回 []
+
+    // 取最后一个叶子（最新会话）
+    当前叶子 = 叶子列表[最后一个]
+
+    // 从叶子回走构建路径
+    路径 = []
+    当 当前叶子 不为空:
+        路径.前面插入(当前叶子)
+        当前叶子 = 查找父条目(当前叶子.parentUuid, 条目列表)
+
+    // 转换为 AgentMessage
+    消息列表 = []
+    对于 条目 在 路径 中:
+        如果 条目.type == "header":
+            跳过
+        消息列表.添加(条目转消息(条目))
+
+    返回 消息列表</code></pre>
+
+        <h4>Phase 1 风险点</h4>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>影响</th><th>缓解方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>文件损坏（JSON 解析失败）</td><td>无法恢复会话</td><td>逐行解析，跳过损坏行，记录警告</td></tr>
+            <tr><td>并发写入（多实例）</td><td>文件内容错乱</td><td>使用 <code>proper-lockfile</code> 加文件锁</td></tr>
+            <tr><td>会话文件无限增长</td><td>加载变慢</td><td>Phase 3 引入分块截断，或定期清理旧会话</td></tr>
+            <tr><td>没有版本号</td><td>格式升级不兼容</td><td>HeaderEntry 带 version 字段，支持版本检测</td></tr>
+          </tbody>
+        </table>
+
+        <div class="phase-badge">Phase 2</div>
+        <h3>引入 Compact</h3>
+        <p><strong>目标:</strong> 当 token 超过阈值时，将历史消息替换为 summary。</p>
+
+        <h4>Compact 触发时机</h4>
+        <pre><code>当一轮对话结束时:
+  1. 估算当前消息列表的总 token 数
+  2. 如果超过阈值（如 100k tokens）:
+     a. 调用 LLM 生成历史摘要
+     b. 写入 compact_boundary 标记</code></pre>
+
+        <h4>Compact 后的恢复逻辑</h4>
+        <pre><code>加载会话时，遇到 compact_boundary:
+  1. 将 summary 作为 system 消息插入
+  2. compact_boundary 之前的历史消息被"替换"掉
+  3. compact_boundary 之后的消息正常保留</code></pre>
+
+        <h4>Phase 2 关键问题：消息链的断裂</h4>
+        <div class="caveat-box">
+          <div class="caveat-box-title">消息链断裂示意</div>
+          <pre><code>Compact 前: msg-1 → msg-2 → msg-3 → msg-4 → msg-5
+                  ↑
+            parentUuid 链
+
+Compact 后: msg-1 → msg-2 → msg-3 → msg-4 → compact_boundary → msg-6
+                  ↑                          ↑
+            被替换为 summary                 msg-6.parentUuid 指向 compact_boundary</code></pre>
+          <p><strong>compact_boundary 同时承担两个角色：</strong></p>
+          <ol>
+            <li><strong>压缩标记</strong>：告诉恢复逻辑"前面的内容已被摘要替换"</li>
+            <li><strong>链接节点</strong>：作为 DAG 中的正常节点，让后续消息有 parent 可指</li>
+          </ol>
+        </div>
+
+        <h4>Phase 2 风险点</h4>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>影响</th><th>缓解方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Summary 质量差</td><td>丢失关键上下文</td><td>使用结构化摘要格式（CC 的 9-section XML），保留最近 N 条消息</td></tr>
+            <tr><td>Compact 过于频繁</td><td>性能开销，摘要嵌套</td><td>设置 compact 冷却期（如 30 分钟内不重复 compact）</td></tr>
+            <tr><td>Summary 本身也超 token</td><td>恶性循环</td><td>Summary 长度限制（如最多 4k tokens），超长时截断</td></tr>
+            <tr><td>Token 估算不准</td><td>实际还是超窗口</td><td>使用 tiktoken 或 provider 的 token 计数器，留出安全余量（如 80% 阈值）</td></tr>
+            <tr><td><strong>LLM 生成摘要失败</strong></td><td><strong>Compact 无法完成，token 持续增长</strong></td><td><strong>失败时记录日志，标记为"未压缩"，下次重试；或降级为只保留最近 N 条消息</strong></td></tr>
+            <tr><td><strong>Compact 期间新消息到来</strong></td><td><strong>并发写入可能损坏文件</strong></td><td><strong>Compact 异步执行，用文件锁保护写入；或 compact 期间阻塞新消息</strong></td></tr>
+          </tbody>
+        </table>
+
+        <div class="phase-badge">Phase 3</div>
+        <h3>性能优化（分块截断加载）</h3>
+        <p><strong>目标:</strong> 文件 &gt; 5MB 时，不加载 compact_boundary 之前的内容。</p>
+
+        <h4>核心思路</h4>
+        <pre><code>文件小的时候: 全量读取（复用 Phase 1 逻辑）
+文件大的时候: 从后往前读，遇到 compact_boundary 就停，前面的不加载</code></pre>
+
+        <h4>核心逻辑（中文伪代码）</h4>
+        <pre><code>函数 加载会话优化版(文件路径):
+    文件大小 = 文件.获取大小(文件路径)
+
+    如果 文件大小 < 5MB:
+        // 小文件：复用 Phase 1 逻辑
+        返回 加载会话(文件路径)
+
+    // 大文件：分块向后扫描
+    结果条目 = []
+    已找到边界 = false
+    块大小 = 1MB
+    上一块尾部 = ""   // 关键：处理跨块切割
+
+    偏移量 = 文件大小
+    当 偏移量 > 0 且 未找到边界:
+        偏移量 = 最大(0, 偏移量 - 块大小)
+        块内容 = 文件.读取片段(文件路径, 偏移量, 块大小)
+
+        // 拼接前一块的尾部（处理跨块切割）
+        如果 上一块尾部 不为空:
+            块内容 = 块内容 + 上一块尾部
+
+        行列表 = 块内容.按行分割()
+
+        // 保存当前块的第一行（可能不完整，留给下一次循环拼接）
+        如果 偏移量 > 0:
+            上一块尾部 = 行列表[第一个]
+            行列表.删除第一个()
+
+        // 从后往前处理（因为是从文件尾部开始读）
+        对于 i 从 行列表.长度-1 到 0:
+            行 = 行列表[i]
+            如果 行 为空:
+                继续
+
+            条目 = 解析JSON(行)
+            结果条目.前面插入(条目)  // 保持顺序
+
+            如果 条目.type == "compact_boundary":
+                已找到边界 = true
+                跳出循环
+
+    返回 结果条目</code></pre>
+
+        <h4>Phase 3 风险点</h4>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>影响</th><th>缓解方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>块切到行中间</strong></td><td><strong>JSON 解析失败</strong></td><td><strong>保留前一块尾部拼接（已在伪代码中实现）</strong></td></tr>
+            <tr><td>compact_boundary 前有保留段</td><td>需要加载 boundary 前的部分消息</td><td>实现 <code>preservedSegment</code> 机制（标记保留几条）</td></tr>
+            <tr><td><strong>多个 compact_boundary</strong></td><td><strong>只应保留最后一个</strong></td><td><strong>从后往前扫描，遇到第一个 boundary 就停</strong></td></tr>
+            <tr><td>文件锁与分块读取冲突</td><td>读取不完整</td><td>读取前加共享锁，或接受可能读到不完整数据（JSON 解析失败则跳过）</td></tr>
+            <tr><td><strong>没有 compact_boundary 的大文件</strong></td><td><strong>Phase 3 无法截断，全量加载依然慢</strong></td><td><strong>这是一个信号：应该触发 compact 了！</strong></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec4">
+        <h2>4. 演进时间线与问题暴露</h2>
+
+        <h3>4.1 没有 Compact 的情况</h3>
+        <pre><code>Phase 1（基础持久化）上线:
+  → 文件增长: 每轮对话 ~2-10KB
+  → 1000 轮对话后: ~2-10MB
+  → 10000 轮对话后: ~20-100MB
+
+Phase 3（分块截断）触发条件:
+  → 文件 > 5MB 时启用分块读取
+  → 但如果没有 compact_boundary，分块截断无法生效！
+  → 结果: 文件越来越大，加载越来越慢，直到无法使用</code></pre>
+
+        <div class="insight-highlight">
+          <strong>结论：没有 compact，Phase 3 的优化形同虚设。</strong>
+        </div>
+
+        <h3>4.2 有 Compact 的情况</h3>
+        <pre><code>Phase 1 + Phase 2 上线:
+  → 文件增长到有 compact_boundary 标记
+  → compact 将历史替换为 summary（~1-4KB）
+  → 文件大小被"重置"到合理范围
+  → 即使不实现 Phase 3，性能也可接受
+
+Phase 3 按需上线:
+  → 只有极端情况下（超长会话未 compact）才需要
+  → 或 compact 后仍有大量消息的场景</code></pre>
+
+        <h3>4.3 关键洞察</h3>
+        <div class="insight-highlight">
+          <strong>Compact 是持久化的"刹车片"，不是可选功能。</strong>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>场景</th><th>无 Compact</th><th>有 Compact</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>日常开发（~100 轮/天）</td><td>1 周后文件 10MB+</td><td>文件维持在 1-2MB</td></tr>
+            <tr><td>长期项目（~3 个月）</td><td>文件 100MB+，加载 5 秒+</td><td>文件始终可控</td></tr>
+            <tr><td>Phase 3 必要性</td><td>必须立即做，否则不可用</td><td>可以延后，按需优化</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec5">
+        <h2>5. 各阶段工作量预估</h2>
+
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>工作量</th><th>核心文件</th><th>测试重点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Phase 1</td><td>~2 天</td><td><code>session-manager.ts</code></td><td>写入/加载/恢复/并发锁</td></tr>
+            <tr><td>Phase 2</td><td>~3 天</td><td><code>compact.ts</code>, <code>session-manager.ts</code></td><td>触发阈值/摘要质量/恢复替换</td></tr>
+            <tr><td>Phase 3</td><td>~2 天</td><td><code>session-loader.ts</code></td><td>分块边界/截断正确性/性能对比</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section" id="sec6">
+        <h2>6. 关键决策确认</h2>
+
+        <h3>6.1 已确定</h3>
+        <ul>
+          <li>Entry 类型体系（5 种类型）</li>
+          <li><code>parentUuid</code> DAG 结构</li>
+          <li><code>compact_boundary</code> 独立类型（不是 system 子类型）</li>
+          <li>Summary 恢复时转为 <code>system</code> 消息</li>
+          <li>渐进三阶段实现</li>
+        </ul>
+
+        <h3>6.2 待确认（附建议）</h3>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>建议方案</th><th>如果选错的风险</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Token 估算方式</strong></td><td>Phase 1 用字符数估算（简单）；Phase 2 引入 tiktoken（精确）</td><td>字符数估算误差可达 30%，可能导致过早/过晚触发 compact</td></tr>
+            <tr><td><strong>Compact 阈值</strong></td><td>模型上下文窗口的 80%（如 200k 窗口 → 160k 阈值）</td><td>太高可能超窗口，太低频繁 compact 浪费 token</td></tr>
+            <tr><td><strong>保留消息数</strong></td><td>保留最近 10 条消息（<code>preservedSegment: 10</code>）</td><td>不保留可能丢失刚讨论的上下文；保留太多摘要意义下降</td></tr>
+            <tr><td><strong>会话文件命名</strong></td><td><code>&lt;timestamp&gt;_&lt;sessionId&gt;.jsonl</code>（Pi-mono 风格，便于排序）</td><td><code>sessionId.jsonl</code> 无法按时间排序找最新会话</td></tr>
+            <tr><td><strong>旧会话清理</strong></td><td>保留最近 30 个会话，删除旧的</td><td>不清理占用磁盘；清理太激进丢失历史</td></tr>
+          </tbody>
+        </table>
+
+        <h3>6.3 如果设计错了怎么办</h3>
+        <table>
+          <thead>
+            <tr><th>假设失败</th><th>回退方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>compact_boundary</code> 格式不适用</td><td>保留原始消息 + 新增 <code>compaction_v2</code> entry，加载时兼容旧格式</td></tr>
+            <tr><td><code>parentUuid</code> DAG 太复杂</td><td>退化回简单数组（<code>parentUuid</code> 始终指向上一条），零数据迁移</td></tr>
+            <tr><td>文件锁导致性能问题</td><td>去掉锁，接受极少概率的写入冲突（JSONL 格式天然可容忍部分损坏）</td></tr>
+            <tr><td>Token 估算完全不准</td><td>直接暴露 token 数给用户，让用户手动触发 compact</td></tr>
+            <tr><td>SessionManager 设计错误</td><td>它只是一个封装层，可以重写内部实现，不暴露给 Agent 的接口不变</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="body-section source-spread" id="sec7">
+        <h2>7. 与现有代码集成点</h2>
+
+        <pre><code>AgentSession 构造函数:
+  1. 初始化 SessionManager（传入 cwd）
+  2. 调用 sessionManager.restoreMessages()
+  3. 如果有恢复的消息，设置到 agent.state.messages
+
+Agent 的 message_end 事件处理:
+  1. 调用 sessionManager.appendMessage(event.message)
+  2. 调用 sessionManager.compactIfNeeded()（可选：异步触发）</code></pre>
+      </section>
+
+    </main>
+  </div>
+</div>
+</body>
+</html>
