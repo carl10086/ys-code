@@ -18,7 +18,9 @@ type TodoWriteOutput = Static<typeof outputSchema>;
 const FIXED_RESULT_TEXT =
   "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable";
 
-export const TODO_WRITE_DESCRIPTION = `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
+export const TODO_WRITE_DESCRIPTION = "TodoWrite: create and manage a structured task list for your current coding session.";
+
+export const TODO_WRITE_PROMPT = `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
 ## When to Use This Tool
@@ -203,6 +205,7 @@ export function createTodoWriteTool(store: TodoStore): AgentTool<typeof inputSch
     name: "TodoWrite",
     label: "TodoWrite",
     description: TODO_WRITE_DESCRIPTION,
+    prompt: TODO_WRITE_PROMPT,
     parameters: inputSchema,
     outputSchema,
     isReadOnly: false,

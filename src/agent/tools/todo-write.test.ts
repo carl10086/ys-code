@@ -28,17 +28,23 @@ describe("TodoWriteTool", () => {
 
   it("description 是非空字符串", () => {
     expect(typeof tool.description).toBe("string");
-    expect((tool.description as string).length).toBeGreaterThan(100);
+    expect((tool.description as string).length).toBeGreaterThan(10);
   });
 
   it("description 不含未解析的 ${} 插值占位（防止变量遗漏）", () => {
     expect(TODO_WRITE_DESCRIPTION).not.toContain("${");
   });
 
-  it("description 是从 cc 移植的 TodoWrite prompt", () => {
-    expect(TODO_WRITE_DESCRIPTION).toContain("Use this tool to create and manage a structured task list");
-    expect(TODO_WRITE_DESCRIPTION).toContain("When to Use This Tool");
-    expect(TODO_WRITE_DESCRIPTION).toContain("Task States and Management");
+  it("prompt 包含完整的 TodoWrite 指南", () => {
+    expect(tool.prompt).toContain("Use this tool to create and manage a structured task list");
+    expect(tool.prompt).toContain("When to Use This Tool");
+    expect(tool.prompt).toContain("Task States and Management");
+  });
+
+  it("description 是简短摘要（不超过 200 字符）", () => {
+    expect(typeof tool.description).toBe("string");
+    expect((tool.description as string).length).toBeLessThanOrEqual(200);
+    expect((tool.description as string)).toContain("TodoWrite");
   });
 
   it("execute 将 todos 写入 store", async () => {
