@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSession } from "../../agent/session.js";
 import type { AgentSessionEvent } from "../../agent/session.js";
-import type { AgentMessage } from "../../agent/types.js";
+import type { AgentMessage, ToolRenderResult } from "../../agent/types.js";
 import type { TodoList } from "../../agent/todo/types.js";
 import type { Model, ToolCall, Usage } from "../../core/ai/index.js";
 import type { UIMessage } from "../types.js";
@@ -68,7 +68,7 @@ export function deriveUIMessages(messages: readonly AgentMessage[]): UIMessage[]
               isError: nextMsg.isError,
               summary: summary || "done",
               timeMs: 0,
-              renderData: nextMsg.renderData as any,
+              renderData: nextMsg.renderData as ToolRenderResult | undefined,
             });
           }
         }
@@ -92,7 +92,7 @@ export function deriveUIMessages(messages: readonly AgentMessage[]): UIMessage[]
           isError: msg.isError,
           summary: summary || "done",
           timeMs: 0,
-          renderData: msg.renderData as any,
+          renderData: msg.renderData as ToolRenderResult | undefined,
         });
         break;
       }

@@ -200,13 +200,14 @@ function formatArgValue(value: unknown): string {
 }
 
 function formatTodoListSummary(todos: TodoList): string {
-  const total = todos.length;
-  const pending = todos.filter((t) => t.status === "pending").length;
-  const inProgress = todos.filter((t) => t.status === "in_progress").length;
-  const completed = todos.filter((t) => t.status === "completed").length;
+  let pending = 0, inProgress = 0, completed = 0;
+  for (const t of todos) {
+    if (t.status === "pending") pending++;
+    else if (t.status === "in_progress") inProgress++;
+    else if (t.status === "completed") completed++;
+  }
 
-  const parts: string[] = [];
-  parts.push(`${total} ${plural(total, "task")}`);
+  const parts: string[] = [`${todos.length} ${plural(todos.length, "task")}`];
   if (pending > 0) parts.push(`${pending} pending`);
   if (inProgress > 0) parts.push(`${inProgress} in progress`);
   if (completed > 0) parts.push(`${completed} completed`);
