@@ -254,4 +254,36 @@ describe("deriveUIMessages", () => {
     const ui = deriveUIMessages(messages);
     expect(ui).toHaveLength(0);
   });
+
+  it("should pass renderData from toolResult to tool_end UI message", () => {
+    const renderData = { type: "todo_list", oldTodos: [], newTodos: [{ content: "A", status: "pending", activeForm: "A" }] };
+    const messages: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "t1", name: "TodoWrite", arguments: { todos: [{ content: "A", status: "pending" }] } },
+        ],
+        api: "anthropic-messages",
+        provider: "anthropic",
+        model: "claude-test",
+        usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "toolUse",
+        timestamp: 1000,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "t1",
+        toolName: "TodoWrite",
+        content: [{ type: "text", text: "done" }],
+        isError: false,
+        timestamp: 1001,
+        renderData,
+      },
+    ];
+
+    const ui = deriveUIMessages(messages);
+    const toolEnd = ui.find((m) => m.type === "tool_end");
+    expect(toolEnd).toBeDefined();
+    expect((toolEnd as any).renderData).toEqual(renderData);
+  });
 });

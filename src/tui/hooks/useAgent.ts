@@ -68,7 +68,7 @@ export function deriveUIMessages(messages: readonly AgentMessage[]): UIMessage[]
               isError: nextMsg.isError,
               summary: summary || "done",
               timeMs: 0,
-              renderData: undefined,
+              renderData: nextMsg.renderData as any,
             });
           }
         }
@@ -92,7 +92,7 @@ export function deriveUIMessages(messages: readonly AgentMessage[]): UIMessage[]
           isError: msg.isError,
           summary: summary || "done",
           timeMs: 0,
-          renderData: undefined,
+          renderData: msg.renderData as any,
         });
         break;
       }
