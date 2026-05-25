@@ -97,13 +97,20 @@ export interface AgentTool<
   name: string;
 
   /**
-   * 工具描述。
+   * 工具描述（用于 tool schema）。
    * - 若为 string，则作为静态描述直接使用
    * - 若为函数，则根据输入参数和上下文动态生成最终描述
    */
   description:
     | string
     | ((params: Static<TParameters>, context: ToolUseContext) => string | Promise<string>);
+
+  /**
+   * 工具 system prompt 指南（可选）。
+   * 当提供时，会被收集到 system prompt 中作为 tool-specific guidance。
+   * 与 description 分离：description 用于 tool schema（简短），prompt 用于 LLM 指导（详细）。
+   */
+  prompt?: string;
 
   /** 输入参数 schema（TypeBox） */
   parameters: TParameters;
