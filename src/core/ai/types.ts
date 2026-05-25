@@ -165,6 +165,8 @@ export interface ToolResultMessage<TDetails = any> {
 	isError: boolean;
 	/** 时间戳（毫秒） */
 	timestamp: number;
+	/** TUI 渲染数据（由上层消费时断言为 ToolRenderResult） */
+	renderData?: unknown;
 }
 
 export type Message = UserMessage | AssistantMessage | ToolResultMessage;
