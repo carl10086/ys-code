@@ -354,4 +354,35 @@ describe("MessageItem integration with Markdown", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("renders todo_list with task counts", () => {
+    const message: UIMessage = {
+      type: "tool_end",
+      toolName: "TodoWrite",
+      isError: false,
+      summary: "fallback",
+      timeMs: 123,
+      renderData: {
+        type: "todo_list",
+        oldTodos: [
+          { content: "A", status: "pending", activeForm: "A" },
+          { content: "B", status: "in_progress", activeForm: "B" },
+        ],
+        newTodos: [
+          { content: "A", status: "in_progress", activeForm: "A" },
+          { content: "B", status: "completed", activeForm: "B" },
+          { content: "C", status: "pending", activeForm: "C" },
+        ],
+      },
+    };
+
+    const { lastFrame } = render(<MessageItem message={message} />);
+    const frame = lastFrame()!;
+
+    expect(frame).toContain("TodoWrite");
+    expect(frame).toContain("3 tasks");
+    expect(frame).toContain("1 pending");
+    expect(frame).toContain("1 in progress");
+    expect(frame).toContain("1 completed");
+  });
 });

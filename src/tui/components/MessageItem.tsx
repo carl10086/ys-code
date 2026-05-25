@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import React from "react";
 import type { UIMessage } from "../types.js";
 import type { ToolRenderResult } from "../../agent/types.js";
+import type { TodoList } from "../../agent/todo/types.js";
 import { Markdown } from "./Markdown.js";
 import { DiffRenderer } from "./DiffRenderer.js";
 import { sanitizeTerminalText } from "../utils/sanitize-terminal-text.js";
@@ -100,6 +101,16 @@ export function MessageItem({ message }: MessageItemProps): React.ReactElement {
             </Box>
           );
         }
+        if (message.renderData.type === "todo_list") {
+          const summary = formatTodoListSummary(message.renderData.newTodos);
+          return (
+            <Box flexDirection="column">
+              <Text color={color}>
+                {status} {sanitizeTerminalText(message.toolName)} {"->"} {summary} {timeSec}s
+              </Text>
+            </Box>
+          );
+        }
       }
 
       return (
@@ -186,4 +197,20 @@ function formatArgValue(value: unknown): string {
     return String(value);
   }
   return raw.length > 80 ? `${raw.slice(0, 77)}...` : raw;
+}
+
+function formatTodoListSummary(todos: TodoList): string {
+  const total = todos.length;
+  const pending = todos.filter((t) => t.status === "pending").length;
+  const inProgress = todos.filter((t) => t.status === "in_progress").length;
+  const completed = todos.filter((t) => t.status === "completed").length;
+
+  const parts: string[] = [];
+  parts.push(`${total} ${plural(total, "task")}`);
+  if (pending > 0) parts.push(`${pending} pending`);
+  if (inProgress > 0) parts.push(`${inProgress} in progress`);
+  if (completed > 0) parts.push(`${completed} completed`);
+
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} (${parts.slice(1).join(", ")})`;
 }
