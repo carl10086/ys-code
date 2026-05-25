@@ -216,6 +216,31 @@ describe("executeToolCalls", () => {
     expect(endEvent.result.renderData).toEqual({ type: "plain", text: "rendered" });
   });
 
+  it("返回的 toolResults 包含 renderData", async () => {
+    const tool: AgentTool = {
+      name: "renderable",
+      description: "renderable",
+      parameters: Type.Object({}),
+      outputSchema: Type.Object({ text: Type.String() }),
+      label: "test",
+      execute: async () => ({ text: "done" }),
+      formatResult: (output) => [{ type: "text", text: (output as any).text }],
+      renderResult: () => ({ type: "plain", text: "rendered" }),
+    };
+
+    const context = createMockRuntime([tool]);
+    const assistantMessage = createMockAssistantMessage([
+      { type: "toolCall", id: "call-render", name: "renderable", arguments: {} },
+    ]);
+    const config: AgentLoopConfig = {} as any;
+    const emit = async () => {};
+
+    const { toolResults } = await executeToolCalls(context, assistantMessage, config, undefined, emit);
+
+    expect(toolResults).toHaveLength(1);
+    expect(toolResults[0].renderData).toEqual({ type: "plain", text: "rendered" });
+  });
+
   it("includes real Grep renderData in tool_execution_end events", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ys-grep-tool-execution-"));
     try {

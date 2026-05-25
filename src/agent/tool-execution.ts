@@ -56,6 +56,7 @@ async function emitToolCallOutcome(
     details: result.details,
     isError,
     timestamp: Date.now(),
+    renderData: result.renderData,
   };
 
   await emit({ type: "message_start", message: toolResultMessage });
