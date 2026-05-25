@@ -12,6 +12,7 @@ import * as outputEfficiency from "./sections/output-efficiency.js";
 import * as toneAndStyle from "./sections/tone-and-style.js";
 import * as summarizeToolResults from "./sections/summarize-tool-results.js";
 import * as sessionSpecificGuidance from "./sections/session-specific-guidance.js";
+import * as todoWritePrompt from "./sections/todo-write-prompt.js";
 
 /** 创建 static section（带缓存键） */
 function staticSection(name: string, compute: (context: SystemPromptContext) => Promise<string>): SystemPromptSection {
@@ -34,6 +35,7 @@ export const sections: SystemPromptSection[] = [
   staticSection("tone-and-style", toneAndStyle.compute),
   staticSection("summarize-tool-results", summarizeToolResults.compute),
   staticSection("session-specific-guidance", sessionSpecificGuidance.compute),
+  staticSection("todo-write-prompt", todoWritePrompt.compute),
 ];
 
 /** 构建 coding-agent 的 system prompt */
