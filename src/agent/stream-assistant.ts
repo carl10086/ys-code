@@ -12,7 +12,6 @@ import type {
   StreamFn,
   AgentMessage,
 } from "./types.js";
-import { getUserContext, prependUserContext } from "./context/user-context.js";
 import { normalizeMessages } from "./attachments/normalize.js";
 import { extractAtMentionedFiles, readAtMentionedFile } from "./attachments/at-mention.js";
 import type { Message } from "../core/ai/index.js";
@@ -187,13 +186,7 @@ export async function streamAssistantResponse(
   await saveAttachments(attachments, emit);
 
   // === 阶段 3: 构建 API Payload ===
-  let allMessages = [...runtime.messages, ...attachments] as Message[];
-
-  // 动态注入 userContext（不持久化）
-  if (!config.disableUserContext) {
-    const userContext = await getUserContext({ cwd: process.cwd() });
-    allMessages = prependUserContext(allMessages, userContext);
-  }
+  const allMessages = [...runtime.messages, ...attachments] as Message[];
 
   const llmMessages = await buildApiPayload(allMessages as AgentMessage[], config.convertToLlm);
 

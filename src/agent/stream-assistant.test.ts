@@ -36,7 +36,6 @@ function createMockConfig(overrides: Partial<AgentLoopConfig> = {}): AgentLoopCo
     },
     convertToLlm: (messages: any[]) => [...messages] as Message[],
     systemPrompt: asSystemPrompt(["test"]),
-    disableUserContext: true,
     ...overrides,
   } as AgentLoopConfig;
 }
@@ -284,68 +283,6 @@ describe("streamAssistantResponse userContext integration", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("默认应自动 prepend userContext 到 messages", async () => {
-    writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
-
-    const runtime = await createMockRuntime();
-    const config = createMockConfig({ disableUserContext: false });
-
-    let capturedMessages: Message[] | undefined;
-    const streamFn = async (_model: any, ctx: any) => {
-      capturedMessages = ctx.messages;
-      const stream = createAssistantMessageEventStream();
-      const final: AssistantMessage = {
-        role: "assistant",
-        content: [{ type: "text", text: "" }],
-        api: "anthropic-messages",
-        provider: "minimax",
-        model: "test-model",
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-        stopReason: "stop",
-        timestamp: Date.now(),
-      };
-      stream.end(final);
-      return stream;
-    };
-
-    await streamAssistantResponse(runtime, config, undefined, async () => {}, streamFn as any);
-
-    expect(capturedMessages).toBeDefined();
-    expect(capturedMessages!.length).toBeGreaterThan(0);
-    expect((capturedMessages![0] as any).role).toBe("user");
-    expect((capturedMessages![0] as any).content).toContain("<system-reminder>");
-  });
-
-  it("disableUserContext 为 true 时不应 prepend meta message", async () => {
-    writeFileSync(join(tempDir, "CLAUDE.md"), "# Test rules");
-
-    const runtime = await createMockRuntime();
-    const config = createMockConfig({ disableUserContext: true });
-
-    let capturedMessages: Message[] | undefined;
-    const streamFn = async (_model: any, ctx: any) => {
-      capturedMessages = ctx.messages;
-      const stream = createAssistantMessageEventStream();
-      const final: AssistantMessage = {
-        role: "assistant",
-        content: [{ type: "text", text: "" }],
-        api: "anthropic-messages",
-        provider: "minimax",
-        model: "test-model",
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-        stopReason: "stop",
-        timestamp: Date.now(),
-      };
-      stream.end(final);
-      return stream;
-    };
-
-    await streamAssistantResponse(runtime, config, undefined, async () => {}, streamFn as any);
-
-    expect(capturedMessages).toBeDefined();
-    expect(capturedMessages!.length).toBe(0);
-  });
-
   // 新增测试：验证 attachment → normalize → convertToLlm 链路
   it("convertToLlm 收到的消息应为 Message[]（无 attachment）", async () => {
     writeFileSync(join(tempDir, "CLAUDE.md"), "# Test");
@@ -354,7 +291,6 @@ describe("streamAssistantResponse userContext integration", () => {
 
     let receivedMessages: Message[] | undefined;
     const config = createMockConfig({
-      disableUserContext: false,
       convertToLlm: (messages: any[]) => {
         receivedMessages = messages as Message[];
         return messages as Message[];
@@ -526,7 +462,6 @@ describe("generateAttachments", () => {
     const config: AgentLoopConfig = {
       model: { name: "test", provider: "test" },
       convertToLlm: (m) => m as any,
-      disableUserContext: true,
     } as AgentLoopConfig;
 
     const attachments = await generateAttachments(messages, undefined, config);
