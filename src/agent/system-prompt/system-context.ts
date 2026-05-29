@@ -13,5 +13,5 @@ export function appendSystemContext(
     .map(([key, value]) => `${key}: ${value}`)
     .join("\n");
   if (!contextText) return [...systemPrompt];
-  return [...systemPrompt, contextText].filter(Boolean);
+  return [...systemPrompt, contextText];
 }
