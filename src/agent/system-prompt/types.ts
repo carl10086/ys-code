@@ -29,5 +29,14 @@ export interface SystemPromptSection {
   getCacheKey?: (context: SystemPromptContext) => string | undefined;
 }
 
+/** Cache scope 类型：global 跨 org 缓存，org org 级缓存，null 不缓存 */
+export type CacheScope = "global" | "org" | null;
+
+/** System prompt block，带 cache scope */
+export interface SystemPromptBlock {
+  text: string;
+  cacheScope: CacheScope;
+}
+
 /** 数组中用于分隔 static 与 dynamic sections 的边界标记 */
 export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY = "\n\n=== DYNAMIC SYSTEM PROMPT SECTIONS ===\n\n";

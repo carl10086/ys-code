@@ -15,6 +15,9 @@ import type { TodoList } from "./todo/types.js";
 import { getCommands } from "../commands/index.js";
 import type { SystemPromptContext } from "./system-prompt/types.js";
 import { buildCodingAgentSystemPrompt } from "./system-prompt/coding-agent.js";
+import { appendSystemContext } from "./system-prompt/system-context.js";
+import { clearSystemPromptCache } from "./system-prompt/systemPrompt.js";
+import { getUserContext } from "./context/user-context.js";
 import { SessionManager } from "../session/index.js";
 import { loadMcpServers } from "../mcp/index.js";
 import {
@@ -466,6 +469,7 @@ export class AgentSession {
   /** 重置会话 */
   reset(): void {
     logger.info("Session reset");
+    clearSystemPromptCache();
     this.agent.reset();
     this.todoStore.reset();
     this.clearTurnState();
@@ -497,9 +501,18 @@ export class AgentSession {
       model: this.agent.state.model,
     };
     const prompt = await this.systemPromptBuilder(context);
-    logger.debug("System prompt refreshed", { prompt });
-    this.agent.systemPrompt = async () => prompt;
-    this.currentSystemPromptText = prompt.join("\n\n");
+
+    // 获取 userContext 并追加到 system prompt
+    const userContext = await getUserContext({ cwd: this.cwd });
+    const contextRecord: Record<string, string> = {};
+    for (const [key, value] of Object.entries(userContext)) {
+      if (value) contextRecord[key] = value;
+    }
+    const fullPrompt = asSystemPrompt(appendSystemContext(prompt, contextRecord));
+
+    logger.debug("System prompt refreshed", { prompt: fullPrompt });
+    this.agent.systemPrompt = async () => fullPrompt;
+    this.currentSystemPromptText = fullPrompt.join("\n\n");
   }
 
   /** 获取当前 system prompt 文本 */

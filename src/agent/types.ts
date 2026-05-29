@@ -244,8 +244,6 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
   getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;   // 可选的自定义 API Key 获取函数
   getSteeringMessages?: () => Promise<AgentMessage[]>;   // 可选的引导消息获取函数
   toolExecution?: ToolExecutionMode;   // 工具执行模式（sequential/parallel）
-  /** 禁用自动 userContext prepend */
-  disableUserContext?: boolean;
   /** 文件状态缓存 */
   fileStateCache: FileStateCache;
 }
