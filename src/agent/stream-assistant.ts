@@ -214,7 +214,7 @@ export async function streamAssistantResponse(
     ...config,
     apiKey: resolvedApiKey,
     signal,
-    maxTokens: maxTokensOverride || config.model.maxTokens,
+    maxTokens: maxTokensOverride ?? config.model.maxTokens,
   });
 
   let partialMessage: AssistantMessage | null = null;

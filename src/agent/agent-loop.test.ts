@@ -44,6 +44,19 @@ function createAssistantMessage(text: string, toolCalls: any[] = [], stopReason:
   };
 }
 
+/** 创建 recovery 测试的通用依赖（config + events + emit） */
+function createRecoveryDeps() {
+  const input = createMockInput();
+  const config: AgentLoopConfig = {
+    model: createMockModel(),
+    convertToLlm: (m: any[]) => m as Message[],
+    systemPrompt: asSystemPrompt(["test"]),
+  } as any;
+  const events: AgentEvent[] = [];
+  const emit = async (e: AgentEvent) => { events.push(e); };
+  return { input, config, events, emit };
+}
+
 describe("runAgentLoop", () => {
   it("完整流程：用户消息 -> assistant 回复 -> 无工具 -> 正常结束", async () => {
     const input = createMockInput();
@@ -476,16 +489,34 @@ describe("runAgentLoopContinue", () => {
     expect(capturedContext).toBeDefined();
   });
 
-  it("stopReason 为 length 时触发 escalate（同请求提升 maxTokens）", async () => {
-    const input = createMockInput();
-    const config: AgentLoopConfig = {
-      model: createMockModel(),
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
+  it("runAgentLoopContinue 中 stopReason 为 length 时触发 escalate", async () => {
+    const messages = [createUserMessage("hello")];
+    const { input, config, events, emit } = createRecoveryDeps();
 
-    const events: AgentEvent[] = [];
-    const emit = async (e: AgentEvent) => { events.push(e); };
+    let callCount = 0;
+    const streamFn = async (_model: any, _ctx: any, options: any) => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      if (callCount === 1) {
+        expect(options.maxTokens).toBe(100);
+        stream.end(createAssistantMessage("truncated", [], "length"));
+      } else {
+        expect(options.maxTokens).toBe(64000);
+        stream.end(createAssistantMessage("completed", [], "stop"));
+      }
+      return stream;
+    };
+
+    await runAgentLoopContinue(messages, input, config, emit, undefined, streamFn as any);
+
+    expect(callCount).toBe(2);
+    const agentEnds = events.filter(e => e.type === "agent_end");
+    expect(agentEnds).toHaveLength(1);
+  });
+
+  it("stopReason 为 length 时触发 escalate（同请求提升 maxTokens）", async () => {
+    const { input, config, events, emit } = createRecoveryDeps();
 
     let callCount = 0;
     const streamFn = async (_model: any, _ctx: any, options: any) => {
@@ -512,15 +543,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("escalate 后仍为 length 时触发 recovery（注入续写消息）", async () => {
-    const input = createMockInput();
-    const config: AgentLoopConfig = {
-      model: createMockModel(),
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    const events: AgentEvent[] = [];
-    const emit = async (e: AgentEvent) => { events.push(e); };
+    const { input, config, events, emit } = createRecoveryDeps();
 
     let callCount = 0;
     const streamFn = async (_model: any, _ctx: any, options: any) => {
@@ -557,15 +580,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("recovery 3 次后仍 length 则终止 loop", async () => {
-    const input = createMockInput();
-    const config: AgentLoopConfig = {
-      model: createMockModel(),
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    const events: AgentEvent[] = [];
-    const emit = async (e: AgentEvent) => { events.push(e); };
+    const { input, config, events, emit } = createRecoveryDeps();
 
     let callCount = 0;
     const streamFn = async () => {
@@ -585,15 +600,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("escalate 时 messages 数组不追加 recovery message", async () => {
-    const input = createMockInput();
-    const config: AgentLoopConfig = {
-      model: createMockModel(),
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
-    const events: AgentEvent[] = [];
-    const emit = async (e: AgentEvent) => { events.push(e); };
+    const { input, config, events, emit } = createRecoveryDeps();
 
     let callCount = 0;
     const streamFn = async () => {
@@ -620,13 +627,7 @@ describe("runAgentLoopContinue", () => {
   });
 
   it("recovery 后 maxOutputTokensOverride 重置为 undefined", async () => {
-    const input = createMockInput();
-    const config: AgentLoopConfig = {
-      model: createMockModel(),
-      convertToLlm: (m: any[]) => m as Message[],
-      systemPrompt: asSystemPrompt(["test"]),
-    } as any;
-
+    const { input, config } = createRecoveryDeps();
     const emit = async () => {};
 
     let callCount = 0;
