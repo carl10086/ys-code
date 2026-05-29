@@ -476,6 +476,181 @@ describe("runAgentLoopContinue", () => {
     expect(capturedContext).toBeDefined();
   });
 
+  it("stopReason 为 length 时触发 escalate（同请求提升 maxTokens）", async () => {
+    const input = createMockInput();
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let callCount = 0;
+    const streamFn = async (_model: any, _ctx: any, options: any) => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      if (callCount === 1) {
+        // 第一次：无 override，使用 model 默认值（100）
+        expect(options.maxTokens).toBe(100);
+        stream.end(createAssistantMessage("truncated", [], "length"));
+      } else {
+        // 第二次：escalate 后，返回正常 stop
+        expect(options.maxTokens).toBe(64000);
+        stream.end(createAssistantMessage("completed", [], "stop"));
+      }
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+
+    expect(callCount).toBe(2);
+    const agentEnds = events.filter(e => e.type === "agent_end");
+    expect(agentEnds).toHaveLength(1);
+  });
+
+  it("escalate 后仍为 length 时触发 recovery（注入续写消息）", async () => {
+    const input = createMockInput();
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let callCount = 0;
+    const streamFn = async (_model: any, _ctx: any, options: any) => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      if (callCount === 1) {
+        // 第一次：无 override，使用 model 默认值
+        expect(options.maxTokens).toBe(100);
+        stream.end(createAssistantMessage("truncated", [], "length"));
+      } else if (callCount === 2) {
+        // 第二次：escalate 后仍为 length
+        expect(options.maxTokens).toBe(64000);
+        stream.end(createAssistantMessage("still-truncated", [], "length"));
+      } else {
+        // 第三次：recovery 后成功，使用 model 默认值
+        expect(options.maxTokens).toBe(100);
+        stream.end(createAssistantMessage("completed", [], "stop"));
+      }
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+
+    expect(callCount).toBe(3);
+
+    // 验证 recovery message 被注入（isMeta: true）
+    const recoveryMsgStart = events.find((e: any) =>
+      e.type === "message_start" &&
+      e.message.role === "user" &&
+      e.message.isMeta === true
+    );
+    expect(recoveryMsgStart).toBeDefined();
+  });
+
+  it("recovery 3 次后仍 length 则终止 loop", async () => {
+    const input = createMockInput();
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let callCount = 0;
+    const streamFn = async () => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      // 始终返回 length（escalate 1 次 + recovery 3 次 = 5 次调用）
+      stream.end(createAssistantMessage("truncated", [], "length"));
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+
+    expect(callCount).toBe(5); // 1 original + 1 escalate + 3 recovery
+    const agentEnds = events.filter(e => e.type === "agent_end");
+    expect(agentEnds).toHaveLength(1);
+  });
+
+  it("escalate 时 messages 数组不追加 recovery message", async () => {
+    const input = createMockInput();
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const events: AgentEvent[] = [];
+    const emit = async (e: AgentEvent) => { events.push(e); };
+
+    let callCount = 0;
+    const streamFn = async () => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      if (callCount === 1) {
+        stream.end(createAssistantMessage("truncated", [], "length"));
+      } else {
+        stream.end(createAssistantMessage("completed", [], "stop"));
+      }
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+
+    // escalate 路径中不应有 recovery message（isMeta=true 的 user message）
+    const recoveryMessages = events.filter((e: any) =>
+      e.type === "message_start" &&
+      e.message.role === "user" &&
+      e.message.isMeta === true
+    );
+    expect(recoveryMessages).toHaveLength(0);
+  });
+
+  it("recovery 后 maxOutputTokensOverride 重置为 undefined", async () => {
+    const input = createMockInput();
+    const config: AgentLoopConfig = {
+      model: createMockModel(),
+      convertToLlm: (m: any[]) => m as Message[],
+      systemPrompt: asSystemPrompt(["test"]),
+    } as any;
+
+    const emit = async () => {};
+
+    let callCount = 0;
+    const streamFn = async (_model: any, _ctx: any, options: any) => {
+      callCount++;
+      const { createAssistantMessageEventStream } = await import("../core/ai/utils/event-stream.js");
+      const stream = createAssistantMessageEventStream();
+      if (callCount === 1) {
+        stream.end(createAssistantMessage("t1", [], "length"));
+      } else if (callCount === 2) {
+        // escalate: 应有 override
+        stream.end(createAssistantMessage("t2", [], "length"));
+      } else if (callCount === 3) {
+        // recovery 1: override 已重置，使用 model 默认值
+        expect(options.maxTokens).toBe(100);
+        stream.end(createAssistantMessage("t3", [], "stop"));
+      }
+      return stream;
+    };
+
+    await runAgentLoop([], [createUserMessage("hello")], input, config, emit, undefined, streamFn as any);
+    expect(callCount).toBe(3);
+  });
+
   it("streamAssistantResponse 抛出异常时错误向上传播", async () => {
     const messages = [createUserMessage("hello")];
     const input = createMockInput();

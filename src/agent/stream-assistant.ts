@@ -177,6 +177,7 @@ export async function streamAssistantResponse(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
+  maxTokensOverride?: number,
 ): Promise<AssistantMessage> {
   // === 阶段 1: 生成 Attachments ===
   const attachments = await generateAttachments(runtime.messages, runtime.sentSkillNames, config, signal);
@@ -213,6 +214,7 @@ export async function streamAssistantResponse(
     ...config,
     apiKey: resolvedApiKey,
     signal,
+    maxTokens: maxTokensOverride || config.model.maxTokens,
   });
 
   let partialMessage: AssistantMessage | null = null;
