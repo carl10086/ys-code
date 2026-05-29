@@ -12,6 +12,15 @@ import type {
   StreamFn,
 } from "./types.js";
 
+/** Escalate 时的 max output tokens 上限 */
+const ESCALATED_MAX_OUTPUT_TOKENS = 64000;
+/** Recovery 最大重试次数 */
+const MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3;
+/** Recovery 时注入的 meta message 内容 */
+const RECOVERY_MESSAGE_CONTENT =
+  "Output token limit hit. Resume directly — no apology, no recap of what you were doing. " +
+  "Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces.";
+
 interface LoopState {
   messages: AgentMessage[];
   tools: AgentTool<any, any>[] | undefined;
@@ -20,6 +29,10 @@ interface LoopState {
   pendingToolNewMessages: AgentMessage[];
   pendingSteering: AgentMessage[];
   turnCount: number;
+  /** max_output_tokens override（escalate 时使用） */
+  maxOutputTokensOverride?: number;
+  /** 已尝试 recovery 次数 */
+  maxOutputTokensRecoveryCount: number;
 }
 
 function isValidNewMessage(message: unknown): message is AgentMessage {
@@ -50,6 +63,63 @@ function validateNewMessages(messages: unknown[]): AgentMessage[] {
     }
   }
   return valid;
+}
+
+/** 从 LoopState 构建 AgentRuntime（供 stream/execute 使用） */
+function buildRuntime(state: LoopState, messages: AgentMessage[]): AgentRuntime {
+  return {
+    messages,
+    tools: state.tools,
+    sentSkillNames: state.sentSkillNames,
+    invokedSkills: state.invokedSkills,
+  };
+}
+
+/** 处理 stopReason === "length" 的恢复逻辑
+ * 返回 { shouldContinue: true } 表示 loop 应继续（escalate/recovery）
+ * 返回 { shouldContinue: false } 表示 recovery 耗尽，loop 已终止
+ */
+async function handleLengthRecovery(
+  state: LoopState,
+  messages: AgentMessage[],
+  emit: AgentEventSink,
+): Promise<{ state: LoopState; shouldContinue: boolean }> {
+  // Phase 1: Escalate — 仅首次 hit limit 时同请求提升上限重发
+  if (state.maxOutputTokensOverride === undefined && state.maxOutputTokensRecoveryCount === 0) {
+    return {
+      state: { ...state, maxOutputTokensOverride: ESCALATED_MAX_OUTPUT_TOKENS },
+      shouldContinue: true,
+    };
+  }
+
+  // Phase 2: Recovery — 注入续写指令
+  if (state.maxOutputTokensRecoveryCount < MAX_OUTPUT_TOKENS_RECOVERY_LIMIT) {
+    const recoveryMessage: AgentMessage = {
+      role: "user",
+      content: [{ type: "text", text: RECOVERY_MESSAGE_CONTENT }],
+      timestamp: Date.now(),
+      isMeta: true,
+    };
+    // 发射 recovery message 事件（isMeta=true 使 UI 隐藏，但 LLM 可见）
+    await emit({ type: "message_start", message: recoveryMessage });
+    await emit({ type: "message_end", message: recoveryMessage });
+    return {
+      state: {
+        ...state,
+        messages: [...messages, recoveryMessage],
+        maxOutputTokensOverride: undefined,
+        maxOutputTokensRecoveryCount: state.maxOutputTokensRecoveryCount + 1,
+        pendingToolNewMessages: [],
+        pendingSteering: [],
+      },
+      shouldContinue: true,
+    };
+  }
+
+  // Phase 3: Recovery 耗尽 — 优雅终止
+  logger.warn("max_output_tokens recovery exhausted", { recoveryCount: state.maxOutputTokensRecoveryCount });
+  await emit({ type: "agent_end" });
+  return { state, shouldContinue: false };
 }
 
 async function runLoop(
@@ -85,11 +155,12 @@ async function runLoop(
     // 5. 请求 assistant 回复（核心工作）
     // streamAssistantResponse 不再修改 messages，由 loop 显式控制状态更新
     const assistantMessage = await streamAssistantResponse(
-      { messages, tools, sentSkillNames: state.sentSkillNames, invokedSkills: state.invokedSkills },
+      buildRuntime(state, messages),
       config,
       signal,
       emit,
       streamFn,
+      state.maxOutputTokensOverride,
     );
     messages.push(assistantMessage);
 
@@ -98,7 +169,7 @@ async function runLoop(
     let toolResults: ToolResultMessage[] = [];
     if (toolCalls.length > 0) {
       const execution = await executeToolCalls(
-        { messages, tools, sentSkillNames: state.sentSkillNames, invokedSkills: state.invokedSkills },
+        buildRuntime(state, messages),
         assistantMessage,
         config,
         signal,
@@ -117,6 +188,16 @@ async function runLoop(
     // 8. 错误/中止检查
     if (assistantMessage.stopReason === "error" || assistantMessage.stopReason === "aborted") {
       await emit({ type: "agent_end" });
+      return;
+    }
+
+    // 8b. max_output_tokens 恢复检测
+    if (assistantMessage.stopReason === "length") {
+      const result = await handleLengthRecovery(state, messages, emit);
+      if (result.shouldContinue) {
+        state = result.state;
+        continue;
+      }
       return;
     }
 
@@ -140,6 +221,8 @@ async function runLoop(
       pendingToolNewMessages,
       pendingSteering: nextSteering,
       turnCount: turnCount + 1,
+      maxOutputTokensOverride: state.maxOutputTokensOverride,
+      maxOutputTokensRecoveryCount: state.maxOutputTokensRecoveryCount,
     };
   }
 }
@@ -167,6 +250,7 @@ export async function runAgentLoop(
     pendingToolNewMessages: [],
     pendingSteering: [],
     turnCount: 0,
+    maxOutputTokensRecoveryCount: 0,
   };
 
   await emit({ type: "agent_start" });
@@ -208,6 +292,7 @@ export async function runAgentLoopContinue(
     pendingToolNewMessages: [],
     pendingSteering: [],
     turnCount: 0,
+    maxOutputTokensRecoveryCount: 0,
   };
 
   await emit({ type: "agent_start" });
