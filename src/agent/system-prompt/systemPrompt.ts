@@ -19,6 +19,8 @@ interface CacheEntry {
 /** 全局共享缓存 */
 const globalCache = new Map<string, CacheEntry>();
 
+let nextBuilderId = 0;
+
 /** 清除 system prompt section 缓存 */
 export function clearSystemPromptCache(): void {
   globalCache.clear();
@@ -28,13 +30,16 @@ export function clearSystemPromptCache(): void {
 export function createSystemPromptBuilder(
   sections: SystemPromptSection[],
 ): (context: SystemPromptContext) => Promise<SystemPrompt> {
+  const builderId = `builder-${nextBuilderId++}`;
+
   return async (context: SystemPromptContext): Promise<SystemPrompt> => {
     const staticValues: string[] = [];
     for (const section of sections) {
       if (!section.getCacheKey) continue;
       const cacheKey = section.getCacheKey(context);
+      const cacheName = `${builderId}:${section.name}`;
       if (cacheKey !== undefined) {
-        const hit = globalCache.get(section.name);
+        const hit = globalCache.get(cacheName);
         if (hit && hit.cacheKey === cacheKey) {
           staticValues.push(hit.value);
           continue;
@@ -43,7 +48,7 @@ export function createSystemPromptBuilder(
       try {
         const value = await section.compute(context);
         if (cacheKey !== undefined) {
-          globalCache.set(section.name, { cacheKey, value });
+          globalCache.set(cacheName, { cacheKey, value });
         }
         staticValues.push(value);
       } catch (err) {

@@ -16,6 +16,6 @@ export const compute: SectionCompute = async () => {
     "- Avoid backwards-compatibility hacks like renaming unused _vars, re-exporting types, adding // removed comments for removed code, etc. If you are certain that something is unused, you can delete it completely.",
     "- If the user asks for help or wants to give feedback inform them of the following:",
     "  - /help: Get help with using Claude Code",
-    "  - To give feedback, users should report the issue at https://github.com/anthropics/claude-code/issues",
+    "  - To give feedback, users should report the issue at https://github.com/carl10086/ys-code/issues",
   ].join("\n");
 };

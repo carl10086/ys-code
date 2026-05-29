@@ -505,9 +505,9 @@ export class AgentSession {
     // 获取 userContext 并追加到 system prompt
     const userContext = await getUserContext({ cwd: this.cwd });
     const contextRecord: Record<string, string> = {};
-    if (userContext.currentDate) contextRecord.currentDate = userContext.currentDate;
-    if (userContext.claudeMd) contextRecord.claudeMd = userContext.claudeMd;
-    if (userContext.gitBranch) contextRecord.gitBranch = userContext.gitBranch;
+    for (const [key, value] of Object.entries(userContext)) {
+      if (value) contextRecord[key] = value;
+    }
     const fullPrompt = asSystemPrompt(appendSystemContext(prompt, contextRecord));
 
     logger.debug("System prompt refreshed", { prompt: fullPrompt });

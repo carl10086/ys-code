@@ -1,17 +1,19 @@
-import { existsSync } from "node:fs";
 import { type as osType, release as osRelease } from "node:os";
+import { gitBranchProvider } from "../../../utils/git-branch-provider.js";
 import type { SectionCompute } from "../types.js";
+
+function getShellName(shell: string): string {
+  if (shell.includes("zsh")) return "zsh";
+  if (shell.includes("bash")) return "bash";
+  return shell;
+}
 
 export const compute: SectionCompute = async (context) => {
   const cwd = context.cwd;
-  const isGit = existsSync(`${cwd}/.git`) || existsSync(`${cwd}/../.git`);
+  const isGit = gitBranchProvider.getBranch() !== null;
 
   const shell = process.env.SHELL || "unknown";
-  const shellName = shell.includes("zsh")
-    ? "zsh"
-    : shell.includes("bash")
-      ? "bash"
-      : shell;
+  const shellName = getShellName(shell);
 
   const envItems = [
     `Primary working directory: ${cwd}`,
