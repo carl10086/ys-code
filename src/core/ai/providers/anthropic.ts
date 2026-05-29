@@ -394,7 +394,7 @@ function createClient(
 	});
 }
 
-function buildSystemBlocks(
+export function buildSystemBlocks(
 	sections: readonly string[],
 	cacheControl?: { type: "ephemeral"; ttl?: "1h" },
 ): Anthropic.Messages.TextBlockParam[] {
