@@ -57,6 +57,7 @@ describe("TodoWriteTool", () => {
 
     expect(output.newTodos).toEqual(todos);
     expect(output.oldTodos).toEqual([]);
+    expect(output.verificationNudgeNeeded).toBe(false);
     expect(store.get()).toEqual(todos);
   });
 
@@ -70,6 +71,7 @@ describe("TodoWriteTool", () => {
 
     expect(output.oldTodos).toEqual([item("A", "pending")]);
     expect(output.newTodos).toEqual([item("B", "in_progress")]);
+    expect(output.verificationNudgeNeeded).toBe(false);
   });
 
   it("execute 在全 completed 时，store 内部清空但返回值保留原始提交", async () => {
@@ -81,6 +83,7 @@ describe("TodoWriteTool", () => {
     );
 
     expect(output.newTodos).toEqual(submitted);
+    expect(output.verificationNudgeNeeded).toBe(false);
     expect(store.get()).toEqual([]);
   });
 
@@ -102,6 +105,7 @@ describe("TodoWriteTool", () => {
     const output = {
       oldTodos: [item("A", "pending")],
       newTodos: [item("B", "in_progress")],
+      verificationNudgeNeeded: false,
     };
     const rendered = tool.renderResult!(output, "call-1");
     expect(rendered).toEqual({
@@ -109,5 +113,47 @@ describe("TodoWriteTool", () => {
       oldTodos: output.oldTodos,
       newTodos: output.newTodos,
     });
+  });
+
+  it("execute 在 3+ completed 且无 verification step 时触发 nudge", async () => {
+    const submitted = [item("A", "completed"), item("B", "completed"), item("C", "completed")];
+    const output = await tool.execute(
+      "call-nudge",
+      { todos: submitted },
+      { abortSignal: new AbortController().signal } as any,
+    );
+
+    expect(output.verificationNudgeNeeded).toBe(true);
+    const result = tool.formatResult!(output, "call-nudge");
+    expect(Array.isArray(result)).toBe(true);
+    expect(result[0].text).toContain("NOTE: You just closed out 3+ tasks");
+  });
+
+  it("execute 在包含 verification step 时不触发 nudge", async () => {
+    const submitted = [
+      item("A", "completed"),
+      item("B", "completed"),
+      item("Verify C", "completed"),
+    ];
+    const output = await tool.execute(
+      "call-no-nudge",
+      { todos: submitted },
+      { abortSignal: new AbortController().signal } as any,
+    );
+
+    expect(output.verificationNudgeNeeded).toBe(false);
+    const result = tool.formatResult!(output, "call-no-nudge");
+    expect(result[0].text).not.toContain("NOTE: You just closed out 3+ tasks");
+  });
+
+  it("execute 在 < 3 completed 时不触发 nudge", async () => {
+    const submitted = [item("A", "completed"), item("B", "completed")];
+    const output = await tool.execute(
+      "call-two-done",
+      { todos: submitted },
+      { abortSignal: new AbortController().signal } as any,
+    );
+
+    expect(output.verificationNudgeNeeded).toBe(false);
   });
 });

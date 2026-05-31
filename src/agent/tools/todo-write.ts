@@ -11,6 +11,7 @@ const inputSchema = Type.Object({
 const outputSchema = Type.Object({
   oldTodos: Type.Array(TodoItemSchema, { description: "The todo list before the update" }),
   newTodos: Type.Array(TodoItemSchema, { description: "The todo list after the update" }),
+  verificationNudgeNeeded: Type.Boolean({ default: false, description: "Whether a verification nudge should be appended to the result" }),
 });
 
 type TodoWriteOutput = Static<typeof outputSchema>;
@@ -213,9 +214,18 @@ export function createTodoWriteTool(store: TodoStore): AgentTool<typeof inputSch
     isDestructive: false,
     async execute(_toolCallId, params, _context) {
       const { oldTodos, newTodos } = store.set(params.todos as TodoList);
-      return { oldTodos, newTodos };
+      const allDone = params.todos.length > 0 && params.todos.every((t) => t.status === "completed");
+      const verificationNudgeNeeded =
+        allDone && params.todos.length >= 3 && !params.todos.some((t) => /verif/i.test(t.content));
+      return { oldTodos, newTodos, verificationNudgeNeeded };
     },
-    formatResult: () => [{ type: "text", text: FIXED_RESULT_TEXT }],
+    formatResult: (output) => {
+      const base = FIXED_RESULT_TEXT;
+      const nudge = output.verificationNudgeNeeded
+        ? "\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, verify your work independently — you cannot self-assign PARTIAL by listing caveats in your summary."
+        : "";
+      return [{ type: "text", text: base + nudge }];
+    },
     renderResult: (output): ToolRenderResult => ({
       type: "todo_list",
       oldTodos: output.oldTodos,
