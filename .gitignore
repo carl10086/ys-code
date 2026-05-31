@@ -14,3 +14,4 @@ ys-code.log
 .worktrees/
 .claude/worktrees/
 debug-context.json
+/.codegraph

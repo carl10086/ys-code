@@ -11,12 +11,16 @@ const inputSchema = Type.Object({
 const outputSchema = Type.Object({
   oldTodos: Type.Array(TodoItemSchema, { description: "The todo list before the update" }),
   newTodos: Type.Array(TodoItemSchema, { description: "The todo list after the update" }),
+  verificationNudgeNeeded: Type.Boolean({ default: false, description: "Whether a verification nudge should be appended to the result" }),
 });
 
 type TodoWriteOutput = Static<typeof outputSchema>;
 
 const FIXED_RESULT_TEXT =
   "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable";
+
+const VERIFICATION_NUDGE_TEXT =
+  "\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, verify your work independently — you cannot self-assign PARTIAL by listing caveats in your summary.";
 
 export const TODO_WRITE_DESCRIPTION = "TodoWrite: create and manage a structured task list for your current coding session.";
 
@@ -213,9 +217,21 @@ export function createTodoWriteTool(store: TodoStore): AgentTool<typeof inputSch
     isDestructive: false,
     async execute(_toolCallId, params, _context) {
       const { oldTodos, newTodos } = store.set(params.todos as TodoList);
-      return { oldTodos, newTodos };
+      if (params.todos.length < 3) {
+        return { oldTodos, newTodos, verificationNudgeNeeded: false };
+      }
+      let allDone = true;
+      let hasVerif = false;
+      for (const t of params.todos) {
+        if (t.status !== "completed") allDone = false;
+        if (/verif/i.test(t.content)) hasVerif = true;
+      }
+      return { oldTodos, newTodos, verificationNudgeNeeded: allDone && !hasVerif };
     },
-    formatResult: () => [{ type: "text", text: FIXED_RESULT_TEXT }],
+    formatResult: (output, _toolCallId) => {
+      const nudge = output.verificationNudgeNeeded ? VERIFICATION_NUDGE_TEXT : "";
+      return [{ type: "text", text: FIXED_RESULT_TEXT + nudge }];
+    },
     renderResult: (output): ToolRenderResult => ({
       type: "todo_list",
       oldTodos: output.oldTodos,
