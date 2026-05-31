@@ -19,6 +19,9 @@ type TodoWriteOutput = Static<typeof outputSchema>;
 const FIXED_RESULT_TEXT =
   "Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable";
 
+const VERIFICATION_NUDGE_TEXT =
+  "\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, verify your work independently — you cannot self-assign PARTIAL by listing caveats in your summary.";
+
 export const TODO_WRITE_DESCRIPTION = "TodoWrite: create and manage a structured task list for your current coding session.";
 
 export const TODO_WRITE_PROMPT = `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
@@ -214,21 +217,20 @@ export function createTodoWriteTool(store: TodoStore): AgentTool<typeof inputSch
     isDestructive: false,
     async execute(_toolCallId, params, _context) {
       const { oldTodos, newTodos } = store.set(params.todos as TodoList);
-      let allDone = params.todos.length > 0;
+      if (params.todos.length < 3) {
+        return { oldTodos, newTodos, verificationNudgeNeeded: false };
+      }
+      let allDone = true;
       let hasVerif = false;
       for (const t of params.todos) {
         if (t.status !== "completed") allDone = false;
         if (/verif/i.test(t.content)) hasVerif = true;
       }
-      const verificationNudgeNeeded = allDone && params.todos.length >= 3 && !hasVerif;
-      return { oldTodos, newTodos, verificationNudgeNeeded };
+      return { oldTodos, newTodos, verificationNudgeNeeded: allDone && !hasVerif };
     },
     formatResult: (output, _toolCallId) => {
-      const base = FIXED_RESULT_TEXT;
-      const nudge = output.verificationNudgeNeeded
-        ? "\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, verify your work independently — you cannot self-assign PARTIAL by listing caveats in your summary."
-        : "";
-      return [{ type: "text", text: base + nudge }];
+      const nudge = output.verificationNudgeNeeded ? VERIFICATION_NUDGE_TEXT : "";
+      return [{ type: "text", text: FIXED_RESULT_TEXT + nudge }];
     },
     renderResult: (output): ToolRenderResult => ({
       type: "todo_list",
