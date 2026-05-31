@@ -16,28 +16,28 @@ describe("TodoPanel", () => {
     expect(lastFrame()).toBe("");
   });
 
-  it("渲染 pending 项使用 ☐ + content", () => {
+  it("渲染 pending 项使用 ○ + content + 编号", () => {
     const { lastFrame } = render(<TodoPanel todos={[item("Run tests", "pending")]} />);
     const frame = lastFrame()!;
-    expect(frame).toContain("☐");
-    expect(frame).toContain("Run tests");
+    expect(frame).toContain("○");
+    expect(frame).toContain("1. Run tests");
   });
 
-  it("渲染 in_progress 项使用 ◐ + activeForm", () => {
+  it("渲染 in_progress 项使用 ◐ + activeForm + 编号", () => {
     const { lastFrame } = render(
       <TodoPanel todos={[item("Run tests", "in_progress", "Running tests")]} />,
     );
     const frame = lastFrame()!;
     expect(frame).toContain("◐");
-    expect(frame).toContain("Running tests");
+    expect(frame).toContain("1. Running tests");
     expect(frame).not.toContain("Run tests"); // 仅显示 activeForm
   });
 
-  it("渲染 completed 项使用 ☑ + content", () => {
+  it("渲染 completed 项使用 ● + content + 编号", () => {
     const { lastFrame } = render(<TodoPanel todos={[item("Run tests", "completed")]} />);
     const frame = lastFrame()!;
-    expect(frame).toContain("☑");
-    expect(frame).toContain("Run tests");
+    expect(frame).toContain("●");
+    expect(frame).toContain("1. Run tests");
   });
 
   it("title 显示 completed/total 进度", () => {
@@ -54,6 +54,22 @@ describe("TodoPanel", () => {
     expect(frame).toMatch(/Tasks.*1\/3/);
   });
 
+  it("显示 ASCII 进度条", () => {
+    const { lastFrame } = render(
+      <TodoPanel
+        todos={[
+          item("A", "completed"),
+          item("B", "completed"),
+          item("C", "pending"),
+        ]}
+      />,
+    );
+    const frame = lastFrame()!;
+    expect(frame).toContain("[");
+    expect(frame).toContain("]");
+    expect(frame).toContain("67%");
+  });
+
   it("混合状态全部渲染", () => {
     const { lastFrame } = render(
       <TodoPanel
@@ -65,11 +81,11 @@ describe("TodoPanel", () => {
       />,
     );
     const frame = lastFrame()!;
-    expect(frame).toContain("☑");
+    expect(frame).toContain("●");
     expect(frame).toContain("◐");
-    expect(frame).toContain("☐");
-    expect(frame).toContain("A");
-    expect(frame).toContain("Doing B");
-    expect(frame).toContain("C");
+    expect(frame).toContain("○");
+    expect(frame).toContain("1. A");
+    expect(frame).toContain("2. Doing B");
+    expect(frame).toContain("3. C");
   });
 });
