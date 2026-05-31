@@ -86,6 +86,8 @@ export interface ToolUseContext {
   model?: Model<any>;
   /** 文件状态缓存 */
   fileStateCache: FileStateCache;
+  /** 当前嵌套深度（用于子代理深度限制） */
+  depth?: number;
 }
 
 /** 工具定义 */

@@ -27,7 +27,7 @@ export function createSubagent(parentAgent: Agent, depth: number): Agent {
     initialState: {
       model: parentState.model,
       thinkingLevel: parentState.thinkingLevel,
-      tools: parentState.tools,
+      tools: parentState.tools.filter((t) => t.name !== "Agent"),
       messages: [],
       invokedSkills: parentState.invokedSkills,
       sentSkillNames: parentState.sentSkillNames,

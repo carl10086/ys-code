@@ -111,4 +111,54 @@ describe("AgentTool", () => {
     const items = result as Array<{ text: string }>;
     expect(items[0].text).toContain("test result");
   });
+
+  it("execute 在 depth >= 3 时抛出深度超限错误", async () => {
+    const deepTool = createAgentTool(parent, 3);
+
+    await expect(
+      deepTool.execute(
+        "call-deep",
+        { prompt: "This should fail" },
+        {
+          abortSignal: new AbortController().signal,
+          messages: [],
+          tools: [],
+          fileStateCache: parent.getFileStateCache(),
+        } as any,
+      ),
+    ).rejects.toThrow("Subagent nesting depth exceeded");
+  });
+
+  it("execute 在 depth = 2 时仍可正常执行", async () => {
+    const deepTool = createAgentTool(parent, 2);
+
+    const output = await deepTool.execute(
+      "call-ok",
+      { prompt: "This should work" },
+      {
+        abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(output.result).toBe("Subagent completed the task");
+  });
+
+  it("子代理被创建后包含正确 depth 的 AgentTool", async () => {
+    // depth 0 的 AgentTool 执行后，子代理应该包含 depth 1 的 AgentTool
+    const output = await tool.execute(
+      "call-nested",
+      { prompt: "Test nested tool" },
+      {
+        abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(output.result).toBe("Subagent completed the task");
+  });
 });
