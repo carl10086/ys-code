@@ -112,6 +112,23 @@ describe("AgentTool", () => {
     expect(items[0].text).toContain("test result");
   });
 
+  it("execute 在 depth = 0 时正常执行（默认边界）", async () => {
+    const rootTool = createAgentTool(parent, 0);
+
+    const output = await rootTool.execute(
+      "call-root",
+      { prompt: "This should work" },
+      {
+        abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(output.result).toBe("Subagent completed the task");
+  });
+
   it("execute 在 depth >= 3 时抛出深度超限错误", async () => {
     const deepTool = createAgentTool(parent, 3);
 

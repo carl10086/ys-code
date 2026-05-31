@@ -19,7 +19,7 @@ describe("createSubagent", () => {
     const parent = new Agent();
     parent.appendMessage({ role: "user", content: [{ type: "text", text: "hello" }], timestamp: Date.now() });
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.state.messages).toEqual([]);
   });
@@ -29,14 +29,14 @@ describe("createSubagent", () => {
     const tool = createMockTool("Read");
     parent.registerTool(tool);
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.state.tools).toEqual([tool]);
   });
 
   it("子代理的 fileStateCache 与父代理不是同一实例", () => {
     const parent = new Agent();
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.getFileStateCache()).not.toBe(parent.getFileStateCache());
   });
@@ -46,7 +46,7 @@ describe("createSubagent", () => {
     const unsubscribe = parent.subscribe(() => {});
     expect(parent.state).toBeDefined();
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     // child 没有 listener，所以 processEvents 不会被外部触发
     // 我们通过检查 child 是否能独立运行来间接验证
@@ -56,7 +56,7 @@ describe("createSubagent", () => {
 
   it("子代理的 sessionId 与父代理不同", () => {
     const parent = new Agent({ sessionId: "parent-session" });
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.sessionId).not.toBe("parent-session");
     expect(child.sessionId).toBeDefined();
@@ -66,7 +66,7 @@ describe("createSubagent", () => {
     const customPrompt = async () => [] as any;
     const parent = new Agent({ systemPrompt: customPrompt as any });
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.systemPrompt).toBe(customPrompt);
   });
@@ -75,7 +75,7 @@ describe("createSubagent", () => {
     const customStreamFn = () => ({}) as any;
     const parent = new Agent({ streamFn: customStreamFn as any });
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.streamFn).toBe(customStreamFn);
   });
@@ -84,7 +84,7 @@ describe("createSubagent", () => {
     const customConvert = (msgs: any[]) => msgs;
     const parent = new Agent({ convertToLlm: customConvert });
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.convertToLlm).toBe(customConvert);
   });
@@ -104,7 +104,7 @@ describe("createSubagent", () => {
     } as any;
     const parent = new Agent({ initialState: { model: customModel } });
 
-    const child = createSubagent(parent, 0);
+    const child = createSubagent(parent);
 
     expect(child.state.model.id).toBe("custom-model");
   });

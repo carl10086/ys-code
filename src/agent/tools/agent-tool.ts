@@ -24,6 +24,10 @@ type AgentToolOutput = {
   result: string;
 };
 
+function isTextContent(c: unknown): c is { type: "text"; text: string } {
+  return typeof c === "object" && c !== null && "type" in c && (c as any).type === "text";
+}
+
 export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentTool<typeof inputSchema, AgentToolOutput> {
   return defineAgentTool({
     name: "Agent",
@@ -36,7 +40,7 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
         throw new Error(`Subagent nesting depth exceeded (max: ${MAX_SUBAGENT_DEPTH})`);
       }
 
-      const child = createSubagent(parentAgent, depth);
+      const child = createSubagent(parentAgent);
 
       // 为子代理注册一个 depth + 1 的 AgentTool
       child.registerTool(createAgentTool(child, depth + 1));
@@ -65,7 +69,7 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
       }
 
       const text = lastAssistant.content
-        .filter((c): c is { type: "text"; text: string } => typeof c === "object" && c !== null && "type" in c && c.type === "text")
+        .filter(isTextContent)
         .map((c) => c.text)
         .join("");
 
