@@ -24,6 +24,17 @@ function renderItemText(item: TodoItem): string {
   return item.status === "in_progress" ? item.activeForm : item.content;
 }
 
+function TodoItemLine({ item, index }: { item: TodoItem; index: number }): React.ReactElement {
+  const text = `${SYMBOLS[item.status]} ${index + 1}. ${renderItemText(item)}`;
+  if (item.status === "in_progress") {
+    return <Text color="yellow" bold>{text}</Text>;
+  }
+  if (item.status === "completed") {
+    return <Text color="green" dimColor>{text}</Text>;
+  }
+  return <Text color="gray">{text}</Text>;
+}
+
 export function TodoPanel({ todos }: TodoPanelProps): React.ReactElement | null {
   if (todos.length === 0) {
     return null;
@@ -35,28 +46,9 @@ export function TodoPanel({ todos }: TodoPanelProps): React.ReactElement | null 
     <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
       <Text dimColor>Tasks {completedCount}/{todos.length}</Text>
       <Text dimColor>{renderProgressBar(completedCount, todos.length)}</Text>
-      {todos.map((item, index) => {
-        const text = `${SYMBOLS[item.status]} ${index + 1}. ${renderItemText(item)}`;
-        if (item.status === "in_progress") {
-          return (
-            <Text key={index} color="yellow" bold>
-              {text}
-            </Text>
-          );
-        }
-        if (item.status === "completed") {
-          return (
-            <Text key={index} color="green" dimColor>
-              {text}
-            </Text>
-          );
-        }
-        return (
-          <Text key={index} color="gray">
-            {text}
-          </Text>
-        );
-      })}
+      {todos.map((item, index) => (
+        <TodoItemLine key={index} item={item} index={index} />
+      ))}
     </Box>
   );
 }

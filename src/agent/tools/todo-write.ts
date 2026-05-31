@@ -214,12 +214,16 @@ export function createTodoWriteTool(store: TodoStore): AgentTool<typeof inputSch
     isDestructive: false,
     async execute(_toolCallId, params, _context) {
       const { oldTodos, newTodos } = store.set(params.todos as TodoList);
-      const allDone = params.todos.length > 0 && params.todos.every((t) => t.status === "completed");
-      const verificationNudgeNeeded =
-        allDone && params.todos.length >= 3 && !params.todos.some((t) => /verif/i.test(t.content));
+      let allDone = params.todos.length > 0;
+      let hasVerif = false;
+      for (const t of params.todos) {
+        if (t.status !== "completed") allDone = false;
+        if (/verif/i.test(t.content)) hasVerif = true;
+      }
+      const verificationNudgeNeeded = allDone && params.todos.length >= 3 && !hasVerif;
       return { oldTodos, newTodos, verificationNudgeNeeded };
     },
-    formatResult: (output) => {
+    formatResult: (output, _toolCallId) => {
       const base = FIXED_RESULT_TEXT;
       const nudge = output.verificationNudgeNeeded
         ? "\n\nNOTE: You just closed out 3+ tasks and none of them was a verification step. Before writing your final summary, verify your work independently — you cannot self-assign PARTIAL by listing caveats in your summary."
