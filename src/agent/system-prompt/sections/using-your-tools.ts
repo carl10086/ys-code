@@ -6,6 +6,7 @@ export const compute: SectionCompute = async (context) => {
   }
 
   const hasTodoWrite = context.tools.some((tool) => tool.name === "TodoWrite");
+  const hasAgent = context.tools.some((tool) => tool.name === "Agent");
 
   const lines = [
     "# Using your tools",
@@ -19,6 +20,11 @@ export const compute: SectionCompute = async (context) => {
     ...(hasTodoWrite
       ? [
           "- Break down and manage your work with the TodoWrite tool. This tool is helpful for planning your work and helping the user track your progress. Mark each task as completed as soon as you are done with the task. Do not batch up multiple tasks before marking them as completed.",
+        ]
+      : []),
+    ...(hasAgent
+      ? [
+          "- Use the Agent tool to delegate independent tasks to a subagent when the work can be separated from your current flow. The subagent operates with the same tools and system prompt as you, making it ideal for parallelizable research, exploration, or isolated changes. Do not use the Agent tool for trivial single-step tasks.",
         ]
       : []),
     "- You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call these operations sequentially instead.",

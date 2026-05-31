@@ -7,3 +7,4 @@ export { createGrepTool } from "./grep.js";
 export { createSkillTool } from "./skill.js";
 export { createWebFetchTool } from "./webfetch.js";
 export { createTodoWriteTool } from "./todo-write.js";
+export { createAgentTool } from "./agent-tool.js";
