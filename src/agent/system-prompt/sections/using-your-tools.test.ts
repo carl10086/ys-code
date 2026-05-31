@@ -21,4 +21,30 @@ describe("using-your-tools section", () => {
     expect(result).toContain("Using your tools");
     expect(result).toContain("parallel");
   });
+
+  it("should contain TodoWrite guidance when TodoWrite is available", async () => {
+    const mockTool: AgentTool<any, any> = {
+      name: "TodoWrite",
+      label: "TodoWrite",
+      description: "Manage todos",
+      parameters: {} as any,
+      outputSchema: {} as any,
+      execute: async () => ({}) as any,
+    };
+    const result = await compute({ cwd: "/tmp", tools: [mockTool], model: { id: "m1" } as any });
+    expect(result).toContain("Break down and manage your work with the TodoWrite tool");
+  });
+
+  it("should NOT contain TodoWrite guidance when TodoWrite is NOT available", async () => {
+    const mockTool: AgentTool<any, any> = {
+      name: "Read",
+      label: "Read",
+      description: "Read files",
+      parameters: {} as any,
+      outputSchema: {} as any,
+      execute: async () => ({}) as any,
+    };
+    const result = await compute({ cwd: "/tmp", tools: [mockTool], model: { id: "m1" } as any });
+    expect(result).not.toContain("TodoWrite");
+  });
 });
