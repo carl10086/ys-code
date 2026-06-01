@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ha-style="document">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subagent 功能设计文档</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --primary: #a03b00;
+      --primary-container: #c94c00;
+      --primary-fixed: #ffdbcd;
+      --primary-fixed-dim: #ffb597;
+      --on-primary: #ffffff;
+      --accent-glow: #E8400D;
+      --secondary: #d5baff;
+      --secondary-container: #7b40e0;
+      --tertiary: #4d44e3;
+      --accent-cyan: #00D4FF;
+      --bg: #fff8f6;
+      --surface: #fff8f6;
+      --surface-container-lowest: #ffffff;
+      --surface-container-low: #fbf2ef;
+      --surface-container: #f5ece9;
+      --surface-container-high: #efe6e3;
+      --fg-1: #1e1b19;
+      --fg-2: #594138;
+      --fg-muted: #8d7166;
+      --border: rgba(0, 0, 0, 0.06);
+      --border-strong: rgba(0, 0, 0, 0.12);
+      --outline-variant: #e1bfb2;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --font-headline: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'Menlo', ui-monospace, monospace;
+      --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+      --space-lg: 16px; --space-xl: 20px; --space-2xl: 24px;
+      --space-3xl: 32px; --space-4xl: 48px; --space-5xl: 64px;
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --radius-xl: 20px; --radius-2xl: 28px; --radius-pill: 9999px;
+      --shadow-sm: 0 1px 2px rgba(30, 27, 25, 0.04);
+      --shadow-md: 0 4px 12px rgba(30, 27, 25, 0.08);
+      --shadow-lg: 0 8px 24px rgba(30, 27, 25, 0.12);
+      --shadow-accent: 0 8px 24px rgba(160, 59, 0, 0.15);
+      --gradient-primary: linear-gradient(135deg, #a03b00 0%, #c94c00 100%);
+      --gradient-hero: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+      --gradient-text: linear-gradient(135deg, #a03b00 0%, #7b40e0 100%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #060B18;
+        --surface: #0B1426;
+        --surface-container-lowest: #101D35;
+        --surface-container-low: #101D35;
+        --surface-container: #162544;
+        --surface-container-high: #1c2d52;
+        --fg-1: #F8FAFC;
+        --fg-2: #CBD5E1;
+        --fg-muted: #64748B;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.14);
+        --primary: #FF6B35;
+        --accent-glow: #00D4FF;
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--fg-1);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Document shell */
+    .document-shell {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: var(--space-3xl) var(--space-xl);
+    }
+
+    @media (max-width: 640px) {
+      .document-shell {
+        padding: var(--space-xl) var(--space-lg);
+      }
+    }
+
+    /* Cover / masthead */
+    .cover {
+      padding: var(--space-4xl) 0 var(--space-3xl);
+      border-bottom: 1px solid var(--border-strong);
+      margin-bottom: var(--space-3xl);
+    }
+
+    .cover-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    .cover h1 {
+      font-family: var(--font-headline);
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--fg-1);
+      margin-bottom: var(--space-lg);
+    }
+
+    .cover-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-lg);
+      font-size: 13px;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-xl);
+    }
+
+    .cover-meta span {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    .deck {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--fg-2);
+      max-width: 680px;
+    }
+
+    .deck p + p {
+      margin-top: var(--space-md);
+    }
+
+    /* Reader rail */
+    .reader-rail {
+      position: sticky;
+      top: var(--space-lg);
+      float: right;
+      width: 200px;
+      margin-left: var(--space-3xl);
+      margin-bottom: var(--space-3xl);
+      padding: var(--space-lg);
+      background: var(--surface-container-low);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .reader-rail h3 {
+      font-family: var(--font-headline);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-md);
+    }
+
+    .reader-rail ul {
+      list-style: none;
+    }
+
+    .reader-rail li + li {
+      margin-top: var(--space-xs);
+    }
+
+    .reader-rail a {
+      color: var(--fg-2);
+      text-decoration: none;
+      display: block;
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm);
+      transition: background 0.15s;
+    }
+
+    .reader-rail a:hover {
+      background: var(--surface-container);
+      color: var(--primary);
+    }
+
+    @media (max-width: 840px) {
+      .reader-rail {
+        position: relative;
+        float: none;
+        width: 100%;
+        margin-left: 0;
+        margin-bottom: var(--space-2xl);
+      }
+    }
+
+    /* Body sections */
+    .body-section {
+      margin-bottom: var(--space-4xl);
+    }
+
+    .body-section h2 {
+      font-family: var(--font-headline);
+      font-size: clamp(20px, 3.5vw, 26px);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--fg-1);
+      margin-bottom: var(--space-lg);
+      padding-bottom: var(--space-sm);
+      border-bottom: 2px solid var(--primary);
+      display: inline-block;
+    }
+
+    .body-section h3 {
+      font-family: var(--font-headline);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--fg-1);
+      margin: var(--space-2xl) 0 var(--space-md);
+    }
+
+    .body-section h4 {
+      font-family: var(--font-headline);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg-2);
+      margin: var(--space-xl) 0 var(--space-sm);
+    }
+
+    .body-section p {
+      margin-bottom: var(--space-md);
+      color: var(--fg-2);
+    }
+
+    .body-section ul, .body-section ol {
+      margin: var(--space-md) 0 var(--space-md) var(--space-xl);
+      color: var(--fg-2);
+    }
+
+    .body-section li {
+      margin-bottom: var(--space-xs);
+    }
+
+    .body-section li::marker {
+      color: var(--primary);
+    }
+
+    /* Claim cards */
+    .claim-card {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin: var(--space-lg) 0;
+    }
+
+    .claim-card h4 {
+      margin-top: 0;
+      color: var(--primary);
+    }
+
+    /* Fact tables */
+    .fact-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--space-lg) 0;
+      font-size: 14px;
+    }
+
+    .fact-table th {
+      text-align: left;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--surface-container);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--fg-muted);
+      border-bottom: 2px solid var(--border-strong);
+    }
+
+    .fact-table td {
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border);
+      color: var(--fg-2);
+      vertical-align: top;
+    }
+
+    .fact-table tr:hover td {
+      background: var(--surface-container-low);
+    }
+
+    .fact-table code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--surface-container);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: var(--primary);
+    }
+
+    /* Evidence margin */
+    .evidence-margin {
+      border-left: 3px solid var(--primary);
+      padding-left: var(--space-lg);
+      margin: var(--space-lg) 0;
+      color: var(--fg-muted);
+      font-size: 14px;
+      font-style: italic;
+    }
+
+    /* Caveat box */
+    .caveat-box {
+      background: var(--surface-container);
+      border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin: var(--space-lg) 0;
+    }
+
+    .caveat-box h4 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Code blocks */
+    pre, code {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    pre {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      overflow-x: auto;
+      margin: var(--space-lg) 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    code {
+      background: var(--surface-container);
+      padding: 2px 5px;
+      border-radius: var(--radius-sm);
+      color: var(--primary);
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    /* File tree */
+    .file-tree {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.8;
+      margin: var(--space-lg) 0;
+      overflow-x: auto;
+    }
+
+    .file-tree .dir {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .file-tree .file {
+      color: var(--fg-2);
+    }
+
+    .file-tree .comment {
+      color: var(--fg-muted);
+    }
+
+    /* Checklist */
+    .checklist {
+      list-style: none;
+      margin-left: 0 !important;
+    }
+
+    .checklist li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-sm) 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .checklist li:last-child {
+      border-bottom: none;
+    }
+
+    .checklist .check {
+      width: 18px;
+      height: 18px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .checklist .check.yes {
+      background: var(--green);
+      color: white;
+    }
+
+    .checklist .check.no {
+      background: var(--surface-container-high);
+      color: var(--fg-muted);
+      border: 1px solid var(--border-strong);
+    }
+
+    /* Mermaid */
+    .mermaid-wrapper {
+      overflow-x: auto;
+      padding: var(--space-lg);
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin: var(--space-lg) 0;
+      position: relative;
+    }
+
+    .mermaid-zoom-bar {
+      position: absolute;
+      top: var(--space-sm);
+      right: var(--space-sm);
+      display: flex;
+      gap: var(--space-xs);
+      z-index: 10;
+    }
+
+    .mermaid-zoom-bar button {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-container-lowest);
+      border-radius: var(--radius-sm);
+      color: var(--fg-2);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .mermaid-zoom-bar button:hover {
+      background: var(--surface-container);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .mermaid-zoom-bar .zoom-label {
+      width: auto;
+      padding: 0 var(--space-sm);
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+
+    .mermaid-container {
+      transform-origin: top left;
+      transition: transform 0.2s ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .mermaid-container {
+        transition: none;
+      }
+    }
+
+    .mermaid-fallback {
+      display: none;
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+    }
+
+    .mermaid-fallback pre {
+      margin: 0;
+      background: transparent;
+      border: none;
+      padding: var(--space-sm) 0;
+    }
+
+    /* Question panel */
+    .question-panel {
+      background: var(--surface-container);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin-top: var(--space-3xl);
+    }
+
+    .question-panel h3 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    /* ADR cards */
+    .adr-card {
+      background: var(--surface-container-low);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      margin: var(--space-lg) 0;
+    }
+
+    .adr-card h4 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 14px;
+    }
+
+    .adr-card .adr-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-muted);
+      background: var(--surface-container);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      display: inline-block;
+      margin-bottom: var(--space-sm);
+    }
+
+    /* Search */
+    .search-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: var(--space-xl);
+    }
+
+    .search-bar input {
+      width: 100%;
+      max-width: 400px;
+      padding: var(--space-sm) var(--space-md);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill);
+      background: var(--surface-container-lowest);
+      color: var(--fg-1);
+      font-family: var(--font-body);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .search-bar input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(160, 59, 0, 0.1);
+    }
+
+    .search-bar input::placeholder {
+      color: var(--fg-muted);
+    }
+
+    /* Highlight */
+    .highlight {
+      background: rgba(160, 59, 0, 0.15);
+      border-radius: 2px;
+      padding: 0 2px;
+    }
+
+    /* Section anchor */
+    .section-anchor {
+      display: block;
+      position: relative;
+      top: -80px;
+      visibility: hidden;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .cover {
+        padding: var(--space-2xl) 0 var(--space-xl);
+      }
+
+      .body-section {
+        margin-bottom: var(--space-3xl);
+      }
+
+      .fact-table {
+        font-size: 13px;
+      }
+
+      .fact-table th, .fact-table td {
+        padding: var(--space-xs) var(--space-sm);
+      }
+
+      pre {
+        padding: var(--space-md);
+        font-size: 12px;
+      }
+
+      .mermaid-zoom-bar button {
+        width: 40px;
+        height: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="document-shell">
+    <!-- Search -->
+    <div class="search-bar">
+      <input type="text" id="docSearch" placeholder="搜索文档内容..." aria-label="搜索文档">
+    </div>
+
+    <!-- Cover -->
+    <header class="cover">
+      <div class="cover-eyebrow">设计文档 / ys-code</div>
+      <h1>Subagent 功能设计文档</h1>
+      <div class="cover-meta">
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          2026-06-01
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          specs/2026-06-01-subagent-design.md
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          阅读约 8 分钟
+        </span>
+      </div>
+      <div class="deck">
+        <p>为 <code>ys-code</code> 实现子代理（subagent）功能，让 LLM 在对话中能够显式派生独立的子代理处理特定任务。本文档涵盖命令设计、项目结构、详细设计方案、状态隔离策略、测试策略及边界决策记录。</p>
+      </div>
+    </header>
+
+    <!-- Reader Rail -->
+    <nav class="reader-rail" aria-label="目录">
+      <h3>目录</h3>
+      <ul>
+        <li><a href="#objective">目标与范围</a></li>
+        <li><a href="#commands">命令</a></li>
+        <li><a href="#structure">项目结构</a></li>
+        <li><a href="#design">详细设计</a></li>
+        <li><a href="#state">状态隔离</a></li>
+        <li><a href="#depth">嵌套深度</a></li>
+        <li><a href="#testing">测试策略</a></li>
+        <li><a href="#boundaries">边界与决策</a></li>
+      </ul>
+    </nav>
+
+    <!-- Body -->
+    <main>
+      <!-- Section 1: Objective -->
+      <section class="body-section">
+        <span class="section-anchor" id="objective"></span>
+        <h2>目标与 MVP 范围</h2>
+
+        <div class="claim-card">
+          <h4>核心价值</h4>
+          <ul>
+            <li><strong>任务分解</strong>：LLM 可将复杂任务拆分为独立的子任务，派生子代理并行/串行处理</li>
+            <li><strong>关注点隔离</strong>：子代理在独立的执行上下文中运行，避免状态污染</li>
+            <li><strong>复用现有能力</strong>：子代理复用父代理的工具池和系统提示，无需重新配置</li>
+          </ul>
+        </div>
+
+        <h3>MVP 范围</h3>
+        <ul>
+          <li>只支持同步执行（阻塞当前 turn，结果直接返回）</li>
+          <li>只支持一个通用子代理类型（无 agent 定义目录）</li>
+          <li>完全继承父代理的工具列表和系统提示</li>
+          <li>不支持 worktree 隔离、异步执行、teammate/swarm 模式</li>
+        </ul>
+      </section>
+
+      <!-- Section 2: Commands -->
+      <section class="body-section">
+        <span class="section-anchor" id="commands"></span>
+        <h2>命令</h2>
+        <p>无新增 CLI 命令。子代理通过 LLM 调用 <code>AgentTool</code> 工具触发。</p>
+      </section>
+
+      <!-- Section 3: Structure -->
+      <section class="body-section">
+        <span class="section-anchor" id="structure"></span>
+        <h2>项目结构</h2>
+        <div class="file-tree">
+<span class="dir">src/agent/</span>
+  <span class="dir">subagent/</span>
+    <span class="file">create-subagent.ts</span>       <span class="comment"># 子代理创建工厂</span>
+    <span class="file">create-subagent.test.ts</span>  <span class="comment"># 子代理创建测试</span>
+  <span class="dir">tools/</span>
+    <span class="file">agent-tool.ts</span>            <span class="comment"># AgentTool 定义（新增）</span>
+    <span class="file">agent-tool.test.ts</span>       <span class="comment"># AgentTool 测试</span>
+        </div>
+
+        <h4>代码风格</h4>
+        <ul>
+          <li>遵循现有 <code>src/agent/tools/</code> 目录下工具定义模式（<code>defineAgentTool</code> + TypeBox schema）</li>
+          <li>子代理创建函数返回 <code>Agent</code> 实例，与现有 <code>Agent</code> 类保持一致</li>
+          <li>状态隔离通过构造函数选项实现，不修改 <code>Agent</code> 类内部逻辑</li>
+        </ul>
+      </section>
+
+      <!-- Section 4: Design -->
+      <section class="body-section">
+        <span class="section-anchor" id="design"></span>
+        <h2>详细设计</h2>
+
+        <h3>AgentTool Schema</h3>
+        <pre><code>const inputSchema = Type.Object({
+  prompt: Type.String({ description: "The task for the subagent to complete" }),
+  description: Type.Optional(Type.String({ description: "A description of the task" })),
+});
+
+const outputSchema = Type.Object({
+  result: Type.String({ description: "The subagent's response" }),
+});</code></pre>
+
+        <table class="fact-table">
+          <thead>
+            <tr><th>字段</th><th>类型</th><th>必需</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>prompt</code></td><td><code>string</code></td><td>是</td><td>子代理的任务指令</td></tr>
+            <tr><td><code>description</code></td><td><code>string</code></td><td>否</td><td>任务描述，用于日志和调试</td></tr>
+          </tbody>
+        </table>
+
+        <h3>执行流程</h3>
+        <div class="mermaid-wrapper">
+          <div class="mermaid-zoom-bar">
+            <button onclick="zoomMermaid(this, -0.2)" aria-label="缩小">-</button>
+            <button class="zoom-label" onclick="zoomMermaid(this, 0)" aria-label="重置">100%</button>
+            <button onclick="zoomMermaid(this, 0.2)" aria-label="放大">+</button>
+            <button onclick="zoomMermaid(this, 0)" aria-label="重置">&#x27F2;</button>
+          </div>
+          <div class="mermaid-container">
+            <div class="mermaid">
+%%{init: {'flowchart': {'useMaxWidth': false}}}%%
+flowchart TD
+    A[AgentTool.execute] --> B[createSubagent]
+    B --> C[复制系统提示]
+    B --> D[复制工具列表]
+    B --> E[新建 MutableAgentState]
+    A --> F[构建初始消息]
+    F --> G[system prompt + user message]
+    A --> H[runAgentLoop]
+    H --> I[stream assistant response]
+    H --> J[execute tools]
+    A --> K[收集最终响应]
+    K --> L[返回 result]
+            </div>
+          </div>
+          <div class="mermaid-fallback">
+            <p>图表渲染失败，显示原始代码。</p>
+            <pre>flowchart TD
+    A[AgentTool.execute] --> B[createSubagent]
+    B --> C[复制系统提示]
+    B --> D[复制工具列表]
+    B --> E[新建 MutableAgentState]
+    A --> F[构建初始消息]
+    F --> G[system prompt + user message]
+    A --> H[runAgentLoop]
+    H --> I[stream assistant response]
+    H --> J[execute tools]
+    A --> K[收集最终响应]
+    K --> L[返回 result]</pre>
+          </div>
+        </div>
+
+        <h3>状态隔离策略</h3>
+        <table class="fact-table">
+          <thead>
+            <tr><th>状态项</th><th>父代理</th><th>子代理</th><th>策略</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>_state.messages</code></td><td>独立</td><td><strong>新建空列表</strong></td><td>隔离</td></tr>
+            <tr><td><code>_state.tools</code></td><td>共享引用</td><td><strong>共享引用</strong></td><td>共享（工具定义不可变）</td></tr>
+            <tr><td><code>_state.model</code></td><td>独立</td><td><strong>复制</strong></td><td>隔离</td></tr>
+            <tr><td><code>systemPrompt</code></td><td>共享函数</td><td><strong>共享函数</strong></td><td>共享</td></tr>
+            <tr><td><code>streamFn</code></td><td>共享引用</td><td><strong>共享引用</strong></td><td>共享</td></tr>
+            <tr><td><code>convertToLlm</code></td><td>共享引用</td><td><strong>共享引用</strong></td><td>共享</td></tr>
+            <tr><td><code>fileStateCache</code></td><td>独立</td><td><strong>新建</strong></td><td>隔离</td></tr>
+            <tr><td><code>steeringQueue</code></td><td>独立</td><td><strong>新建</strong></td><td>隔离（子代理不支持 steering）</td></tr>
+            <tr><td><code>listeners</code></td><td>独立</td><td><strong>新建空 Set</strong></td><td>隔离</td></tr>
+            <tr><td><code>sessionId</code></td><td>父代理 ID</td><td><strong>新建</strong></td><td>隔离</td></tr>
+          </tbody>
+        </table>
+
+        <div class="evidence-margin">
+          关键点：工具列表共享引用（工具定义不可变，共享安全）；子代理的 messages 独立，不会污染父代理的对话历史；子代理无事件监听者，事件不会传播到父代理的 UI。
+        </div>
+
+        <h3>状态隔离示意图</h3>
+        <div class="mermaid-wrapper">
+          <div class="mermaid-zoom-bar">
+            <button onclick="zoomMermaid(this, -0.2)" aria-label="缩小">-</button>
+            <button class="zoom-label" onclick="zoomMermaid(this, 0)" aria-label="重置">100%</button>
+            <button onclick="zoomMermaid(this, 0.2)" aria-label="放大">+</button>
+            <button onclick="zoomMermaid(this, 0)" aria-label="重置">&#x27F2;</button>
+          </div>
+          <div class="mermaid-container">
+            <div class="mermaid">
+%%{init: {'flowchart': {'useMaxWidth': false}}}%%
+flowchart LR
+    subgraph 父代理
+      P1[_state.messages]
+      P2[_state.tools]
+      P3[systemPrompt]
+      P4[streamFn]
+    end
+    subgraph 子代理
+      C1[_state.messages 新建空列表]
+      C2[_state.tools 共享引用]
+      C3[systemPrompt 共享函数]
+      C4[streamFn 共享引用]
+    end
+    P2 --> C2
+    P3 --> C3
+    P4 --> C4
+            </div>
+          </div>
+          <div class="mermaid-fallback">
+            <p>图表渲染失败，显示原始代码。</p>
+            <pre>flowchart LR
+    subgraph 父代理
+      P1[_state.messages]
+      P2[_state.tools]
+      P3[systemPrompt]
+      P4[streamFn]
+    end
+    subgraph 子代理
+      C1[_state.messages 新建空列表]
+      C2[_state.tools 共享引用]
+      C3[systemPrompt 共享函数]
+      C4[streamFn 共享引用]
+    end
+    P2 --> C2
+    P3 --> C3
+    P4 --> C4</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Depth -->
+      <section class="body-section">
+        <span class="section-anchor" id="depth"></span>
+        <h2>嵌套深度限制</h2>
+        <p>防止无限递归（子代理再派生子代理）：</p>
+        <pre><code>const MAX_SUBAGENT_DEPTH = 3;</code></pre>
+        <ul>
+          <li>深度从 0 开始（父代理）</li>
+          <li>子代理深度 = 父代理深度 + 1</li>
+          <li>超过 <code>MAX_SUBAGENT_DEPTH</code> 时抛出错误，拒绝执行</li>
+        </ul>
+
+        <h3>系统提示处理</h3>
+        <p>子代理的系统提示与父代理<strong>完全一致</strong>（字节精确），不做任何修改或增强。</p>
+        <div class="evidence-margin">
+          理由：YS 当前没有 CC 的 <code>getSystemPrompt()</code> 动态构建机制；子代理需要与父代理相同的工具指导和行为规范；避免系统提示差异导致的行为不一致。
+        </div>
+
+        <h3>边界条件</h3>
+        <table class="fact-table">
+          <thead>
+            <tr><th>场景</th><th>行为</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>子代理调用工具失败</td><td>子代理内部处理（与父代理一致），最终结果可能包含错误信息</td></tr>
+            <tr><td>子代理执行超时</td><td>通过 <code>AbortController</code> 中止，返回已收集的部分结果</td></tr>
+            <tr><td>子代理无工具调用</td><td>直接返回 assistant 的文本响应</td></tr>
+            <tr><td>子代理深度超限</td><td>抛出错误，拒绝执行</td></tr>
+            <tr><td>父代理被中止</td><td>通过共享的 <code>AbortController</code> 信号传播到子代理</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 6: Testing -->
+      <section class="body-section">
+        <span class="section-anchor" id="testing"></span>
+        <h2>测试策略</h2>
+
+        <h3>单元测试</h3>
+        <table class="fact-table">
+          <thead>
+            <tr><th>测试文件</th><th>测试内容</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>agent-tool.test.ts</code></td><td>AgentTool schema 验证、execute 调用子代理、结果收集</td></tr>
+            <tr><td><code>create-subagent.test.ts</code></td><td>子代理创建、状态隔离验证、深度限制</td></tr>
+          </tbody>
+        </table>
+
+        <h4>AgentTool 测试用例</h4>
+        <ol>
+          <li><code>execute</code> 成功调用子代理并返回结果</li>
+          <li><code>execute</code> 子代理深度超限抛出错误</li>
+          <li><code>execute</code> 子代理被 abort 时正确传播信号</li>
+          <li><code>execute</code> 子代理无工具调用时返回文本响应</li>
+        </ol>
+
+        <h4>状态隔离测试</h4>
+        <ol>
+          <li>子代理执行后父代理的 <code>messages</code> 不受影响</li>
+          <li>子代理执行后父代理的 <code>tools</code> 不受影响</li>
+          <li>子代理的 <code>fileStateCache</code> 独立</li>
+        </ol>
+
+        <h3>集成测试</h3>
+        <p>在真实 agent loop 中验证：</p>
+        <ol>
+          <li>LLM 调用 AgentTool 后，子代理正确执行并返回</li>
+          <li>子代理的工具调用不影响父代理状态</li>
+          <li>父代理继续执行时状态一致</li>
+        </ol>
+      </section>
+
+      <!-- Section 7: Boundaries -->
+      <section class="body-section">
+        <span class="section-anchor" id="boundaries"></span>
+        <h2>边界与决策记录</h2>
+
+        <h3>明确支持</h3>
+        <ul class="checklist">
+          <li><span class="check yes">&#x2713;</span> 同步子代理执行（阻塞当前 turn）</li>
+          <li><span class="check yes">&#x2713;</span> 通用子代理类型（无 agent 定义目录）</li>
+          <li><span class="check yes">&#x2713;</span> 完全继承父代理工具列表</li>
+          <li><span class="check yes">&#x2713;</span> 状态隔离（messages、fileStateCache、listeners）</li>
+          <li><span class="check yes">&#x2713;</span> 嵌套深度限制（max 3）</li>
+          <li><span class="check yes">&#x2713;</span> AbortController 信号传播</li>
+        </ul>
+
+        <h3>明确不支持（MVP 范围外）</h3>
+        <ul class="checklist">
+          <li><span class="check no">&#x2717;</span> 异步执行（后台 fork）</li>
+          <li><span class="check no">&#x2717;</span> Agent 定义目录（内置子代理类型如 Explore、code-reviewer）</li>
+          <li><span class="check no">&#x2717;</span> Worktree 隔离</li>
+          <li><span class="check no">&#x2717;</span> Teammate / Swarm 模式</li>
+          <li><span class="check no">&#x2717;</span> 自定义子代理工具列表（子集/超集）</li>
+          <li><span class="check no">&#x2717;</span> 子代理权限模式覆盖</li>
+          <li><span class="check no">&#x2717;</span> Prompt cache 共享优化</li>
+          <li><span class="check no">&#x2717;</span> AsyncLocalStorage 并发追踪</li>
+          <li><span class="check no">&#x2717;</span> 子代理生命周期管理（register/kill/fail）</li>
+        </ul>
+
+        <h3>决策记录（ADR）</h3>
+
+        <div class="adr-card">
+          <span class="adr-id">ADR-1</span>
+          <h4>为什么不支持异步执行？</h4>
+          <p>YS 当前没有 CC 的 <code>LocalAgentTask</code> 任务注册系统和 <code>task-notification</code> 交互机制。引入异步执行需要同时建设：</p>
+          <ol>
+            <li>后台任务队列</li>
+            <li>任务状态追踪（运行中/完成/失败）</li>
+            <li>异步通知机制（<code>task-notification</code>）</li>
+          </ol>
+          <p>这三个都是独立的大功能，应在子代理基础能力稳定后再引入。</p>
+        </div>
+
+        <div class="adr-card">
+          <span class="adr-id">ADR-2</span>
+          <h4>为什么不引入 agent 定义目录？</h4>
+          <p>CC 的 <code>loadAgentsDir</code> 支持从文件系统加载自定义 agent 定义（包含系统提示、工具白名单、权限模式等）。YS 当前没有此需求：</p>
+          <ol>
+            <li>MVP 阶段通用子代理已覆盖主要场景</li>
+            <li>特定类型的子代理可通过 <code>prompt</code> 中的角色指令模拟</li>
+            <li>引入目录系统增加维护成本，待需求明确后再建设</li>
+          </ol>
+        </div>
+
+        <div class="adr-card">
+          <span class="adr-id">ADR-3</span>
+          <h4>为什么完全继承工具列表？</h4>
+          <p>CC 的普通路径会根据子代理的 <code>permissionMode</code> 重新 <code>assembleToolPool</code>。YS 当前：</p>
+          <ol>
+            <li>没有 <code>permissionMode</code> 概念</li>
+            <li>没有 MCP 工具</li>
+            <li>工具定义不可变，共享引用安全</li>
+          </ol>
+          <p>完全继承是最简单且正确的策略，与 CC 的 fork 路径一致。</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Question Panel -->
+    <div class="question-panel">
+      <h3>后续可追问</h3>
+      <ul>
+        <li>子代理与父代理的 token 消耗如何统计？</li>
+        <li>是否需要为子代理添加独立的日志上下文？</li>
+        <li>嵌套深度 3 的取值依据是什么？</li>
+        <li>AbortController 信号传播的具体实现细节？</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Initialize mermaid
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#f5ece9',
+        primaryTextColor: '#1e1b19',
+        primaryBorderColor: '#a03b00',
+        lineColor: '#8d7166',
+        secondaryColor: '#fbf2ef',
+        tertiaryColor: '#efe6e3',
+        fontFamily: 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif',
+        fontSize: '14px'
+      },
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    // Mermaid zoom
+    function zoomMermaid(btn, delta) {
+      const wrapper = btn.closest('.mermaid-wrapper');
+      const container = wrapper.querySelector('.mermaid-container');
+      const label = wrapper.querySelector('.zoom-label');
+      let current = parseFloat(container.dataset.scale) || 1;
+
+      if (delta === 0) {
+        current = 1;
+      } else {
+        current = Math.max(0.5, Math.min(3.0, current + delta));
+      }
+
+      container.dataset.scale = current;
+      container.style.transform = 'scale(' + current + ')';
+      if (label) label.textContent = Math.round(current * 100) + '%';
+    }
+
+    // Fallback for mermaid render failure
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.addEventListener('error', function() {
+        const wrapper = el.closest('.mermaid-wrapper');
+        if (wrapper) {
+          wrapper.querySelector('.mermaid-container').style.display = 'none';
+          wrapper.querySelector('.mermaid-fallback').style.display = 'block';
+        }
+      });
+    });
+
+    // Search
+    const searchInput = document.getElementById('docSearch');
+    let searchDebounce;
+
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        const term = this.value.trim().toLowerCase();
+        const sections = document.querySelectorAll('.body-section');
+
+        if (!term) {
+          document.querySelectorAll('.highlight').forEach(el => {
+            const parent = el.parentNode;
+            parent.replaceChild(document.createTextNode(el.textContent), el);
+            parent.normalize();
+          });
+          sections.forEach(s => s.style.display = '');
+          return;
+        }
+
+        sections.forEach(section => {
+          const text = section.textContent.toLowerCase();
+          if (text.includes(term)) {
+            section.style.display = '';
+            highlightText(section, term);
+          } else {
+            section.style.display = 'none';
+          }
+        });
+      }, 200);
+    });
+
+    function highlightText(element, term) {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+      const nodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.parentNode.tagName === 'SCRIPT' || node.parentNode.tagName === 'STYLE') continue;
+        if (node.textContent.toLowerCase().includes(term)) {
+          nodes.push(node);
+        }
+      }
+
+      nodes.forEach(node => {
+        const span = document.createElement('span');
+        span.className = 'highlight';
+        const regex = new RegExp('(' + escapeRegex(term) + ')', 'gi');
+        const parts = node.textContent.split(regex);
+        parts.forEach((part, i) => {
+          if (regex.test(part)) {
+            const mark = document.createElement('span');
+            mark.className = 'highlight';
+            mark.textContent = part;
+            span.appendChild(mark);
+          } else {
+            span.appendChild(document.createTextNode(part));
+          }
+        });
+        node.parentNode.replaceChild(span, node);
+      });
+    }
+
+    function escapeRegex(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+  </script>
+</body>
+</html>

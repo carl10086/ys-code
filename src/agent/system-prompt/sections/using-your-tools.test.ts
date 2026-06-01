@@ -34,4 +34,15 @@ describe("using-your-tools section", () => {
     const result = await compute({ cwd: "/tmp", tools: [createMockTool("Read")], model: { id: "m1" } as any });
     expect(result).not.toContain("TodoWrite");
   });
+
+  it("should contain Agent guidance when Agent is available", async () => {
+    const result = await compute({ cwd: "/tmp", tools: [createMockTool("Agent")], model: { id: "m1" } as any });
+    expect(result).toContain("Agent tool");
+    expect(result).toContain("subagent");
+  });
+
+  it("should NOT contain Agent guidance when Agent is NOT available", async () => {
+    const result = await compute({ cwd: "/tmp", tools: [createMockTool("Read")], model: { id: "m1" } as any });
+    expect(result).not.toContain("Agent tool");
+  });
 });

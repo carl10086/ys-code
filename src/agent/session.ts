@@ -9,7 +9,7 @@ import { logger } from "../utils/logger.js";
 import { Agent } from "./agent.js";
 import type { AgentEvent, AgentMessage, AgentTool, AgentToolResult, InvokedSkillRecord, ThinkingLevel, ToolRenderResult } from "./types.js";
 import type { PromptCommand } from "../commands/types.js";
-import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool, createTodoWriteTool } from "./tools/index.js";
+import { createReadTool, createWriteTool, createEditTool, createBashTool, createGlobTool, createGrepTool, createSkillTool, createWebFetchTool, createTodoWriteTool, createAgentTool } from "./tools/index.js";
 import { TodoStore } from "./todo/store.js";
 import type { TodoList } from "./todo/types.js";
 import { getCommands } from "../commands/index.js";
@@ -146,6 +146,9 @@ export class AgentSession {
       },
       getApiKey: () => options.apiKey,
     });
+
+    // 注册 AgentTool（子代理工具）
+    this.agent.registerTool(createAgentTool(this.agent));
 
     this.systemPromptBuilder = options.systemPrompt ?? buildCodingAgentSystemPrompt;
 
