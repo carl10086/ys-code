@@ -3,6 +3,48 @@ import { Agent } from "../agent.js";
 import { createAgentTool } from "./agent-tool.js";
 import type { AgentTool } from "../types.js";
 
+function createSlowMockStreamFn(responseText: string, delayMs: number) {
+  return async (..._args: any[]) => {
+    const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+    const stream = new AssistantMessageEventStream();
+    const assistantMessage = {
+      role: "assistant" as const,
+      content: [{ type: "text" as const, text: responseText }],
+      stopReason: "end_turn",
+      api: "anthropic",
+      provider: "anthropic",
+      model: "test",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      timestamp: Date.now(),
+    };
+    setTimeout(() => stream.end(assistantMessage as any), delayMs);
+    return stream as any;
+  };
+}
+
+function createTrackedAbortSignal() {
+  const controller = new AbortController();
+  let listenerCount = 0;
+  const originalAdd = controller.signal.addEventListener.bind(controller.signal);
+  const originalRemove = controller.signal.removeEventListener.bind(controller.signal);
+  controller.signal.addEventListener = (type: string, listener: any, options?: any) => {
+    if (type === "abort") listenerCount++;
+    return originalAdd(type, listener, options);
+  };
+  controller.signal.removeEventListener = (type: string, listener: any, options?: any) => {
+    if (type === "abort" && listenerCount > 0) listenerCount--;
+    return originalRemove(type, listener, options);
+  };
+  return { controller, getListenerCount: () => listenerCount };
+}
+
 function createMockStreamFn(responseText: string) {
   return async (..._args: any[]) => {
     const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
@@ -170,6 +212,43 @@ describe("AgentTool", () => {
       { prompt: "Test nested tool" },
       {
         abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(output.result).toBe("Subagent completed the task");
+  });
+
+  it("execute 完成后清理 abort 监听器", async () => {
+    const { controller, getListenerCount } = createTrackedAbortSignal();
+    const parent = new Agent({
+      streamFn: createMockStreamFn("Subagent completed the task") as any,
+    });
+    const tool = createAgentTool(parent);
+
+    expect(getListenerCount()).toBe(0);
+
+    await tool.execute(
+      "call-cleanup",
+      { prompt: "Test listener cleanup" },
+      {
+        abortSignal: controller.signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(getListenerCount()).toBe(0);
+  });
+
+  it("无 abortSignal 时正常执行", async () => {
+    const output = await tool.execute(
+      "call-no-signal",
+      { prompt: "Test without abort signal" },
+      {
         messages: [],
         tools: [],
         fileStateCache: parent.getFileStateCache(),
