@@ -319,4 +319,26 @@ describe("AgentTool", () => {
     expect(callCount).toBeGreaterThanOrEqual(3);
     expect(output.result).toBe("result-3");
   });
+
+  it("子代理 streamFn 抛出异常时返回回退结果", async () => {
+    const errorStreamFn = async () => {
+      throw new Error("Stream failure");
+    };
+
+    const parent = new Agent({ streamFn: errorStreamFn as any });
+    const tool = createAgentTool(parent);
+
+    const output = await tool.execute(
+      "call-error",
+      { prompt: "This will fail" },
+      {
+        abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    expect(output.result).toBe("No text response from subagent");
+  });
 });
