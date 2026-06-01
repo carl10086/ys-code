@@ -257,4 +257,66 @@ describe("AgentTool", () => {
 
     expect(output.result).toBe("Subagent completed the task");
   });
+
+  it("子代理内部 AgentTool 可创建并执行孙代理", async () => {
+    let callCount = 0;
+
+    const nestedStreamFn = async (..._args: any[]) => {
+      const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const stream = new AssistantMessageEventStream();
+
+      callCount++;
+
+      if (callCount === 1) {
+        // 子代理：返回 toolCall，触发孙代理
+        stream.end({
+          role: "assistant",
+          content: [{
+            type: "toolCall",
+            id: "nested-call-1",
+            name: "Agent",
+            arguments: { prompt: "nested task" },
+          }],
+          stopReason: "tool_use",
+          api: "anthropic",
+          provider: "anthropic",
+          model: "test",
+          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          timestamp: Date.now(),
+        } as any);
+      } else {
+        // 孙代理 / 子代理继续：返回最终结果
+        stream.end({
+          role: "assistant",
+          content: [{ type: "text", text: `result-${callCount}` }],
+          stopReason: "end_turn",
+          api: "anthropic",
+          provider: "anthropic",
+          model: "test",
+          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          timestamp: Date.now(),
+        } as any);
+      }
+
+      return stream as any;
+    };
+
+    const parent = new Agent({ streamFn: nestedStreamFn as any });
+    const tool = createAgentTool(parent);
+
+    const output = await tool.execute(
+      "call-nested-e2e",
+      { prompt: "trigger nested agent" },
+      {
+        abortSignal: new AbortController().signal,
+        messages: [],
+        tools: [],
+        fileStateCache: parent.getFileStateCache(),
+      } as any,
+    );
+
+    // 子代理调用 streamFn (1)，孙代理调用 streamFn (2)，子代理继续调用 streamFn (3)
+    expect(callCount).toBeGreaterThanOrEqual(3);
+    expect(output.result).toBe("result-3");
+  });
 });
