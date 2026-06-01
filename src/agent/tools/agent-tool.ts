@@ -55,7 +55,10 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
       if (onUpdate) {
         unsubscribe = child.subscribe((event) => {
           if (event.type === "message_end" && event.message.role === "assistant") {
-            const text = extractSubagentResult([event.message], { mode: "lastText" }).text;
+            const text = event.message.content
+              .filter((c: any) => c.type === "text")
+              .map((c: any) => c.text)
+              .join("");
             if (text) {
               onUpdate({ result: text });
             }

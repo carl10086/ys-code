@@ -1,5 +1,7 @@
-import { Agent } from "../agent.js";
 import { randomUUID } from "node:crypto";
+import type { SystemPrompt } from "../../core/ai/index.js";
+import { Agent } from "../agent.js";
+import type { AgentInput } from "../types.js";
 
 const AGENT_TOOL_NAME = "Agent";
 
@@ -7,7 +9,7 @@ export interface CreateSubagentOptions {
   /** 允许的工具名称列表，undefined 表示继承全部 */
   allowedToolNames?: string[];
   /** 显式覆盖系统提示词构建函数 */
-  systemPrompt?: (context: import("../types.js").AgentInput) => Promise<import("../../core/ai/index.js").SystemPrompt>;
+  systemPrompt?: (context: AgentInput) => Promise<SystemPrompt>;
 }
 
 /**

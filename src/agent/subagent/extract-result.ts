@@ -4,17 +4,11 @@ import type { AgentMessage } from "../types.js";
 export interface ExtractResultOptions {
   /** 提取模式 */
   mode?: "lastText" | "allAssistantText" | "smart";
-  /** 最大消息回溯数 */
-  maxMessages?: number;
 }
 
 export interface ExtractedResult {
   /** 提取的文本 */
   text: string;
-  /** 是否包含 toolCall */
-  hasToolCalls: boolean;
-  /** 提取来源消息数 */
-  sourceMessageCount: number;
 }
 
 function isAssistantMessage(m: AgentMessage): m is AssistantMessage {
@@ -25,10 +19,6 @@ function isTextContent(c: unknown): c is { type: "text"; text: string } {
   return typeof c === "object" && c !== null && "type" in c && (c as any).type === "text";
 }
 
-function hasToolCall(message: AssistantMessage): boolean {
-  return Array.isArray(message.content) && message.content.some((c) => (c as any).type === "toolCall");
-}
-
 function extractTextFromMessage(message: AssistantMessage): string {
   if (!Array.isArray(message.content)) return "";
   return message.content
@@ -37,9 +27,10 @@ function extractTextFromMessage(message: AssistantMessage): string {
     .join("");
 }
 
+const EFFECTIVE_CHAR_PATTERN = /[\s\p{P}]/gu;
+
 function countEffectiveChars(text: string): number {
-  // 去除空白和标点，计算有效字符数
-  return text.replace(/[\s\p{P}]/gu, "").length;
+  return text.replace(EFFECTIVE_CHAR_PATTERN, "").length;
 }
 
 const DEFAULT_EFFECTIVE_CHAR_THRESHOLD = 20;
@@ -67,15 +58,12 @@ export function extractSubagentResult(
   switch (mode) {
     case "lastText": {
       const last = assistantMessages[assistantMessages.length - 1];
-      const text = extractTextFromMessage(last);
-      const hasToolCalls = hasToolCall(last);
-      return { text, hasToolCalls, sourceMessageCount: 1 };
+      return { text: extractTextFromMessage(last) };
     }
 
     case "allAssistantText": {
       const texts = assistantMessages.map(extractTextFromMessage).filter((t) => t.length > 0);
-      const hasToolCalls = assistantMessages.some(hasToolCall);
-      return { text: texts.join("\n\n"), hasToolCalls, sourceMessageCount: assistantMessages.length };
+      return { text: texts.join("\n\n") };
     }
 
     case "smart": {
@@ -83,17 +71,15 @@ export function extractSubagentResult(
       for (let i = assistantMessages.length - 1; i >= 0; i--) {
         const text = extractTextFromMessage(assistantMessages[i]);
         if (countEffectiveChars(text) >= DEFAULT_EFFECTIVE_CHAR_THRESHOLD) {
-          const hasToolCalls = hasToolCall(assistantMessages[i]);
-          return { text, hasToolCalls, sourceMessageCount: assistantMessages.length - i };
+          return { text };
         }
       }
       // 兜底：返回所有 assistant 文本的合并
       const texts = assistantMessages.map(extractTextFromMessage).filter((t) => t.length > 0);
-      const hasToolCalls = assistantMessages.some(hasToolCall);
-      return { text: texts.join("\n\n"), hasToolCalls, sourceMessageCount: assistantMessages.length };
+      return { text: texts.join("\n\n") };
     }
 
     default:
-      return { text: "", hasToolCalls: false, sourceMessageCount: 0 };
+      return { text: "" };
   }
 }
