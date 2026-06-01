@@ -28,6 +28,15 @@ function createTrackedAbortSignal() {
   return { controller, getListenerCount: () => listenerCount };
 }
 
+function createToolContext(parent: Agent, signal: AbortSignal = new AbortController().signal) {
+  return {
+    abortSignal: signal,
+    messages: [],
+    tools: [],
+    fileStateCache: parent.getFileStateCache(),
+  } as any;
+}
+
 function createMockStreamFn(responseText: string) {
   return async (..._args: any[]) => {
     const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
@@ -68,19 +77,14 @@ describe("AgentTool", () => {
 
   it("description 是非空字符串", () => {
     expect(typeof tool.description).toBe("string");
-    expect((tool.description as string).length).toBeGreaterThan(10);
+    expect(tool.description.length).toBeGreaterThan(10);
   });
 
   it("execute 成功调用子代理并返回结果", async () => {
     const output = await tool.execute(
       "call-1",
       { prompt: "Please summarize this file" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(output.result).toBe("Subagent completed the task");
@@ -90,12 +94,7 @@ describe("AgentTool", () => {
     const output = await tool.execute(
       "call-2",
       { prompt: "Hello" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(typeof output.result).toBe("string");
@@ -112,12 +111,7 @@ describe("AgentTool", () => {
     await tool.execute(
       "call-3",
       { prompt: "Do something" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(parent.state.messages.length).toBe(originalMessages);
@@ -136,12 +130,7 @@ describe("AgentTool", () => {
     const output = await rootTool.execute(
       "call-root",
       { prompt: "This should work" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(output.result).toBe("Subagent completed the task");
@@ -154,12 +143,7 @@ describe("AgentTool", () => {
       deepTool.execute(
         "call-deep",
         { prompt: "This should fail" },
-        {
-          abortSignal: new AbortController().signal,
-          messages: [],
-          tools: [],
-          fileStateCache: parent.getFileStateCache(),
-        } as any,
+        createToolContext(parent),
       ),
     ).rejects.toThrow("Subagent nesting depth exceeded");
   });
@@ -170,12 +154,7 @@ describe("AgentTool", () => {
     const output = await deepTool.execute(
       "call-ok",
       { prompt: "This should work" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(output.result).toBe("Subagent completed the task");
@@ -186,12 +165,7 @@ describe("AgentTool", () => {
     const output = await tool.execute(
       "call-nested",
       { prompt: "Test nested tool" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(output.result).toBe("Subagent completed the task");
@@ -209,12 +183,7 @@ describe("AgentTool", () => {
     await tool.execute(
       "call-cleanup",
       { prompt: "Test listener cleanup" },
-      {
-        abortSignal: controller.signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent, controller.signal),
     );
 
     expect(getListenerCount()).toBe(0);
@@ -224,11 +193,7 @@ describe("AgentTool", () => {
     const output = await tool.execute(
       "call-no-signal",
       { prompt: "Test without abort signal" },
-      {
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      { messages: [], tools: [], fileStateCache: parent.getFileStateCache() } as any,
     );
 
     expect(output.result).toBe("Subagent completed the task");
@@ -283,12 +248,7 @@ describe("AgentTool", () => {
     const output = await tool.execute(
       "call-nested-e2e",
       { prompt: "trigger nested agent" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     // 子代理调用 streamFn (1)，孙代理调用 streamFn (2)，子代理继续调用 streamFn (3)
@@ -307,12 +267,7 @@ describe("AgentTool", () => {
     const output = await tool.execute(
       "call-error",
       { prompt: "This will fail" },
-      {
-        abortSignal: new AbortController().signal,
-        messages: [],
-        tools: [],
-        fileStateCache: parent.getFileStateCache(),
-      } as any,
+      createToolContext(parent),
     );
 
     expect(output.result).toBe("No text response from subagent");
