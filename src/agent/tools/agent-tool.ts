@@ -1,6 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import { defineAgentTool } from "../define-agent-tool.js";
 import { createSubagent } from "../subagent/create-subagent.js";
+import { extractSubagentResult } from "../subagent/extract-result.js";
 import { Agent } from "../agent.js";
 import type { AgentTool } from "../types.js";
 
@@ -24,9 +25,6 @@ type AgentToolOutput = {
   result: string;
 };
 
-function isTextContent(c: unknown): c is { type: "text"; text: string } {
-  return typeof c === "object" && c !== null && "type" in c && (c as any).type === "text";
-}
 
 export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentTool<typeof inputSchema, AgentToolOutput> {
   return defineAgentTool({
@@ -35,7 +33,7 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
     description: "Launch a new subagent to handle a specific task. Use this when you need to delegate work to a specialized worker that operates independently.",
     parameters: inputSchema,
     outputSchema,
-    async execute(_toolCallId, params, context) {
+    async execute(_toolCallId, params, context, onUpdate?) {
       if (depth >= MAX_SUBAGENT_DEPTH) {
         throw new Error(`Subagent nesting depth exceeded (max: ${MAX_SUBAGENT_DEPTH})`);
       }
@@ -52,6 +50,22 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
         context.abortSignal.addEventListener("abort", onAbort, { once: true });
       }
 
+      // 订阅子代理事件，通过 onUpdate 转发 assistant 消息进度
+      let unsubscribe: (() => void) | undefined;
+      if (onUpdate) {
+        unsubscribe = child.subscribe((event) => {
+          if (event.type === "message_end" && event.message.role === "assistant") {
+            const text = event.message.content
+              .filter((c: any) => c.type === "text")
+              .map((c: any) => c.text)
+              .join("");
+            if (text) {
+              onUpdate({ result: text });
+            }
+          }
+        });
+      }
+
       try {
         await child.prompt(params.prompt);
         await child.waitForIdle();
@@ -59,20 +73,10 @@ export function createAgentTool(parentAgent: Agent, depth: number = 0): AgentToo
         if (onAbort && context.abortSignal) {
           context.abortSignal.removeEventListener("abort", onAbort);
         }
+        unsubscribe?.();
       }
 
-      const messages = child.state.messages;
-      const lastAssistant = messages.findLast((m) => m.role === "assistant");
-
-      if (!lastAssistant) {
-        return { result: "No response from subagent" };
-      }
-
-      const text = lastAssistant.content
-        .filter(isTextContent)
-        .map((c) => c.text)
-        .join("");
-
+      const { text } = extractSubagentResult(child.state.messages, { mode: "smart" });
       return { result: text || "No text response from subagent" };
     },
     formatResult(output, _toolCallId) {

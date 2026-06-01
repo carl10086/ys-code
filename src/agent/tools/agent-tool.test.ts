@@ -272,4 +272,103 @@ describe("AgentTool", () => {
 
     expect(output.result).toBe("No text response from subagent");
   });
+
+  it("onUpdate 在子代理产生 assistant 消息时被调用", async () => {
+    const onUpdateCalls: any[] = [];
+    const parent = new Agent({
+      streamFn: createMockStreamFn("Subagent result") as any,
+    });
+    const tool = createAgentTool(parent);
+
+    await tool.execute(
+      "call-update",
+      { prompt: "Test onUpdate" },
+      createToolContext(parent),
+      (partial) => onUpdateCalls.push(partial),
+    );
+
+    expect(onUpdateCalls.length).toBeGreaterThan(0);
+  });
+
+  it("smart 模式回溯到上一条有实质内容的 assistant", async () => {
+    let callCount = 0;
+    const multiTurnStreamFn = async (..._args: any[]) => {
+      const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const stream = new AssistantMessageEventStream();
+
+      callCount++;
+
+      if (callCount === 1) {
+        // 子代理：有实质内容的 assistant + toolCall
+        stream.end({
+          role: "assistant",
+          content: [
+            { type: "text", text: "已经找到了目标文件，现在让我读取其中的详细内容进行分析" },
+            { type: "toolCall", id: "tc-1", name: "Read", arguments: {} },
+          ],
+          stopReason: "tool_use",
+          api: "anthropic",
+          provider: "anthropic",
+          model: "test",
+          usage: EMPTY_USAGE,
+          timestamp: Date.now(),
+        } as any);
+      } else {
+        // 子代理继续：简短文本（应被 smart 模式跳过）
+        stream.end({
+          role: "assistant",
+          content: [{ type: "text", text: "ok" }],
+          stopReason: "end_turn",
+          api: "anthropic",
+          provider: "anthropic",
+          model: "test",
+          usage: EMPTY_USAGE,
+          timestamp: Date.now(),
+        } as any);
+      }
+
+      return stream as any;
+    };
+
+    const parent = new Agent({ streamFn: multiTurnStreamFn as any });
+    const tool = createAgentTool(parent);
+
+    const output = await tool.execute(
+      "call-smart",
+      { prompt: "trigger multi-turn" },
+      createToolContext(parent),
+    );
+
+    // "ok" 太短，smart 模式应回溯到第一条有实质内容的消息
+    expect(output.result).toBe("已经找到了目标文件，现在让我读取其中的详细内容进行分析");
+  });
+
+  it("子代理完全无文本回复时返回回退字符串", async () => {
+    const noTextStreamFn = async (..._args: any[]) => {
+      const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
+      const stream = new AssistantMessageEventStream();
+      stream.end({
+        role: "assistant",
+        content: [],
+        stopReason: "end_turn",
+        api: "anthropic",
+        provider: "anthropic",
+        model: "test",
+        usage: EMPTY_USAGE,
+        timestamp: Date.now(),
+      } as any);
+      return stream as any;
+    };
+
+    const parent = new Agent({ streamFn: noTextStreamFn as any });
+    const tool = createAgentTool(parent);
+
+    const output = await tool.execute(
+      "call-no-text",
+      { prompt: "No text response" },
+      createToolContext(parent),
+    );
+
+    expect(output.result).toBe("No text response from subagent");
+  });
 });
