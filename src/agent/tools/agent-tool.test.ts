@@ -1,34 +1,17 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { Agent } from "../agent.js";
 import { createAgentTool } from "./agent-tool.js";
-import type { AgentTool } from "../types.js";
 
-function createSlowMockStreamFn(responseText: string, delayMs: number) {
-  return async (..._args: any[]) => {
-    const { AssistantMessageEventStream } = await import("../../core/ai/utils/event-stream.js");
-    const stream = new AssistantMessageEventStream();
-    const assistantMessage = {
-      role: "assistant" as const,
-      content: [{ type: "text" as const, text: responseText }],
-      stopReason: "end_turn",
-      api: "anthropic",
-      provider: "anthropic",
-      model: "test",
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      timestamp: Date.now(),
-    };
-    setTimeout(() => stream.end(assistantMessage as any), delayMs);
-    return stream as any;
-  };
-}
+const EMPTY_USAGE = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 0,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
 
+// NOTE: 依赖 AbortSignal 的 addEventListener/removeEventListener 为可写属性
 function createTrackedAbortSignal() {
   const controller = new AbortController();
   let listenerCount = 0;
@@ -56,14 +39,7 @@ function createMockStreamFn(responseText: string) {
       api: "anthropic",
       provider: "anthropic",
       model: "test",
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
+      usage: EMPTY_USAGE,
       timestamp: Date.now(),
     };
     stream.end(assistantMessage as any);
@@ -281,7 +257,7 @@ describe("AgentTool", () => {
           api: "anthropic",
           provider: "anthropic",
           model: "test",
-          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          usage: EMPTY_USAGE,
           timestamp: Date.now(),
         } as any);
       } else {
@@ -293,7 +269,7 @@ describe("AgentTool", () => {
           api: "anthropic",
           provider: "anthropic",
           model: "test",
-          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          usage: EMPTY_USAGE,
           timestamp: Date.now(),
         } as any);
       }
@@ -316,9 +292,9 @@ describe("AgentTool", () => {
     );
 
     // 子代理调用 streamFn (1)，孙代理调用 streamFn (2)，子代理继续调用 streamFn (3)
-    expect(callCount).toBeGreaterThanOrEqual(3);
+    expect(callCount).toBe(3);
     expect(output.result).toBe("result-3");
-  });
+  }, { timeout: 2000 });
 
   it("子代理 streamFn 抛出异常时返回回退结果", async () => {
     const errorStreamFn = async () => {
